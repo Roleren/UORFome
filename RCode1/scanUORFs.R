@@ -31,6 +31,8 @@ scanUORFs = function(fiveUTRs,saveToFile = F,outputName = NULL,fastaName = "/exp
   rangesOfuORFs = GRangesList(unlist(rangesOfuORFs))
   rangesOfuORFs = rangesOfuORFs[width(rangesOfuORFs) > 0]
   
+  rangesOfuORFs = removeFalseUORFs(NULL)
+  
   assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
   if(saveToFile){
     print("saving rangesOfuORFs")

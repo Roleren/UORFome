@@ -10,7 +10,7 @@ createUORFs = function(fiveUTRs = NULL,leaderBED = NULL,uorfName = NULL){
   
   if(is.null(uorfName)){
     leaderName = gsub(".*/", "", leaderBED)
-    leaderName = strsplit(leaderName,".Leader.bed")[[1]][1]#used for uorf too
+    leaderName = strsplit(leaderName,".Leader.bed")[[1]][1]# used for uorf too
     uorfName = paste0(leaderName,".RangesUorf.rdata",sep = "")
     cat("new name is: ", uorfName)
   }

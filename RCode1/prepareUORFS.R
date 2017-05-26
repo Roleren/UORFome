@@ -14,18 +14,9 @@ createUORFs = function(fiveUTRs = NULL,leaderBED = NULL,uorfName = NULL){
     uorfName = paste0(leaderName,".RangesUorf.rdata",sep = "")
     cat("new name is: ", uorfName)
   }
-  if(!is.null(leaderBED)){
-    cat("retrieving 5utrs from bed file: ", uorfName)
-    fiveUTRs = import.bed(leaderBED)
-    fiveUTRs = as.data.frame(fiveUTRs)
-    fiveUTRstest <- split(fiveUTRs, fiveUTRs$name)
-    fiveUTRstest = lapply(fiveUTRstest,function(x) as(x,"GRanges"))
-    
-    fiveUTRstest = GRangesList(fiveUTRstest)
-    fiveUTRs = fiveUTRstest
-  }
+  getLeaders(leaderBED)
   setwd("/export/valenfs/projects/uORFome/test_results/rangesOfUORFs/")
-  assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)
+  
   scanUORFs(fiveUTRs,saveToFile = T,outputName = uorfName)
 }
 if(length(arcs) == 1)

@@ -1,25 +1,44 @@
-library(GenomicFeatures)
-library(GenomicAlignments)
-library(rtracklayer)
-library(Biostrings)
-
-
+source("/export/valenfs/projects/uORFome/RCode1/HelperLibraries.R")
+source("/export/valenfs/projects/uORFome/RCode1/GenomicGetters.R")
 source("/export/valenfs/projects/uORFome/RCode1/CageDataIntegration.R")
 source("/export/valenfs/projects/uORFome/RCode1/scanUORFs.R")
 source("/export/valenfs/projects/uORFome/RCode1/Plotting&Statistics/PlotUORFome.R")
 source("/export/valenfs/projects/uORFome/RCode1/HelperFunctions.R")
 
+
+
 ### Print info about specific run
-infoPrints = function(data,doubleBAM,usingCage){
+infoPrints = function(data,doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq = NULL,rfpSeq = NULL){
   print("Estimated normal time is 5 hours\n")
   cat("folder used is:",data,"\n")
   if(doubleBAM == T)
     cat("using bam-file for RFP\n")
-  if(usingCage)
+  if(usingNewCage)
     cat("using cage-file named: \n",cageName,"\n")
   setwd(data)
+  makeGeneralName(cageName,leaderBed,rnaSeq,rfpSeq)
+  cat("starting loading objects\n")
 }
 
+makeGeneralName = function(cageName = NULL,leaderBed = NULL,rnaSeq = NULL,rfpSeq = NULL){
+  if(!is.null(cageName)){ #General name
+    generalName = gsub(".*/", "", cageName)
+    generalName = strsplit(generalName,".hg38*.")[[1]][1]
+  }else if(!is.null(leaderBed)){
+    generalName = gsub(".*/", "", leaderBed)
+    generalName = strsplit(generalName,"*.Leader.bed")[[1]][1]
+  }else{
+    generalName = paste0("UORF run: ",Sys.time())
+  }
+  cat("Name of run is: ",generalName,"\n")
+  assign("generalName",generalName,envir = .GlobalEnv)
+  
+  detailedFullName = ""
+  if(!is.null(cageName) && !is.null(rnaSeq) && !is.null(rfpSeq)){
+    detailedFullName = paste0(generalName,";",rnaSeq,";",rfpSeq)
+  }
+  assign("detailedFullName",detailedFullName,envir = .GlobalEnv)
+}
 
 ###Make the output matrix, containing normalizations, te's, lengths and names.
 ###Saves the matrix to inputfolder as matrix.csv
@@ -36,51 +55,48 @@ makeMatrix = function(allLengths,teCDS,te5UTR,te3UTR,teUORF,transcriptNames){
   matrix = matrix[!index,]
   
   assign("matrix",matrix,envir = .GlobalEnv)
-  write.csv(matrix, file = "matrix.csv") #filtered matrix
-  
-}
-##Get riboseq file and read it
-getRFP = function(){
-  if(findFF("bed",boolreturn = T)){
-    RFP = import.bed(findFF("bed"))
-  }else{ if(testBAM(findFF("bam",bamType = "RFP"))){
-            RFP = readGAlignmentPairs(findFF("bam",bamType = "RFP"))
-        }else
-            RFP = readGAlignments(findFF("bam",bamType = "RFP"))
+  if(exists("generalName") == F){
+    write.csv(matrix, file = paste0(matrixFolder,"matrix.csv")) #filtered matrix
+  }else{
+    write.csv(matrix, file = paste0(matrixFolder,detailedFullName,".matrix.csv",sep="")) #filtered matrix
   }
-  return(RFP)
 }
-##Get rna seq file and read it
-getRNAseq = function(){
-  if(testBAM(findFF("bam",bamType = "RNA"))){
-    rna = readGAlignmentPairs(findFF("bam",bamType = "RNA"))
-  }else 
-    rna = readGAlignments(findFF("bam",bamType = "RNA"))
-  return(rna)
+#Decide name to use for rdata file and save it
+saveRData = function(){
+  if(exists("generalName") == F){
+    save.image(paste0(RdataFolder,"results.Rdata"))
+  }else{
+    save.image(paste0(RdataFolder,detailedFullName,".results.Rdata",sep=""))
+  }
 }
 ##Get TE for leader, cds and 3' + all lengths of the different, then save them
-getGeneralTEValues = function(usingCage){
+getGeneralTEValues = function(usingNewCage,leaderBed){
   if(exists("te3UTR") == F){
     cat("finding all lengths\n")
     allLengths = transcriptLengths(Gtf,with.cds_len = T,with.utr5_len = T,with.utr3_len = T)
     cat("finding te's of RNA and UTRs\n")
     teCDS = getTE(cds,rna,RFP,allLengths$tx_len,allLengths$cds_len,allLengths,"teCDS")
     
-    if(usingCage){
+    if(usingNewCage || !is.null(leaderBed)){
       testbest = findCageUTRFivelen(fiveUTRs, allLengths$tx_name)
       allLengths$utr5_len = testbest
       allLengths$tx_len = allLengths$utr5_len + allLengths$cds_len + allLengths$utr3_len
     }
     te5UTR = getTE(fiveUTRs,rna,RFP,allLengths$tx_len,allLengths$utr5_len,allLengths,"te5UTR")
     te3UTR = getTE(threeUTRs,rna,RFP,allLengths$tx_len,allLengths$utr3_len,allLengths,"te3UTR")
-    if(saveToGlobal){
-      
-      assign("allLengths",allLengths,envir = .GlobalEnv)
-      assign("teCDS",teCDS,envir = .GlobalEnv)
-      assign("te5UTR",te5UTR,envir = .GlobalEnv)
-      assign("te3UTR",te3UTR,envir = .GlobalEnv)
-    }
+    
+    assign("allLengths",allLengths,envir = .GlobalEnv)
+    assign("teCDS",teCDS,envir = .GlobalEnv)
+    assign("te5UTR",te5UTR,envir = .GlobalEnv)
+    assign("te3UTR",te3UTR,envir = .GlobalEnv)
+    
   }
+}
+
+decideHowToGetUORFRanges = function(){
+  cat("started finding UORFS\n")
+  if(UorfRangesNotExists())
+    rangesOfuORFs = scanUORFs(fiveUTRs,saveToFile = T)
 }
 
 #####################################GETTESS##########################################
@@ -151,11 +167,9 @@ getTE = function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specif
 }
 
 startUORFomeGenerator = function(arcs){
-  if(length(arcs) == 0){
-    getMatrix()
-  }else{
+  
     if(length(arcs) == 1)
-      getMatrix(arcs[1])
+      getMatrix(data = arcs[1])
     
     else if(length(arcs) == 2)
       getMatrix(arcs[1],  doubleBAM = arcs[2])
@@ -166,6 +180,6 @@ startUORFomeGenerator = function(arcs){
     else if(length(arcs) == 4)
       getMatrix(arcs[1],  doubleBAM = arcs[2], usingCage = arcs[3],cageName = arcs[4])
     
-  }
+  
   print("script finished")
 }

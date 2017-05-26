@@ -61,7 +61,7 @@ UorfRangesNotExists = function(){
   if(exists("rangesOfuORFs") == F){
     
     if(findFF("rdata",boolreturn = T)){
-      cat("loading rangesOfuorf from folder\n")
+      cat("loading rangesOfuorf from folder\n",getwd())
       load(findFF("rdata"),envir = .GlobalEnv)
       
       return(F)

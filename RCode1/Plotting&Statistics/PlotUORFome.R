@@ -46,6 +46,10 @@ plotting = function(matrix,plottingName = "resultPlots.pdf"){
   lengthPlot = ggplot(ORFLengths,aes(x = log10(x)) ) + 
       labs("counts of orfs") + xlab("log10 length of uorf") + ylab("number of counts") + geom_histogram(fill="orange")
   print(lengthPlot)
+  
+  #####Pie chart of amount of transcripts with uorfs
+  pie(c(numberOfOverlaps,length(cds)),labels = c("with uorfs","without")
+      ,main = paste0("Ratio of transcripts with uorfs\n Total:",length(cds)))
   ####BOXPLOT of uorf te's
   matrix$teCDS <- as.numeric(as.matrix(matrix$teCDS))
   matrix$te5UTR <- as.numeric(as.matrix(matrix$te5UTR))

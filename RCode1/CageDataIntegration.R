@@ -5,13 +5,8 @@
 #cageR package ?
 #plot for 1 transcript, see peaks?
 
-#library(GenomicFeatures,lib.loc = "/Home/ii/hakontj/R/x86_64-redhat-linux-gnu-library/3.3")
-#library(GenomicAlignments,lib.loc = "/Home/ii/hakontj/R/x86_64-redhat-linux-gnu-library/3.3")
-library(GenomicFeatures)
-library(GenomicAlignments)
-library(rtracklayer)
-library(Biostrings)
-library(reshape2)
+
+source("/export/valenfs/projects/uORFome/RCode1/HelperLibraries.R")
 
 toGR=function(x,bed6=TRUE){
   require(GenomicRanges)

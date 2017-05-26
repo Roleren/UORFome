@@ -1,8 +1,7 @@
-arcs = commandArgs(trailingOnly = T)
+arcsRFU = commandArgs(trailingOnly = T)
 source("/export/valenfs/projects/uORFome/RCode1/createfasta.R")
 library(GenomicFeatures)
 library(GenomicAlignments)
-
 require(data.table)
 
 
@@ -17,15 +16,15 @@ removeFalseUORFs = function(loadPath ="/export/valenfs/projects/uORFome/test_res
     load(loadPath,envir = .GlobalEnv)
   if(exists("Gtf") == F){
     print("loading GTF")
-    Gtf = makeTxDbFromGFF("/export/valenfs/projects/uORFome/test_results/Old_Tests/test_data/Homo_sapiens.GRCh38.79.chr.NO_PATCH.gtf")
+    getGTF()
     cds = cdsBy(Gtf,"tx",use.names = T)
   }
- 
+  ####Save overlaps of cds and uorfs for plotting later
   overlap1 = findOverlaps(cds,rangesOfuORFs)
   overlapCount = countOverlaps(cds,rangesOfuORFs)
-  numberOfOverlaps = sum(overlapCount == 1)
+  numberOfOverlaps = sum(overlapCount >= 1)
   overlapHitsIndex = overlapCount[overlapCount == 1]
-  
+  assign("numberOfOverlaps",numberOfOverlaps,envir = .GlobalEnv)
   
   #get start cds, end uorf, find difference, check mod3
   #check start upstream, ending downstream
@@ -84,23 +83,28 @@ removeFalseUORFs = function(loadPath ="/export/valenfs/projects/uORFome/test_res
   test = test[,-"group"]
   uorfName.bad = gsub(".*\\.","", df.removedBadUORFs$names)
  
-  #assign("uorfName.bad",uorfName.bad,envir = .GlobalEnv)
-  #assign("test",test,envir = .GlobalEnv)
+  assign("uorfName.bad",uorfName.bad,envir = .GlobalEnv)
+  assign("test",test,envir = .GlobalEnv)
+  #Create uorf IDs
+  uID = with(test,createUorfIDs(seqnames,start,end,names,width,strand))
+  test$uID = uID
   
-  
+  #Make object to GrangesList
   uniqueUORFs = unique(uorfName.bad)
   
-  test1 = lapply(uniqueUORFs,function(x) getGRLbyName(x))
-  
+  test1 = lapply(uniqueUORFs, function(x) getGRLbyName(x))
   test2 = GRangesList(test1)
   rangesOfuORFs = test2
+  
+  
   if(saveToFile)
     save(rangesOfuORFs, file = loadPath)
   
   print("finished filtering bad ourfs")
   ####Check for frame shifted uorfs
+  nameU = loadPath
   if(outputFastaAndBed)
-    createFastaAndBedFile(loadPath = NULL)
+    createFastaAndBedFile(loadPath = NULL,nameUsed = nameU)
   
   return(rangesOfuORFs)
   
@@ -116,10 +120,14 @@ getGRLbyName = function(x){
   return(a)
 }
 
+createUorfIDs = function(seqnames,start,end,names,width,strand){
+  paste0(seqnames,";",start,";",end,";",names,";",width,";",strand)
+}
 
-if(length(arcs) == 2){
-  removeFalseUORFs(loadPath = normalizePath(arcs[1]),saveToFile = as.logical(arcs[2]))
-}else if(length(arcs) == 3){
-  removeFalseUORFs(loadPath = normalizePath(arcs[1]),saveToFile = as.logical(arcs[2]),outputFastaAndBed = as.logical(arcs[3]))
+
+if(length(arcsRFU) == 2){
+  removeFalseUORFs(loadPath = normalizePath(arcsRFU[1]),saveToFile = as.logical(arcsRFU[2]))
+}else if(length(arcsRFU) == 3){
+  removeFalseUORFs(loadPath = normalizePath(arcsRFU[1]),saveToFile = as.logical(arcsRFU[2]),outputFastaAndBed = as.logical(arcsRFU[3]))
 }
 

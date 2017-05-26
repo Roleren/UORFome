@@ -1,0 +1,6 @@
+library(GenomicFeatures)
+library(GenomicAlignments)
+library(rtracklayer)
+library(Biostrings)
+library(Rsamtools)
+library(reshape2)

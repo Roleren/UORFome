@@ -84,48 +84,61 @@ modifyUTR = function(x){
   }
   return(NA)
 }
-
-#load leader, cds, 3prime
+#load leader, cds,
 #extend leader 1000
 # look for cage peaks in leader upstream
-# add downstream to end of first exon
-
-###NB! Must have Gtf in global scope
-getNewfivePrimeUTRs = function(fiveUTRs,dataName = "/export/valenfs/projects/uORFome/fantom5_FF_ctss/Fibroblast%20-%20Dermal%2c%20donor5.CNhs12055.11454-119A5.hg38.nobarcode.ctss.bed.gz"){
-  ###Read in cage files
-  print(dataName)
-  rawCageData = read.table(dataName,sep = "\t")
-  rawCageData = toGR(rawCageData)
-  cds = cdsBy(Gtf,"tx",use.names = T)
-  assign("cds",cds,envir = .GlobalEnv)
-  
-  filteredrawCageData = rawCageData[rawCageData$score > 1,] #filter on score 1
-  assign("filteredrawCageData",filteredrawCageData,envir = .GlobalEnv)
-  
-  namesUTRs = names(fiveUTRs)
-  shiftedfiveUTRs <- resize(fiveUTRs,  width = width(fiveUTRs)+1000, fix = 'end')
-  #shiftedfiveUTRs <- resize(fiveUTRs,  width = width(fiveUTRs)+200, fix = 'start')
-  assign("shiftedfiveUTRs",shiftedfiveUTRs,envir = .GlobalEnv)
-  cageOverlaps = findOverlaps(query = filteredrawCageData,subject = shiftedfiveUTRs)
-  assign("cageOverlaps",cageOverlaps,envir = .GlobalEnv)
-  
-  maxPeakPosition = lapply(1:length(shiftedfiveUTRs),function(x) findMaxPeaks(x))
-  
-  assign("maxPeakPosition",maxPeakPosition,envir = .GlobalEnv)
-  optimizedfiveUTRs = shiftedfiveUTRs
-  assign("optimizedfiveUTRs",optimizedfiveUTRs,envir = .GlobalEnv)
-  
+findNewTSS = function(fiveUTRs,dataName){
+  if(exists("optimizedfiveUTRs") == F){
+    
+    rawCageData = read.table(dataName,sep = "\t")
+    rawCageData = toGR(rawCageData)
+    getCDS()
+    
+    filteredrawCageData = rawCageData[rawCageData$score > 1,] #filter on score 1
+    assign("filteredrawCageData",filteredrawCageData,envir = .GlobalEnv)
+    
+    namesUTRs = names(fiveUTRs)
+    shiftedfiveUTRs <- resize(fiveUTRs,  width = width(fiveUTRs)+1000, fix = 'end')
+    #shiftedfiveUTRs <- resize(fiveUTRs,  width = width(fiveUTRs)+200, fix = 'start')
+    assign("shiftedfiveUTRs",shiftedfiveUTRs,envir = .GlobalEnv)
+    cageOverlaps = findOverlaps(query = filteredrawCageData,subject = shiftedfiveUTRs)
+    assign("cageOverlaps",cageOverlaps,envir = .GlobalEnv)
+    
+    maxPeakPosition = lapply(1:length(shiftedfiveUTRs),function(x) findMaxPeaks(x))
+    
+    assign("maxPeakPosition",maxPeakPosition,envir = .GlobalEnv)
+    optimizedfiveUTRs = shiftedfiveUTRs
+    assign("optimizedfiveUTRs",optimizedfiveUTRs,envir = .GlobalEnv)
+    print("found new cage peaks")
+  }
+}
+#add cage max peaks as new tss
+addNewTssOnLeaders = function(fiveUTRs){
+  print("now assigning new tss's")
   goal = lapply(1:length(shiftedfiveUTRs), function(x) modifyUTR(x))
-  
+  print("finished assigning new tss's")
+  assign("goal",goal,envir = .GlobalEnv)
   names(goal) = names(fiveUTRs)
   goal2 = !is.na(goal)
+  
   newUTRs = GRangesList(goal[goal2])
   # Filter out UTRs with length 0
-  newUTRs = newUTRs[width(unlist(newUTRs)) > 0]
-  
+  newUTRs = newUTRs[width(newUTRs) > 0]
   return(newUTRs)
 }
+#find and add cage max peaks as new tss's
 
+###NB! Must have Gtf in global scope
+getNewfivePrimeUTRs = function(fiveUTRs,dataName = standardCage){
+  ###Read in cage files
+  print(dataName)
+  
+  findNewTSS(fiveUTRs,dataName)
+  
+  newUTRs = addNewTssOnLeaders(fiveUTRs)
+  return(newUTRs)
+}
+#need to update lengths of utrs
 findCageUTRFivelen = function(fiveUTRs,oldTxNames){
   newfiveprimeLen = sapply(fiveUTRs, function(x) sum(width(x)))
   newfiveprimeLen1 = newfiveprimeLen[match(oldTxNames,names(newfiveprimeLen))]

@@ -22,10 +22,10 @@ infoPrints = function(data,doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq = NU
 
 makeGeneralName = function(cageName = NULL,leaderBed = NULL,rnaSeq = NULL,rfpSeq = NULL){
   if(!is.null(cageName)){ #General name
-    generalName = gsub(".*/", "", cageName)
+    generalName = getRelativePathName(cageName)
     generalName = strsplit(generalName,".hg38*.")[[1]][1]
   }else if(!is.null(leaderBed)){
-    generalName = gsub(".*/", "", leaderBed)
+    generalName = getRelativePathName(leaderBed)
     generalName = strsplit(generalName,"*.Leader.bed")[[1]][1]
   }else{
     generalName = paste0("UORF run: ",Sys.time())
@@ -35,7 +35,7 @@ makeGeneralName = function(cageName = NULL,leaderBed = NULL,rnaSeq = NULL,rfpSeq
   
   detailedFullName = ""
   if(!is.null(cageName) && !is.null(rnaSeq) && !is.null(rfpSeq)){
-    detailedFullName = paste0(generalName,";",rnaSeq,";",rfpSeq)
+    detailedFullName = paste0(generalName,";",getRelativePathName(rnaSeq),";",getRelativePathName(rfpSeq))
   }
   assign("detailedFullName",detailedFullName,envir = .GlobalEnv)
 }
@@ -168,17 +168,8 @@ getTE = function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specif
 
 startUORFomeGenerator = function(arcs){
   
-    if(length(arcs) == 1)
-      getMatrix(data = arcs[1])
-    
-    else if(length(arcs) == 2)
-      getMatrix(arcs[1],  doubleBAM = arcs[2])
-    
-    else if(length(arcs) == 3)
-      getMatrix(arcs[1],  doubleBAM = arcs[2], usingCage = arcs[3])
-    
-    else if(length(arcs) == 4)
-      getMatrix(arcs[1],  doubleBAM = arcs[2], usingCage = arcs[3],cageName = arcs[4])
+    if(length(arcs) == 4)
+      getMatrix(usingNewCage = arcs[1],cageName = arcs[2],rnaSeq = arcs[3],rfpSeq = arcs[4])
     
   
   print("script finished")

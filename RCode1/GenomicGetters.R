@@ -1,33 +1,47 @@
 source("/export/valenfs/projects/uORFome/RCode1/HelperVariables.R")
 ##Get riboseq file and read it
 getRFP = function(rfpSeq){
-  if(!is.null(rfpSeq)){ #remember to fix this when bed files arrive!!!!
-    if(testBAM(rfpSeq)){
-      RFP = readGAlignmentPairs(rfpSeq)
+  
+  if(!is.null(rfpSeq) && exists("RFP") == F){ #remember to fix this when bed files arrive!!!!
+    sortedBam = paste0(bamFolder,getRelativePathName(rfpSeq))
+    if(!file.exists(paste0(sortedBam,".bai"))){
+      sortBam(rfpSeq,rfe(sortedBam)) #rfe - remove file extension
+      indexBam(sortedBam)
+      cat("Created new rfp file, name:\n",sortedBam)
+    }
+    if(testBAM(sortedBam)){
+      RFP = readGAlignmentPairs(sortedBam)
     }else 
-      RFP = readGAlignments(rfpSeq)
+      RFP = readGAlignments(sortedBam)
   }
-  else if(findFF("bed",boolreturn = T)){
-    RFP = import.bed(findFF("bed"))
-  }else{ if(testBAM(findFF("bam",bamType = "RFP"))){
-    RFP = readGAlignmentPairs(findFF("bam",bamType = "RFP"))
-  }else
-    RFP = readGAlignments(findFF("bam",bamType = "RFP"))
-  }
+#   else if(findFF("bed",boolreturn = T)){
+#     RFP = import.bed(findFF("bed"))
+#   }else{ if(testBAM(findFF("bam",bamType = "RFP"))){
+#     RFP = readGAlignmentPairs(findFF("bam",bamType = "RFP"))
+#   }else
+#     RFP = readGAlignments(findFF("bam",bamType = "RFP"))
+#   }
   assign("RFP",RFP,envir = .GlobalEnv)
 }
 ##Get rna seq file and read it
 getRNAseq = function(rnaSeq){
-  if(!is.null(rnaSeq)){ #remember to fix this when bed files arrive!!!!
-    if(testBAM(rnaSeq)){
-      rna = readGAlignmentPairs(rnaSeq)
+  
+  if(!is.null(rnaSeq) && exists("rna") == F){ #remember to fix this when bed files arrive!!!!
+    sortedBam = paste0(bamFolder,getRelativePathName(rnaSeq))
+    if(!file.exists(paste0(sortedBam,".bai"))){
+      sortBam(rnaSeq,rfe(sortedBam)) #rfe - remove file extension
+      indexBam(sortedBam)
+      cat("Created new rna-seq file, name:\n",sortedBam)
+    }
+    if(testBAM(sortedBam)){
+      rna = readGAlignmentPairs(sortedBam)
     }else 
-      rna = readGAlignments(rnaSeq)
+      rna = readGAlignments(sortedBam)
   }
-  else if(testBAM(findFF("bam",bamType = "RNA"))){
-    rna = readGAlignmentPairs(findFF("bam",bamType = "RNA"))
-  }else 
-    rna = readGAlignments(findFF("bam",bamType = "RNA"))
+#   else if(testBAM(findFF("bam",bamType = "RNA"))){
+#     rna = readGAlignmentPairs(findFF("bam",bamType = "RNA"))
+#   }else 
+#     rna = readGAlignments(findFF("bam",bamType = "RNA"))
   assign("rna",rna,envir = .GlobalEnv)
 }
 
@@ -47,13 +61,22 @@ getFasta = function(){
 
 getGTF = function(){
   if(exists("Gtf") == F){
+    cat("loading GTF")
     #load(file = "/export/valenfs/projects/uORFome/test_results/Old_Tests/test_data/Gtf.rdata")
     Gtf = makeTxDbFromGFF(gtfName)
     assign("Gtf",Gtf,envir = .GlobalEnv)
   }
 }
 
+getCDS = function(){
+  if(exists("cds",mode = "S4") == F){
+    cds = cdsBy(Gtf,"tx",use.names = T)
+    assign("cds",cds,envir = .GlobalEnv)
+  }
+}
+
 getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL){
+  
   if(!is.null(leaderBed)){
     cat("retrieving 5utrs from bed file: ", leaderBed)
     fiveUTRs = import.bed(leaderBed)
@@ -66,7 +89,7 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL){
   }
   else{
     getGTF()
-    
+    cat("loading Leader")
     if(exists("fiveUTRs") == F){
       fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
       if(usingNewCage){
@@ -82,4 +105,5 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL){
     }
   }
   assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)
+  print("finished loading leaders")
 }

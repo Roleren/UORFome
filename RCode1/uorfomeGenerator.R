@@ -15,11 +15,12 @@ source("/export/valenfs/projects/uORFome/RCode1/uorfomeGeneratorHelperFunctions.
 ###MAIN FUNCTION###
 getMatrix = function(data = dataFolder, leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageName = standardCage ,rnaSeq = NULL,rfpSeq = NULL){
   infoPrints(data,doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq,rfpSeq) #print info about run
-  ####PRE LOADINGS####
+  ###PRE LOADINGS####
   if(exists("RFP") == F){
     
     getGTF()
-    cds = cdsBy(Gtf,"tx",use.names = T)
+    getCDS()
+    
     getLeaders(leaderBed,usingNewCage,cageName) #get five prime utrs with or without cage
     threeUTRs = threeUTRsByTranscript(Gtf,use.names = T)
     

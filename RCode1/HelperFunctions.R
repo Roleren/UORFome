@@ -55,6 +55,14 @@ findFF = function(formatName, boolreturn = F, bamType = NULL){
   }
 }
 
+getRelativePathName = function(name){
+  return (gsub(".*/", "", name))
+}
+
+rfe = function(name){#Only works on .bam right now!!!!
+  return (gsub("*\\.bam", "", name))
+}
+
 #Check if uorfRanges exist already, or if must be created.
 ###########Should make this more failsafe!!!!!!!!!!
 UorfRangesNotExists = function(){

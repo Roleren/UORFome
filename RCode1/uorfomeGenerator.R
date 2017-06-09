@@ -9,12 +9,17 @@
 
 
 arcs = commandArgs(trailingOnly = T)
-source("/export/valenfs/projects/uORFome/RCode1/uorfomeGeneratorHelperFunctions.R")
+lArcs = length(arcs)
+if(lArcs == 5){
+  setwd(arcs[1])
+}else
+  setwd("/export/valenfs/projects/uORFome/RCode1/")
 
+source("./uorfomeGeneratorHelperFunctions.R")
 
 ###MAIN FUNCTION###
-getMatrix = function(data = dataFolder, leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageName = standardCage ,rnaSeq = NULL,rfpSeq = NULL){
-  infoPrints(data,doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq,rfpSeq) #print info about run
+getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageName = standardCage ,rnaSeq = NULL,rfpSeq = NULL){
+  infoPrints(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq,rfpSeq) #print info about run
   ###PRE LOADINGS####
   if(exists("RFP") == F){
     
@@ -54,4 +59,5 @@ getMatrix = function(data = dataFolder, leaderBed = NULL,  doubleBAM = F, usingN
 
 ###Script starting point
 ##Either run with reference to input folder, or use standard folder UORFome/test_data on kjempetuja
+
 startUORFomeGenerator(arcs)

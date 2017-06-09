@@ -1,5 +1,6 @@
 arcsRFU = commandArgs(trailingOnly = T)
-source("/export/valenfs/projects/uORFome/RCode1/createfasta.R")
+
+source("./createfasta.R")
 library(GenomicFeatures)
 library(GenomicAlignments)
 require(data.table)

@@ -1,9 +1,9 @@
 #5. Find uorfs from sequences in fastafile combined with positions from utrs
 ##this version will lose the unbound open reading frames
 library(ORFik)
-source("/export/valenfs/projects/uORFome/RCode1/HelperLibraries.R")
-source("/export/valenfs/projects/uORFome/RCode1/GenomicGetters.R")
-
+source("./HelperLibraries.R")
+source("./GenomicGetters.R")
+source("./findUORFsOverlappingCDS.R")
 ###Get ranges of uorfs, fiveUTRs must be GRangesList
 ### Save to file set to false by default
 scanUORFs = function(fiveUTRs,saveToFile = F,outputName = NULL){

@@ -1,7 +1,7 @@
 arcs = commandArgs(trailingOnly = T)
 ###watch out where you call this from, arcs are scarry
-source("/export/valenfs/projects/uORFome/RCode1/HelperFunctions.R")
-source("/export/valenfs/projects/uORFome/RCode1/scanUORFs.R")
+source("./HelperFunctions.R")
+source("./scanUORFs.R")
 require(Biostrings)
 library(rtracklayer)
 

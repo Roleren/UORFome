@@ -1,43 +1,58 @@
+library(parallel)
+arcs = commandArgs(trailingOnly = T)
 library(data.table)
+
+if(length(arcs) == 1){
+  setwd(arcs[1])
+}else{
+  setwd("/export/valenfs/projects/uORFome/RCode1")
+}
+source("./HelperVariables.R")
+cat("wd is: ",getwd())
 rnaPath = "/export/valenfs/data/processed_data/RNA-seq/"
 rfpPath = "/export/valenfs/data/processed_data/Ribo-seq/"
-linkerPath = "/export/valenfs/projects/uORFome/SRA_Accessions.tab"
-linkerSmallPath = "/export/valenfs/projects/uORFome/test_results/Old_Tests/test_data/linkerFileSmall.rdata"
-experimentsIDPath = "/export/valenfs/projects/uORFome/DATA/fantom6_Hakon_new.csv"
+linkerPath = "./../SRA_Accessions.tab"
+linkerSmallPath = p(helperMainFolder,"/linkerFileSmall.rdata")
+experimentsIDPath = p(dataMainFolder,"/fantom6_Hakon_new.csv")
+
 studyName = "Gonzalez C,2014"
 speciesName = "Human"
 rnaRFPMiddlePathName = "/final_results/aligned_GRCh38/" #Change this if mouse is needed!!!
-bashScriptLocation = "/export/valenfs/projects/uORFome/prepareDataWithoutPredefinedLeaders.sh"
+bashScriptLocation = "./../prepareDataWithoutPredefinedLeaders.sh"
+maxCores = as.integer(detectCores()-(detectCores()/4)) #dont use too many, 60 on kjempetuja
 
 if(!file.exists(linkerSmallPath)){
-  dat = read.csv(file = experimentsIDPath,sep = "\t")
+  
   
   linkerFile = fread(linkerPath,sep = "\t")
   
   linkerFileSmall = linkerFile[grep("SRR",linkerFile$Accession)]
   linkerFileSmall = linkerFileSmall[grep("GSM",linkerFileSmall$Alias)]
   save(linkerFileSmall, file = linkerSmallPath)
-}else
+}else{
+  print("loading premade filtered linker file")
   load(linkerSmallPath)
+}
 #Choose study and species of study
+dat = read.csv(file = experimentsIDPath,sep = "\t")
 studyGroup = dat[dat$Study == studyName,]
 
 SpeciesStudyGroup = studyGroup[studyGroup$Species == speciesName,]
 
-linkerFileSmall[grep(SpeciesStudyGroup$Sample_ID[1],linkerFileSmall$Alias)]$Accession
+#linkerFileSmall[grep(SpeciesStudyGroup$Sample_ID[1],linkerFileSmall$Alias)]$Accession
 
 sorted = SpeciesStudyGroup[order(SpeciesStudyGroup$Sample_description),]
 
-if(nrow(sorted) %% 2 != 0){ # bad test!!!!!!!!
-  cat("warning, not equal number of rna and rfp files!")
-  stop()
+if((nrow(sorted) %% 2 != 0) || (length(unique(sorted$Sample_description)) != nrow(sorted)/2) || ( sum(sorted$Sample_Type == "RPF") != (sum(sorted$Sample_Type == "RNA") ))){
+  stop("Not equal number of matching rna and rfp files!")
 }
 #Make srr
-SRR = lapply(sorted$Sample_ID, function(x) getSRRs(x))
-
 getSRRs = function(x){
   linkerFileSmall[grep(x,linkerFileSmall$Alias)]$Accession
 }
+SRR = lapply(sorted$Sample_ID, function(x) getSRRs(x))
+
+
 
 study = strsplit(as.character(sorted$Study[1])," ")[[1]][1]
 sorted$SRR = SRR
@@ -58,31 +73,41 @@ folders = t(folders)
 sorted$RnaRfpFolders = folders
 
 ###Make cage files specific for rna seq and rfp
-cageFiles = "/export/valenfs/projects/uORFome/DATA/CAGE/human/"
+if(speciesName == "Human"){
+  cageFiles = cageFolder
+}else if(speciesName == "Mouse"){
+  cageFiles = "/export/valenfs/projects/uORFome/DATA/CAGE/mouse/"
+}
 currentCageFiles = grep(sorted$Tissue_or_CellLine[1],list.files(cageFiles),ignore.case = T,value = T)
 currentCageFiles = grep(".bed",currentCageFiles,ignore.case = T,value = T)
-currentCageFiles = paste0(cageFiles,currentCageFiles)
+currentCageFiles = paste0(cageFiles,"/",currentCageFiles)
 if(length(currentCageFiles) != length(unique(currentCageFiles))){
   print("Warning duplicate cage files!")
 }
-rnaSeq = as.character(sorted[2,]$RnaRfpFolders)
-rfpSeq = as.character(sorted[1,]$RnaRfpFolders)
 
-###run test experiment
-#getMatrix(usingNewCage = T,cageName = currentCageFiles[1],rnaSeq = rnaSeq,rfpSeq = rfpSeq)
+
+
 
 #Do all combinations of cage, rna-seq and rfp and call bash script to run parallel
-setwd("/export/valenfs/projects/uORFome/")
 a = 0
 tooManyRunning = F
-for(i in 1:nrow(sorted)/2){ #NB watch the indeces for rna and rfp, might be wrong!!!!
-  rnaIndex = i*2-1
-  rfpIndex = i*2
-  rnaName = as.character(sorted[rnaIndex,]$RnaRfpFolders)
-  rfpName = as.character(sorted[rfpIndex,]$RnaRfpFolders)
+
+#usedExperiments = sorted[grep("Human A",sorted$Sample_description),]
+usedExperiments = sorted
+
+for(i in 1:(nrow(usedExperiments)/2)){
+  if(usedExperiments[i*2-1,"Sample_Type"] == "RPF"){ #choose which is rfp and rna
+    rfpIndex = i*2-1
+    rnaIndex = i*2
+  }else{
+    rnaIndex = i*2-1
+    rfpIndex = i*2
+  }
+  rnaName = as.character(usedExperiments[rnaIndex,]$RnaRfpFolders)
+  rfpName = as.character(usedExperiments[rfpIndex,]$RnaRfpFolders)
   for(n in currentCageFiles){
     a = a+1
-    if(a > 60)
+    if(a > maxCores)
       tooManyRunning = T
     system(paste(bashScriptLocation,T,n,rnaName,rfpName),wait = tooManyRunning) 
     }

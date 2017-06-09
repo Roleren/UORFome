@@ -1,10 +1,10 @@
 arcsCFB = commandArgs(trailingOnly = T)
 
-source("/export/valenfs/projects/uORFome/RCode1/uorfomeGeneratorHelperFunctions.R")
-source("/export/valenfs/projects/uORFome/RCode1/HelperVariables.R")
+
+
 
 #always define loadPath if rangesOfUorfs is not in global scope!
-createFastaAndBedFile = function(loadPath ="/export/valenfs/projects/uORFome/test_results/rangesOfUORFs/CD34%2b%20stem%20cells%20-%20adult%20bone%20marrow%20derived%2c%20donor1%2c%20tech_rep2.CNhs12553.12225-129F2.RangesUorf.rdata",nameUsed = "rangesOfUorfs"){
+createFastaAndBedFile = function(loadPath =NULL,nameUsed = "rangesOfUorfs"){
   print("Starting making fasta and Bed files")
   if(!is.null(loadPath))
     load(loadPath,envir = .GlobalEnv)

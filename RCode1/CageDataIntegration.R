@@ -5,9 +5,6 @@
 #cageR package ?
 #plot for 1 transcript, see peaks?
 
-
-source("/export/valenfs/projects/uORFome/RCode1/HelperLibraries.R")
-
 toGR=function(x,bed6=TRUE){
   require(GenomicRanges)
   if(!bed6){
@@ -22,8 +19,6 @@ toGR=function(x,bed6=TRUE){
   if(ncol(x)>6)  mcols(gr)=x[,7:ncol(x)]
   return(gr)
 }
-
-
 
 #Find max peak for each transcript
 findMaxPeaks = function(x){
@@ -89,11 +84,11 @@ modifyUTR = function(x){
 # look for cage peaks in leader upstream
 findNewTSS = function(fiveUTRs,dataName){
   if(exists("optimizedfiveUTRs") == F){
-    
-    rawCageData = read.table(dataName,sep = "\t")
+    #rawCageData = read.table(dataName,sep = "\t")
+    rawCageData = as.data.frame(fread(paste("gunzip -c",dataName),sep = "\t"))
     rawCageData = toGR(rawCageData)
     getCDS()
-    
+    print("finished loading cage file")
     filteredrawCageData = rawCageData[rawCageData$score > 1,] #filter on score 1
     assign("filteredrawCageData",filteredrawCageData,envir = .GlobalEnv)
     

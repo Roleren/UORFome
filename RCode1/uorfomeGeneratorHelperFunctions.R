@@ -1,21 +1,21 @@
-source("/export/valenfs/projects/uORFome/RCode1/HelperLibraries.R")
-source("/export/valenfs/projects/uORFome/RCode1/GenomicGetters.R")
-source("/export/valenfs/projects/uORFome/RCode1/CageDataIntegration.R")
-source("/export/valenfs/projects/uORFome/RCode1/scanUORFs.R")
-source("/export/valenfs/projects/uORFome/RCode1/Plotting&Statistics/PlotUORFome.R")
-source("/export/valenfs/projects/uORFome/RCode1/HelperFunctions.R")
+source("./GenomicGetters.R")
+source("./HelperLibraries.R")
+source("./CageDataIntegration.R")
+source("./scanUORFs.R")
+source("./Plotting&Statistics/PlotUORFome.R")
+source("./HelperFunctions.R")
 
 
 
 ### Print info about specific run
-infoPrints = function(data,doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq = NULL,rfpSeq = NULL){
+infoPrints = function(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq = NULL,rfpSeq = NULL){
   print("Estimated normal time is 5 hours\n")
-  cat("folder used is:",data,"\n")
+  cat("folder used is:",normalizePath(dataFolder),"\n")
   if(doubleBAM == T)
     cat("using bam-file for RFP\n")
   if(usingNewCage)
     cat("using cage-file named: \n",cageName,"\n")
-  setwd(data)
+  
   makeGeneralName(cageName,leaderBed,rnaSeq,rfpSeq)
   cat("starting loading objects\n")
 }
@@ -28,7 +28,7 @@ makeGeneralName = function(cageName = NULL,leaderBed = NULL,rnaSeq = NULL,rfpSeq
     generalName = getRelativePathName(leaderBed)
     generalName = strsplit(generalName,"*.Leader.bed")[[1]][1]
   }else{
-    generalName = paste0("UORF run: ",Sys.time())
+    generalName = p("UORF run: ",Sys.time())
   }
   cat("Name of run is: ",generalName,"\n")
   assign("generalName",generalName,envir = .GlobalEnv)
@@ -166,11 +166,12 @@ getTE = function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specif
   return(te)
 }
 
+###Script starting point
+##Either run with reference to input folder, or use standard folder UORFome/test_data on kjempetuja
 startUORFomeGenerator = function(arcs){
   
-    if(length(arcs) == 4)
-      getMatrix(usingNewCage = arcs[1],cageName = arcs[2],rnaSeq = arcs[3],rfpSeq = arcs[4])
-    
+  if(lArcs == 4) #Run from kjempetuja@uib hakontj account or other people
+    getMatrix(usingNewCage = as.logical(arcs[1]),cageName = arcs[2],rnaSeq = arcs[3],rfpSeq = arcs[4])
   
   print("script finished")
 }

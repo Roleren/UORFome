@@ -1,4 +1,5 @@
 source("/export/valenfs/projects/uORFome/RCode1/HelperVariables.R")
+library(AnnotationDbi)
 ##Get riboseq file and read it
 getRFP = function(rfpSeq){
   
@@ -14,13 +15,7 @@ getRFP = function(rfpSeq){
     }else 
       RFP = readGAlignments(sortedBam)
   }
-#   else if(findFF("bed",boolreturn = T)){
-#     RFP = import.bed(findFF("bed"))
-#   }else{ if(testBAM(findFF("bam",bamType = "RFP"))){
-#     RFP = readGAlignmentPairs(findFF("bam",bamType = "RFP"))
-#   }else
-#     RFP = readGAlignments(findFF("bam",bamType = "RFP"))
-#   }
+
   assign("RFP",RFP,envir = .GlobalEnv)
 }
 ##Get rna seq file and read it
@@ -38,10 +33,7 @@ getRNAseq = function(rnaSeq){
     }else 
       rna = readGAlignments(sortedBam)
   }
-#   else if(testBAM(findFF("bam",bamType = "RNA"))){
-#     rna = readGAlignmentPairs(findFF("bam",bamType = "RNA"))
-#   }else 
-#     rna = readGAlignments(findFF("bam",bamType = "RNA"))
+  
   assign("rna",rna,envir = .GlobalEnv)
 }
 
@@ -62,8 +54,8 @@ getFasta = function(){
 getGTF = function(){
   if(exists("Gtf") == F){
     cat("loading GTF")
-    #load(file = "/export/valenfs/projects/uORFome/test_results/Old_Tests/test_data/Gtf.rdata")
-    Gtf = makeTxDbFromGFF(gtfName)
+    Gtf = loadDb(p(dataFolder,"Gtf.db"))
+    #Gtf = makeTxDbFromGFF(gtfName) #Fix this!!!!!!!!!!!!
     assign("Gtf",Gtf,envir = .GlobalEnv)
   }
 }
@@ -89,11 +81,11 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL){
   }
   else{
     getGTF()
-    cat("loading Leader")
+    cat("loading Leader\n")
     if(exists("fiveUTRs") == F){
       fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
       if(usingNewCage){
-        cat("Using cage..")
+        cat("Using cage.. ")
         if(is.null(cageName)){
           cat("error no cageName, continueing without cage")
           assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)

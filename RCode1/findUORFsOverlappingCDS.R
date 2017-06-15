@@ -10,7 +10,7 @@ require(data.table)
 #To bed added!: check if reading frame changes. %3 = 0
 # If called without path, need rangesofUORFs in global scope!!
 
-removeFalseUORFs = function(loadPath ="/export/valenfs/projects/uORFome/test_results/rangesOfUORFs/CD34%2b%20stem%20cells%20-%20adult%20bone%20marrow%20derived%2c%20donor1%2c%20tech_rep2.CNhs12553.12225-129F2.RangesUorf.rdata",saveToFile = F,outputFastaAndBed = F){
+removeFalseUORFs = function(loadPath = NULL,saveToFile = F,outputFastaAndBed = F){
   #rm(list = ls())
   print("starting to filter out bad ourfs...")
   if(!is.null(loadPath))
@@ -103,7 +103,11 @@ removeFalseUORFs = function(loadPath ="/export/valenfs/projects/uORFome/test_res
   
   print("finished filtering bad ourfs")
   ####Check for frame shifted uorfs
-  nameU = loadPath
+  if(is.null(loadPath)){ #fix this!!!!
+    nameU = generalName
+  }else{
+    nameU = loadPath
+  }
   if(outputFastaAndBed)
     createFastaAndBedFile(loadPath = NULL,nameUsed = nameU)
   

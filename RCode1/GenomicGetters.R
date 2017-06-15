@@ -5,7 +5,7 @@ getRFP = function(rfpSeq){
   
   if(!is.null(rfpSeq) && exists("RFP") == F){ #remember to fix this when bed files arrive!!!!
     sortedBam = paste0(bamFolder,getRelativePathName(rfpSeq))
-    if(!file.exists(paste0(sortedBam,".bai"))){
+    if(!file.exists(p(sortedBam,".bai"))){
       sortBam(rfpSeq,rfe(sortedBam)) #rfe - remove file extension
       indexBam(sortedBam)
       cat("Created new rfp file, name:\n",sortedBam)
@@ -23,7 +23,7 @@ getRNAseq = function(rnaSeq){
   
   if(!is.null(rnaSeq) && exists("rna") == F){ #remember to fix this when bed files arrive!!!!
     sortedBam = paste0(bamFolder,getRelativePathName(rnaSeq))
-    if(!file.exists(paste0(sortedBam,".bai"))){
+    if(!file.exists(p(sortedBam,".bai"))){
       sortBam(rnaSeq,rfe(sortedBam)) #rfe - remove file extension
       indexBam(sortedBam)
       cat("Created new rna-seq file, name:\n",sortedBam)
@@ -53,8 +53,8 @@ getFasta = function(){
 
 getGTF = function(){
   if(exists("Gtf") == F){
-    cat("loading GTF")
-    Gtf = loadDb(p(dataFolder,"Gtf.db"))
+    print("loading human GTF GRch38")
+    Gtf = loadDb(gtfdb)
     #Gtf = makeTxDbFromGFF(gtfName) #Fix this!!!!!!!!!!!!
     assign("Gtf",Gtf,envir = .GlobalEnv)
   }
@@ -67,17 +67,38 @@ getCDS = function(){
   }
 }
 
-getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL){
+getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader = NULL){
   
-  if(!is.null(leaderBed)){
-    cat("retrieving 5utrs from bed file: ", leaderBed)
-    fiveUTRs = import.bed(leaderBed)
-    fiveUTRs = as.data.frame(fiveUTRs)
-    fiveUTRstest <- split(fiveUTRs, fiveUTRs$name)
-    fiveUTRstest = lapply(fiveUTRstest,function(x) as(x,"GRanges"))
+  
+  if(!is.null(cageName)){#check if leader is already made, either as rdata or bed
+    if(file.exists(paste0(leadersFolder,getRelativePathName(cageName),".leader.rdata"))){
+      leader = paste0(leadersFolder,getRelativePathName(cageName),".leader.rdata")
+    }else if(file.exists(paste0(leadersbedFolder,getRelativePathName(cageName),".leader.bed"))){
+      leaderBed = paste0(leadersbedFolder,getRelativePathName(cageName),".leader.bed")
+    }
+  }
+  
+  
+  if(!is.null(leader)){ #load as rdata
+    print("loading leader from rdata")
+    load(leader)
+  }
+  else if(!is.null(leaderBed)){
+    cat("retrieving 5utrs from bed file: ", leaderBed,"\n")
+    fu = import.bed(leaderBed)
+    vec = vector(mode="list",length = length(unique(fu$name)))
+    names(vec) <- unique(fu$name)
+    for(i in unique(fu$name)){ #combine by name, to make transcripts by exons
+      vec[[i]] <- fu[fu$name == i]
+    }
+    fiveUTRs = GRangesList(vec)
     
-    fiveUTRstest = GRangesList(fiveUTRstest)
-    fiveUTRs = fiveUTRstest
+    exportNamerdata = paste0(leadersFolder,getRelativePathName(p(cageName,".leader.rdata")))
+    save(fiveUTRs,file = exportNamerdata)
+    #fiveUTRs = as.data.frame(fiveUTRs)
+    #fiveUTRstest <- split(fiveUTRs, fiveUTRs$name)
+    #fiveUTRstest = lapply(fv,function(x) as(x,"GRanges"))
+    #fiveUTRs = GRangesList(fiveUTRstest)
   }
   else{
     getGTF()
@@ -85,14 +106,21 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL){
     if(exists("fiveUTRs") == F){
       fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
       if(usingNewCage){
-        cat("Using cage.. ")
+        print("Using cage.. ")
         if(is.null(cageName)){
-          cat("error no cageName, continueing without cage")
+          print("error no cageName, continueing without cage")
           assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)
           return
         }
         fiveUTRs = getNewfivePrimeUTRs(fiveUTRs,cageName)
-        cat("finished new 5' UTRs")
+        if(1){ #fix this!!!!!!!!!!!
+          exportNamebed = paste0(leadersbedFolder,getRelativePathName(p(cageName,".leader.bed")))
+          exportNamerdata = paste0(leadersFolder,getRelativePathName(p(cageName,".leader.rdata")))
+          print("exporting new leaders")
+          export.bed(unlist(fiveUTRs),exportNamebed)
+          save(fiveUTRs,file = exportNamerdata)
+        }
+        print("finished new 5' UTRs")
       }
     }
   }

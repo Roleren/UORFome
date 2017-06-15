@@ -1,8 +1,8 @@
 arcs = commandArgs(trailingOnly = T)
-source("/export/valenfs/projects/uORFome/RCode1/HelperVariables.R")
-source("/export/valenfs/projects/uORFome/RCode1/CageDataIntegration.R")
-source("/export/valenfs/projects/uORFome/RCode1/HelperFunctions.R")
-source("/export/valenfs/projects/uORFome/RCode1/GenomicGetters.R")
+source("./HelperVariables.R")
+source("./CageDataIntegration.R")
+source("./HelperFunctions.R")
+source("./GenomicGetters.R")
 
 exportNewCageLeader = function(cageName = standardCage, outputFolder = leadersFolder,createUORFS = F){
   #change 5' utr sizes
@@ -12,7 +12,7 @@ exportNewCageLeader = function(cageName = standardCage, outputFolder = leadersFo
   print("finished new fivePRIMe UTRs")
   
   if(exists("generalName") == F){
-    source("/export/valenfs/projects/uORFome/RCode1/uorfomeGeneratorHelperFunctions.R")
+    source("./uorfomeGeneratorHelperFunctions.R")
     makeGeneralName(cageName)
   }
   leaderNameFull = paste0(generalName,".Leader.bed",sep = "")#for full name

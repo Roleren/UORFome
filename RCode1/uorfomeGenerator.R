@@ -12,10 +12,14 @@ arcs = commandArgs(trailingOnly = T)
 lArcs = length(arcs)
 if(lArcs == 5){
   setwd(arcs[1])
+}else if(lArcs == 1){ #Load from saved session
+  load(file = paste0(RdataFolder,arcs[1]))
+  setwd("/export/valenfs/projects/uORFome/RCode1/")
 }else
   setwd("/export/valenfs/projects/uORFome/RCode1/")
 
-source("./uorfomeGeneratorHelperFunctions.R")
+if(lArcs != 1) #if using preload, dont do this!
+  source("./uorfomeGeneratorHelperFunctions.R")
 
 ###MAIN FUNCTION###
 getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageName = standardCage ,rnaSeq = NULL,rfpSeq = NULL){
@@ -31,7 +35,7 @@ getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageNam
     
     getRNAseq(rnaSeq) #get rna seq file
     getRFP(rfpSeq)# get ribozomal foot prints file
-      
+    
     print("saving objects to global")
     
     assign("cds",cds,envir = .GlobalEnv)
@@ -53,7 +57,9 @@ getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageNam
     
     assign("teUORF",teUORF,envir = .GlobalEnv)
   }
-  saveRData() #Save RData of project
+  if(lArcs != 1)#if presaved, dont save again, fix this!!!!
+    saveRData() #Save RData of project
+  
   plotting(matrix,paste0(plottingFolder,detailedFullName,".pdf")) #plot results
 }
 

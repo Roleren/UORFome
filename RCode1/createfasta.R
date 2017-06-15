@@ -1,4 +1,4 @@
-arcsCFB = commandArgs(trailingOnly = T)
+#arcsCFB = commandArgs(trailingOnly = T)
 
 
 
@@ -19,7 +19,7 @@ createFastaAndBedFile = function(loadPath =NULL,nameUsed = "rangesOfUorfs"){
     fName = gsub(".*/", "", loadPath)
   else
     fName = gsub(".*/", "", nameUsed)
-  fName = strsplit(fName,".rdata")[[1]][1]# used for uorf too
+  fName = strsplit(fName,".rdata")[[1]][1]# get name without .rdata
   ffName = paste0(fastaFolder,fName,".fasta",sep = "") #For fasta
   bName =  paste0(uorfBedFolder,fName,".bed",sep = "") #for bed uorfs
   createUORFBedFile(bName) #create ranges bed file
@@ -60,8 +60,8 @@ createUORFBedFile = function(bedName = NULL){
     write.table(x = bedColumns,file = bedName ,sep = "\t",col.names = F,row.names = F, quote = F)
 }
 
-if(length(arcsCFB) == 1)
-  createFastaAndBedFile(loadPath = normalizePath(arcsCFB[1]))
-if(length(arcsCFB) == 2)
-  createFastaAndBedFile(loadPath = normalizePath(arcsCFB[1]),nameUsed =  normalizePath(arcsCFB[2]))
+# if(length(arcsCFB) == 1)
+#   createFastaAndBedFile(loadPath = normalizePath(arcsCFB[1]))
+# if(length(arcsCFB) == 2)
+#   createFastaAndBedFile(loadPath = normalizePath(arcsCFB[1]),nameUsed =  normalizePath(arcsCFB[2]))
 

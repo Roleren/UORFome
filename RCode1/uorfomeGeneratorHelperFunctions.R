@@ -22,22 +22,22 @@ infoPrints = function(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq = NULL,rf
 
 makeGeneralName = function(cageName = NULL,leaderBed = NULL,rnaSeq = NULL,rfpSeq = NULL){
   if(!is.null(cageName)){ #General name
-    generalName = getRelativePathName(cageName)
-    generalName = strsplit(generalName,".hg38*.")[[1]][1]
+    thisCage = getRelativePathName(cageName)
+    generalName = strsplit(thisCage,".hg38*.")[[1]][1]
   }else if(!is.null(leaderBed)){
     generalName = getRelativePathName(leaderBed)
     generalName = strsplit(generalName,"*.Leader.bed")[[1]][1]
   }else{
     generalName = p("UORF run: ",Sys.time())
   }
-  cat("Name of run is: ",generalName,"\n")
+  cat("generalName of run is: ",generalName,"\n")
   assign("generalName",generalName,envir = .GlobalEnv)
   
-  detailedFullName = ""
+  
   if(!is.null(cageName) && !is.null(rnaSeq) && !is.null(rfpSeq)){
-    detailedFullName = paste0(generalName,";",getRelativePathName(rnaSeq),";",getRelativePathName(rfpSeq))
+    detailedFullName = paste0(generalName,"_",getRelativePathName(rnaSeq),"_",getRelativePathName(rfpSeq))
+    cat("detailed Full Name of run is: ",detailedFullName,"\n")
   }
-  assign("detailedFullName",detailedFullName,envir = .GlobalEnv)
 }
 
 ###Make the output matrix, containing normalizations, te's, lengths and names.
@@ -75,13 +75,14 @@ getGeneralTEValues = function(usingNewCage,leaderBed){
     cat("finding all lengths\n")
     allLengths = transcriptLengths(Gtf,with.cds_len = T,with.utr5_len = T,with.utr3_len = T)
     cat("finding te's of RNA and UTRs\n")
-    teCDS = getTE(cds,rna,RFP,allLengths$tx_len,allLengths$cds_len,allLengths,"teCDS")
     
     if(usingNewCage || !is.null(leaderBed)){
-      testbest = findCageUTRFivelen(fiveUTRs, allLengths$tx_name)
-      allLengths$utr5_len = testbest
+      new5Length = findCageUTRFivelen(fiveUTRs, allLengths$tx_name)
+      allLengths$utr5_len = new5Length
       allLengths$tx_len = allLengths$utr5_len + allLengths$cds_len + allLengths$utr3_len
     }
+    
+    teCDS = getTE(cds,rna,RFP,allLengths$tx_len,allLengths$cds_len,allLengths,"teCDS")
     te5UTR = getTE(fiveUTRs,rna,RFP,allLengths$tx_len,allLengths$utr5_len,allLengths,"te5UTR")
     te3UTR = getTE(threeUTRs,rna,RFP,allLengths$tx_len,allLengths$utr3_len,allLengths,"te3UTR")
     
@@ -172,6 +173,7 @@ startUORFomeGenerator = function(arcs){
   
   if(lArcs == 4) #Run from kjempetuja@uib hakontj account or other people
     getMatrix(usingNewCage = as.logical(arcs[1]),cageName = arcs[2],rnaSeq = arcs[3],rfpSeq = arcs[4])
-  
+  if(lArcs == 1)
+    getMatrix()
   print("script finished")
 }

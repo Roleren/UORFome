@@ -64,16 +64,21 @@ rfe = function(name){#Only works on .bam right now!!!!
 }
 
 #Check if uorfRanges exist already, or if must be created.
-###########Should make this more failsafe!!!!!!!!!!
+###########Should make this more failsafe!!!!!!!!!! add possibility to give ranges!!!!!!!!
 UorfRangesNotExists = function(){
   if(exists("rangesOfuORFs") == F){
     
-    if(findFF("rdata",boolreturn = T)){
-      cat("loading rangesOfuorf from folder\n",getwd())
-      load(findFF("rdata"),envir = .GlobalEnv)
+    if(file.exists(paste0(uorfFolder,getRelativePathName(thisCage),".uorf.rdata" ))){
+      cat("loading rangesOfuorf from folder\n",uorfFolder)
+      load(paste0(uorfFolder,getRelativePathName(thisCage),".uorf.rdata" ),envir = .GlobalEnv)
       
       return(F)
-    }else{return(T)}
+#     }else if(file.exists(paste0(uorfBedFolder,generalName,".bed" ))){
+#       cat("loading rangesOfuorf from folder\n",uorfBedFolder)
+#       rangesOfuORFs = import.bed(paste0(uorfBedFolder,generalName,".bed" ))
+#       assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
+#       return(F)
+      }else{return(T)}
   }
   return(F)
 }

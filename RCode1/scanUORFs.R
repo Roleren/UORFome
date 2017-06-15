@@ -2,11 +2,11 @@
 ##this version will lose the unbound open reading frames
 library(ORFik)
 source("./HelperLibraries.R")
-source("./GenomicGetters.R")
 source("./findUORFsOverlappingCDS.R")
+#source("./GenomicGetters.R")
 ###Get ranges of uorfs, fiveUTRs must be GRangesList
 ### Save to file set to false by default
-scanUORFs = function(fiveUTRs,saveToFile = F,outputName = NULL){
+scanUORFs = function(fiveUTRs,saveToFile = T,outputName = NULL){
   ###FIX LISTING###
   print("loading fasta files and unlisting fiveUTRs")
   unlistfiveUTRs = unlist(fiveUTRs) ##Unlist from GRangeslist to Granges
@@ -21,17 +21,17 @@ scanUORFs = function(fiveUTRs,saveToFile = F,outputName = NULL){
   
   rangesOfuORFs = GRangesList(unlist(rangesOfuORFs))
   rangesOfuORFs = rangesOfuORFs[width(rangesOfuORFs) > 0]
-  
-  rangesOfuORFs = removeFalseUORFs(NULL)
-  
   assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
+  rangesOfuORFs = removeFalseUORFs(outputFastaAndBed = T)
+  
+  
   
   if(saveToFile){
     print("saving rangesOfuORFs")
     if(!is.null(outputName))
       save(rangesOfuORFs, file = outputName)
     else
-      save(rangesOfuORFs, file = "rangesOfuorfs.rdata")
+      save(rangesOfuORFs, file = paste0(uorfFolder,getRelativePathName(thisCage),".uorf.rdata" ))
   }
   print("rangesOfuORFs finished")
   return(rangesOfuORFs)

@@ -14,14 +14,12 @@ createFastaAndBedFile = function(loadPath =NULL,nameUsed = "rangesOfUorfs"){
   print("loading finished, now making fasta list")
   fastaList = lapply(X = 1:length(rangesOfuORFs), FUN = findFasta) #Get list of all fasta sequences of uorfs
   print("fasta list is finished")
+  
   #make correct output name
-  if(!is.null(loadPath))
-    fName = gsub(".*/", "", loadPath)
-  else
-    fName = gsub(".*/", "", nameUsed)
-  fName = strsplit(fName,".rdata")[[1]][1]# get name without .rdata
-  ffName = paste0(fastaFolder,fName,".fasta",sep = "") #For fasta
-  bName =  paste0(uorfBedFolder,fName,".bed",sep = "") #for bed uorfs
+  fName = getCleanName(loadPath,nameUsed)
+  ffName = getFastaName(fName)
+  bName =  getUORFBedName(fName) #for bed uorfs
+  
   createUORFBedFile(bName) #create ranges bed file
   cat("new fasta name is: ", ffName)
   
@@ -52,7 +50,7 @@ createUORFBedFile = function(bedName = NULL){
   
   df.rangesOfuORFs = as.data.frame(rangesOfuORFs)
   
-  bedColumns = df.rangesOfuORFs[,c("seqnames","start","end",score = "width","strand","names")]
+  bedColumns = df.rangesOfuORFs[,c("seqnames","start","end","names",score = "width","strand")]
   
   if(is.null(bedName))
     write.table(x = bedColumns,file = paste0(uorfBedFolder,"rangesOfUorfsLight.bed") ,sep = "\t",col.names = F,row.names = F, quote = F)

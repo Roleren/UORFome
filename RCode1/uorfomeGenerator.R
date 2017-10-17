@@ -2,12 +2,16 @@
 ##Plot are made and output files saved to same folder as input data
 ##All input data must be in the same folder!
 
-###########INPUTS################
+###########OVERVIEW / INFO################
 #1. folder location with all the files(gtf, bed and bam files)(you can also include rangesOfUORFs)
 #2. Using 2 bam files = T, using 1 bam and 1 bed = F
 #3. Using cage data for improved 5prime utr recognition, T = using. 
 
 
+
+
+
+#################INPUT READ FROM SHELL#############
 arcs = commandArgs(trailingOnly = T)
 lArcs = length(arcs)
 if(lArcs == 5){
@@ -21,32 +25,34 @@ if(lArcs == 5){
 if(lArcs != 1) #if using preload, dont do this!
   source("./uorfomeGeneratorHelperFunctions.R")
 
+################END INPUT READ#####################
+
+
+
+
 ###MAIN FUNCTION###
-getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageName = standardCage ,rnaSeq = NULL,rfpSeq = NULL){
+getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageName = standardCage ,rnaSeq = NULL,rfpSeq = NULL,doPreLoadings = T){
   infoPrints(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq,rfpSeq) #print info about run
-  ###PRE LOADINGS####
-  if(exists("RFP") == F){
+  ##################PRE LOADINGS##############
+  if( (exists("RFP") == F) & doPreLoadings ){
     
     getGTF()
     getCDS()
     
     getLeaders(leaderBed,usingNewCage,cageName) #get five prime utrs with or without cage
-    threeUTRs = threeUTRsByTranscript(Gtf,use.names = T)
+    getThreeUTRs()
     
     getRNAseq(rnaSeq) #get rna seq file
     getRFP(rfpSeq)# get ribozomal foot prints file
     
     print("saving objects to global")
     
-    assign("cds",cds,envir = .GlobalEnv)
-    assign("threeUTRs",threeUTRs,envir = .GlobalEnv)
-    
     cat("finished loading objects\n")
   }
+  ##############FINISHED PRE LOADINGS#########
   
   ###GET te values and save them in a matrix with all values
-  
-  ##get leader, cds, 3' TE's and lengths of them all
+  ##get 5', uorf, cds and 3' TE's and lengths of them all
   getGeneralTEValues(usingNewCage,leaderBed)
   
   decideHowToGetUORFRanges() #Load ranges of Uorfs
@@ -60,7 +66,7 @@ getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageNam
   if(lArcs != 1)#if presaved, dont save again, fix this!!!!
     saveRData() #Save RData of project
   
-  plotting(matrix,paste0(plottingFolder,detailedFullName,".pdf")) #plot results
+  plotting(matrix,paste0(plottingFolder,gsub("%","_",detailedFullName),".pdf")) #plot results
 }
 
 ###Script starting point

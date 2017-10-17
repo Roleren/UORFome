@@ -1,16 +1,18 @@
+source("./HelperVariables.R")
+source("./NameCreator.R")
 source("./GenomicGetters.R")
 source("./HelperLibraries.R")
 source("./CageDataIntegration.R")
 source("./scanUORFs.R")
 source("./Plotting&Statistics/PlotUORFome.R")
 source("./HelperFunctions.R")
-
+source("./uOrfFeatures.R")
 
 
 ### Print info about specific run
 infoPrints = function(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq = NULL,rfpSeq = NULL){
   print("Estimated normal time is 5 hours\n")
-  cat("folder used is:",normalizePath(dataFolder),"\n")
+  cat("data output folder used is:",normalizePath(dataFolder),"\n")
   if(doubleBAM == T)
     cat("using bam-file for RFP\n")
   if(usingNewCage)
@@ -20,39 +22,38 @@ infoPrints = function(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq = NULL,rf
   cat("starting loading objects\n")
 }
 
-makeGeneralName = function(cageName = NULL,leaderBed = NULL,rnaSeq = NULL,rfpSeq = NULL){
-  if(!is.null(cageName)){ #General name
-    thisCage = getRelativePathName(cageName)
-    generalName = strsplit(thisCage,".hg38*.")[[1]][1]
-  }else if(!is.null(leaderBed)){
-    generalName = getRelativePathName(leaderBed)
-    generalName = strsplit(generalName,"*.Leader.bed")[[1]][1]
-  }else{
-    generalName = p("UORF run: ",Sys.time())
-  }
-  cat("generalName of run is: ",generalName,"\n")
-  assign("generalName",generalName,envir = .GlobalEnv)
-  
-  
-  if(!is.null(cageName) && !is.null(rnaSeq) && !is.null(rfpSeq)){
-    detailedFullName = paste0(generalName,"_",getRelativePathName(rnaSeq),"_",getRelativePathName(rfpSeq))
-    cat("detailed Full Name of run is: ",detailedFullName,"\n")
-  }
-}
 
 ###Make the output matrix, containing normalizations, te's, lengths and names.
 ###Saves the matrix to inputfolder as matrix.csv
+#Change ORFlengths to width ? 
 makeMatrix = function(allLengths,teCDS,te5UTR,te3UTR,teUORF,transcriptNames){
-  matrixA = cbind(allLengths,normCDSRNA,normCDSRFP,norm5UTRRNA,norm5UTRRFP,norm3UTRRNA,norm3UTRRFP,teCDS,te5UTR,te3UTR)
+  #Get the general values for the transcript, and te's for them.
+  transcriptMatrix = cbind(allLengths,normCDSRNA,normCDSRFP,norm5UTRRNA,norm5UTRRFP,norm3UTRRNA,norm3UTRRFP,teCDS,te5UTR,te3UTR)
+  #Get the uorf values
+  uorfMatrix = getUOrfFeaturesMatrix(transcriptMatrix)
   
-  matrixB = cbind(transcriptNames,agUORFRibo$Group.1, teUORF, normUORFRNA, normUORFRFP,ORFLengths)
-  colnames(matrixB)[2] <- "namesOFuorfs"
-  colnames(matrixB)[3] <- "teUORF"
-  matrix = merge(matrixA, matrixB, by.x = "tx_name", by.y = "transcriptNames", all = T)
-  write.csv(matrix, file = "matrixRaw.csv") #unfiltered matrix
-  ###Index 1 remove all bad values from teCDS
-  index = matrix[,"teCDS"] == 0 | is.na(matrix[,"teCDS"] ) | is.infinite(matrix[,"teCDS"] ) | is.nan(matrix[,"teCDS"] )
+  matrix = merge(transcriptMatrix, uorfMatrix, by.x = "tx_name", by.y = "transcriptNames", all = T)
+  
+  ###Remove all bad values from teCDS
+  #index = matrix[,"teCDS"] == 0 | is.na(matrix[,"teCDS"] ) | is.infinite(matrix[,"teCDS"] ) | is.nan(matrix[,"teCDS"] )
+  #matrix = matrix[!index,]
+  ###Remove all rows where there were no uorf hit on transcript
+  index = is.na(matrix$uorfName)
   matrix = matrix[!index,]
+  
+  #set col classes
+  class(matrix$width) = "integer"
+  class(matrix$frame) = "integer"
+  class(matrix$rank) = "integer"
+  class(matrix$start) = "integer"
+  class(matrix$end) = "integer"
+  class(matrix$normUORFRNA) = "double"
+  class(matrix$normUORFRFP) = "double"
+  class(matrix$uorfName) = "character"
+  class(matrix$overlap) = "logical"
+  class(matrix$pass_filter) = "logical"
+  class(matrix$UCdist) = "integer"
+  class(matrix$teUORF) = "double"
   
   assign("matrix",matrix,envir = .GlobalEnv)
   if(exists("generalName") == F){
@@ -93,20 +94,46 @@ getGeneralTEValues = function(usingNewCage,leaderBed){
     
   }
 }
-
-decideHowToGetUORFRanges = function(){
+#check if uorf ranges already exists, if not make load them or make them from scratch
+decideHowToGetUORFRanges = function(assignUorf = F,givenCage = NULL){ ###Watch out for assign uorf, might be buggy
   cat("started finding UORFS\n")
-  if(UorfRangesNotExists())
+  if(UorfRangesNotExists(assignUorf,givenCage))
     rangesOfuORFs = scanUORFs(fiveUTRs,saveToFile = T)
 }
+#Check if uorfRanges exist already, or if must be created.
+###########Should make this more failsafe!!!!!!!!!! add possibility to give ranges!!!!!!!!
+UorfRangesNotExists = function(assignUorf = F, givenCage = NULL){
+  if(exists("rangesOfuORFs") == F){
+    if(assignUorf)
+      thisCage = givenCage
+      assign("thisCage",thisCage,envir = .GlobalEnv)
+      
+    if(file.exists(paste0(uorfFolder,getRelativePathName(thisCage),".uorf.rdata" ))){
+      if(!assignUorf){
+        cat("loading rangesOfuorf from folder\n",uorfFolder,"\n")
+        load(paste0(uorfFolder,getRelativePathName(thisCage),".uorf.rdata" ),envir = .GlobalEnv)
+      }
+      return(F)
+      #TODO add possibility to use bed files instead of just rdata files for uorfs
+      #     }else if(file.exists(paste0(uorfBedFolder,generalName,".bed" ))){
+      #       cat("loading rangesOfuorf from folder\n",uorfBedFolder)
+      #       rangesOfuORFs1 = import.bed(paste0(uorfBedFolder,generalName,".bed" ))
+      #       rangesOfuORFs = toGR(rangesOfuORFs)        
+      #       assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
+      #       return(F)
+    }else{return(T)}
+  }
+  return(F)
+}
+
 
 #####################################GETTESS##########################################
-#seq: sequence, 
+#seq: sequences of either: 5', 3', cds or uorfs
 #dm1: detection method 1, RNA
 #dm2: detection method 2, RFP
 #seqLength: length of seq
 #al: length of all sequences, might be NULL
-#specificTE: what type you  want to get TE of, CDS, LEADER, 3' etc.
+#specificTE: what type you  want to get TE of, CDS, LEADER, 3', uorfs etc.
 getTE = function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specificTE){
  
   libraryRna = length(dm1)
@@ -122,9 +149,11 @@ getTE = function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specif
     agUORFRibo = aggregate(overlap2,by = list(grl$names), sum)
     assign("agUORFRibo",agUORFRibo, envir = .GlobalEnv)
     
+    #Find lengths used for uorf fpkm values
     ORFLengths = aggregate(grl[,"width"],by=list(grl[,"names"]),sum)
     assign("ORFLengths",ORFLengths, envir = .GlobalEnv)
-    transcriptNames = gsub("_[0-9]*","", agUORFRNA$Group.1)
+    transcriptNames = gsub("_[0-9]*","", agUORFRNA$Group.1) #Move this to namegetters!!
+    transcriptNames = gsub("\\..*","", transcriptNames)
     assign("transcriptNames",transcriptNames, envir = .GlobalEnv)
     vector = allLengths$tx_len
     names(vector) = allLengths$tx_name
@@ -137,9 +166,11 @@ getTE = function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specif
     assign("normUORFRNA",norm1, envir = .GlobalEnv)
     assign("normUORFRFP",norm2, envir = .GlobalEnv)
     
-    cat("making matrix\n")
     teUORF = norm2/norm1
     teUORF = as.matrix(teUORF)
+    assign("teUORF",teUORF, envir = .GlobalEnv)
+    
+    print("making matrix")
     makeMatrix(allLengths,teCDS,te5UTR,te3UTR,teUORF,transcriptNames)
   }
   ###TE FOR CDS AND UTR

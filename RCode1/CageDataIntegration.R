@@ -133,7 +133,7 @@ getNewfivePrimeUTRs = function(fiveUTRs,dataName = standardCage){
   newUTRs = addNewTssOnLeaders(fiveUTRs)
   return(newUTRs)
 }
-#need to update lengths of utrs
+#needed to update lengths of utrs
 findCageUTRFivelen = function(fiveUTRs,oldTxNames){
   newfiveprimeLen = sapply(fiveUTRs, function(x) sum(width(x)))
   newfiveprimeLen1 = newfiveprimeLen[match(oldTxNames,names(newfiveprimeLen))]

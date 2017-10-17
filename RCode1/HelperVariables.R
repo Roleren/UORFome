@@ -17,12 +17,13 @@ dataFolder = helperMainFolder
 fastaName = p(dataFolder,"/Homo_sapiens.GRCh38.dna.primary_assembly.chr.fa")
 faiName = p(dataFolder,"/Homo_sapiens.GRCh38.dna.primary_assembly.chr.fa")
 gtfName = p(dataFolder,"/Homo_sapiens.GRCh38.79.chr.NO_PATCH.gtf")
-gtfdb = p(dataFolder,"Gtf.db")
+gtfdb = p(dataFolder,"Gtf.db")  ### This is wrong!!!
+
 #output folders
-cageFolder = p(dataMainFolder,"/CAGE/human")
+cageFolder = p(dataMainFolder,"/CAGE/human/")
 matrixFolder = p(resultsFolder,"/Matrices/")
 RdataFolder = p(resultsFolder,"/Rdata/")
-plottingFolder = p(resultsFolder,"/Plotting/Single result Plots/")
+plottingFolder = p(resultsFolder,"/Plotting/Single_result_Plots/")
 leadersbedFolder = p(resultsFolder,"/New_Cage_bedLeaders/")
 leadersFolder = p(resultsFolder,"/New_Cage_Leaders/")
 fastaFolder = p(resultsFolder,"/fasta/")
@@ -30,8 +31,9 @@ uorfBedFolder = p(resultsFolder,"/bedUORFS/")
 uorfFolder = p(resultsFolder,"/rangesOfUORFs/")
 bamFolder = p(resultsFolder,"/SortedAndIndexedBams/")
 #specific run names
-if(exists("thisCage") == F){
+if(exists("detailedFullName") == F){
   detailedFullName = ""
   thisCage = NULL
 }
-standardCage = p(cageFolder,"/brain%2c%20adult%2c%20donor1.CNhs11796.10084-102B3.hg38.nobarcode.ctss.bed.gz")
+#debug/test variables
+standardCage = p(cageFolder,"brain%2c%20adult%2c%20donor1.CNhs11796.10084-102B3.hg38.nobarcode.ctss.bed.gz")

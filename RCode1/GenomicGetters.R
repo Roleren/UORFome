@@ -1,5 +1,4 @@
-source("/export/valenfs/projects/uORFome/RCode1/HelperVariables.R")
-library(AnnotationDbi)
+
 ##Get riboseq file and read it
 getRFP = function(rfpSeq){
   
@@ -28,7 +27,7 @@ getRNAseq = function(rnaSeq){
       indexBam(sortedBam)
       cat("Created new rna-seq file, name:\n",sortedBam)
     }
-    if(testBAM(sortedBam)){
+    if(testBAM(sortedBam)){ ##Check if this is realy necesary
       rna = readGAlignmentPairs(sortedBam)
     }else 
       rna = readGAlignments(sortedBam)
@@ -37,8 +36,10 @@ getRNAseq = function(rnaSeq){
   assign("rna",rna,envir = .GlobalEnv)
 }
 
+#Get the fasta file, fasta indexed file and assign them
 getFasta = function(){
   if(exists("fasta") == F){
+    print("loading fasta files")
     fasta =  readDNAStringSet(fastaName) ##Get fasta file
     assign("fasta",fasta,envir = .GlobalEnv)
   }
@@ -50,25 +51,33 @@ getFasta = function(){
     assign("fa",fa,envir = .GlobalEnv)
   }
 }
-
+#Get the Genomic transcript format, currently using GRch38 data
 getGTF = function(){
   if(exists("Gtf") == F){
     print("loading human GTF GRch38")
+    library(AnnotationDbi)
     Gtf = loadDb(gtfdb)
     #Gtf = makeTxDbFromGFF(gtfName) #Fix this!!!!!!!!!!!!
     assign("Gtf",Gtf,envir = .GlobalEnv)
   }
 }
-
+#Get the coding sequences from the gtf file
 getCDS = function(){
   if(exists("cds",mode = "S4") == F){
     cds = cdsBy(Gtf,"tx",use.names = T)
     assign("cds",cds,envir = .GlobalEnv)
   }
 }
+#Get the 3' sequences from the gtf file
+getThreeUTRs = function(){
+  if(!exists("threeUTRs")){
+    threeUTRs = threeUTRsByTranscript(Gtf,use.names = T)
+    assign("threeUTRs",threeUTRs,envir = .GlobalEnv)
+  }
+}
 
-getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader = NULL){
-  
+#Get the 5' leaders, either from gtf, cage data to reassign the transcription start site(TSS), or load from existing data either as .rdata or .bed (bed6)
+getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader = NULL,assignLeader = T){
   
   if(!is.null(cageName)){#check if leader is already made, either as rdata or bed
     if(file.exists(paste0(leadersFolder,getRelativePathName(cageName),".leader.rdata"))){
@@ -78,10 +87,10 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
     }
   }
   
-  
   if(!is.null(leader)){ #load as rdata
-    print("loading leader from rdata")
-    load(leader)
+    print("loading leader from pre-existing rdata")
+    if(assignLeader)
+      load(leader)
   }
   else if(!is.null(leaderBed)){
     cat("retrieving 5utrs from bed file: ", leaderBed,"\n")
@@ -100,10 +109,12 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
     #fiveUTRstest = lapply(fv,function(x) as(x,"GRanges"))
     #fiveUTRs = GRangesList(fiveUTRstest)
   }
-  else{
-    getGTF()
-    cat("loading Leader\n")
+  else{ #create from scratch
+    
     if(exists("fiveUTRs") == F){
+      cat("creating leader from scratch\n")
+      getGTF()
+      cat("loading Leader from gtf\n")
       fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
       if(usingNewCage){
         print("Using cage.. ")
@@ -113,7 +124,7 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
           return
         }
         fiveUTRs = getNewfivePrimeUTRs(fiveUTRs,cageName)
-        if(1){ #fix this!!!!!!!!!!!
+        if(1){ #TODO add possibility to not save utrs, now it always saves
           exportNamebed = paste0(leadersbedFolder,getRelativePathName(p(cageName,".leader.bed")))
           exportNamerdata = paste0(leadersFolder,getRelativePathName(p(cageName,".leader.rdata")))
           print("exporting new leaders")
@@ -123,7 +134,34 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
         print("finished new 5' UTRs")
       }
     }
+    else{
+      print("fiveUTRs already exists! cancel if this is wrong!")
+    }
   }
-  assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)
+  if(assignLeader)
+    assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)
+  
   print("finished loading leaders")
+}
+
+#Get the upstream open reading frames from the 5' leader sequences, given as GRangesList
+getUnfilteredUORFs = function(fiveUTRs, assignRanges = T){
+  rangesOfuORFs = lapply(X = 1:length(fiveUTRs), FUN = findInFrameUORF)
+  
+  rangesOfuORFs = GRangesList(unlist(rangesOfuORFs))
+  rangesOfuORFs = rangesOfuORFs[width(rangesOfuORFs) > 0] #filter out 0
+  if(assignRanges)
+    assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
+  print("finished unfiltered UORFs")
+  rangesOfuORFs
+}
+  
+
+#Get the number of overlaps between the upstream open reading frames and the coding sequences
+getUOrfOverlaps = function(){
+  overlap1 = findOverlaps(cds,rangesOfuORFs)
+  overlapCount = countOverlaps(cds,rangesOfuORFs)
+  numberOfOverlaps = sum(overlapCount >= 1)
+  overlapHitsIndex = overlapCount[overlapCount == 1]
+  return(numberOfOverlaps)
 }

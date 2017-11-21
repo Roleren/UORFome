@@ -8,14 +8,17 @@
 #3. Using cage data for improved 5prime utr recognition, T = using. 
 
 
-
+#test data:
+#Sidrauski_C_2015.Human.HEK293.RPF.GRCh38.SRR1795435.bam
+#Andreev_DE_2015.Human.HEK293.RNA.GRCh38.SRR1173915.bam
 
 
 #################INPUT READ FROM SHELL#############
 arcs = commandArgs(trailingOnly = T)
 lArcs = length(arcs)
 if(lArcs == 5){
-  setwd(arcs[1])
+  # setwd(arcs[1])
+  setwd("/export/valenfs/projects/uORFome/RCode1/")
 }else if(lArcs == 1){ #Load from saved session
   load(file = paste0(RdataFolder,arcs[1]))
   setwd("/export/valenfs/projects/uORFome/RCode1/")
@@ -28,10 +31,9 @@ if(lArcs != 1) #if using preload, dont do this!
 ################END INPUT READ#####################
 
 
-
-
 ###MAIN FUNCTION###
-getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageName = standardCage ,rnaSeq = NULL,rfpSeq = NULL,doPreLoadings = T){
+getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageName = standardCage ,rnaSeq = NULL,rfpSeq = NULL,doPreLoadings = T, tissueUsed = NULL){
+  assign("tissueUsed",tissueUsed,envir = .GlobalEnv)
   infoPrints(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq,rfpSeq) #print info about run
   ##################PRE LOADINGS##############
   if( (exists("RFP") == F) & doPreLoadings ){
@@ -45,8 +47,6 @@ getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageNam
     getRNAseq(rnaSeq) #get rna seq file
     getRFP(rfpSeq)# get ribozomal foot prints file
     
-    print("saving objects to global")
-    
     cat("finished loading objects\n")
   }
   ##############FINISHED PRE LOADINGS#########
@@ -55,7 +55,7 @@ getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageNam
   ##get 5', uorf, cds and 3' TE's and lengths of them all
   getGeneralTEValues(usingNewCage,leaderBed)
   
-  decideHowToGetUORFRanges() #Load ranges of Uorfs
+  decideHowToGetUORFRanges(assignUorf = T, thisCage) #Load ranges of Uorfs
   
   cat("finding Te-UORFs\n")
   if(exists("teUORF") == F){

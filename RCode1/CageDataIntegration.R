@@ -19,123 +19,152 @@ toGR=function(x,bed6=TRUE){
   if(ncol(x)>6)  mcols(gr)=x[,7:ncol(x)]
   return(gr)
 }
-
-#Find max peak for each transcript
-findMaxPeaks = function(x){
-  vec = (cageOverlaps@to == x)
-  if(length(vec) == 0)
-    return(NA)
-  vec2 = (cageOverlaps@from[vec])
-  df = filteredrawCageData[vec2]
-  vec3 = which.max(score(df))
-  return(start(df)[vec3])
+#get CageData as granges
+getFilteredCageData = function(dataName, filterValue = 1){
+  rawCageData = toGR(as.data.frame(fread(paste("gunzip -c",dataName),sep = "\t")))
+  getCDS()
+  print("finished loading cage file")
+  filteredrawCageData = rawCageData[rawCageData$score > filterValue,] #filter on score 1
+  seqlevels(filteredrawCageData) = sub("chrY","Y",seqlevels(filteredrawCageData))
+  seqlevels(filteredrawCageData) = sub("chrX","X",seqlevels(filteredrawCageData))
+  seqlevels(filteredrawCageData) = sub("chrM","MT",seqlevels(filteredrawCageData))
+  assign("filteredrawCageData",filteredrawCageData,envir = .GlobalEnv)
 }
 
- 
-optimizefiveUTRs = function(x){
-  if(length(maxPeakPosition[[x]])  != 0){
-    lapply(1:length(optimizedfiveUTRs[[x]]), function(x) modifyUTR)
-    return(resize(optimizedfiveUTRs[x],  width = maxPeakPosition[[x]], fix = 'end')) 
-  }
-  else{
-    return(NA)
-  }
-}
-
-insertFirstCDS = function(newUTR,x){
+addFirstCdsOnLeaderEnds = function(fiveUTRs){
+  getCDS()
+  cdsForUTRs <- cds[names(fiveUTRs)] # get only the ones we need
+  firstExons <- phead(cdsForUTRs, 1L) #select first in every, they must be sorted!
+  gr = unlist(firstExons,use.names = F)
+  gr$cds_id = NULL; gr$cds_name = NULL; gr$exon_rank = NULL 
+  gr$exon_id = NA;  gr$exon_name = NA;  gr$exon_rank = NA
+  grl = relist(gr,firstExons)
+  fiveUTRsWithCdsExons <- pc(fiveUTRs, grl)
+  reduce(fiveUTRsWithCdsExons)# ask gunnar why length != fiveUTRs
   
-  firstExon = unlist(cds[names(cds) == names(shiftedfiveUTRs[x])])[1]
-  fiveTemp = newUTR
-  #transcriptName = names(newUTR)
-  mcols(fiveTemp) = NULL
-  mcols(firstExon) = NULL
- 
-  combination = c(fiveTemp,firstExon)
-  combination = sort(combination)
-  
-  newUTR = combination
-  return(newUTR)
+  return( reduce(fiveUTRsWithCdsExons) ) 
 }
 
-#set new tss to max peak
-modifyUTR = function(x){
-  if(length(maxPeakPosition[[x]])  != 0){
-    indexOfOverlaptemp = findOverlaps(shiftedfiveUTRs[[x]],GRanges(seqnames = seqnames(shiftedfiveUTRs[[x]][1]),IRanges(start =maxPeakPosition[[x]], end = maxPeakPosition[[x]]+1)))
-    indexOfOverlap = indexOfOverlaptemp@from
-    newUTR = shiftedfiveUTRs[[x]]
-    
-    if(as.character(newUTR@strand)[1] == "+"){
-      start(newUTR[indexOfOverlap]) = maxPeakPosition[[x]]
-      if(indexOfOverlap > 1)
-        newUTR = newUTR[indexOfOverlap:length(newUTR)]
-      }
-    else{
-      end(newUTR[indexOfOverlap]) = maxPeakPosition[[x]]
-      if(indexOfOverlap > 1)
-        newUTR = newUTR[indexOfOverlap:length(newUTR)]
-    }
-    newUTR = insertFirstCDS(newUTR,x)
-    return(newUTR)
-  }
-  return(NA)
+#Extend first exon of each transcript with 1000
+# warning! does not check position < 1 and > seqlength
+extendsTSSExons = function(fiveUTRs, extension = 1000){
+  fiveAsgr = unlist(fiveUTRs)
+  firstExons = fiveAsgr[fiveAsgr$exon_rank == 1]
+  
+  posIDs = firstExons[strand(firstExons) == "+"]
+  minIDs = firstExons[strand(firstExons)  == "-"]
+  
+  firstExons[names(posIDs)] = resize(firstExons[names(posIDs)],  width = width(firstExons[names(posIDs)])+extension, fix = 'end')
+  firstExons[names(minIDs)] = resize(firstExons[names(minIDs)],  width = width(firstExons[names(minIDs)])+extension, fix = 'start')
+  return(firstExons)
 }
+
+#Find max peak for each transcript,
+# returns as data.table, without names, but with index
+findMaxPeaks = function(cageOverlaps){
+  dt = as.data.table(filteredrawCageData)
+  dt = dt[from(cageOverlaps)]
+  dt$to = to(cageOverlaps)
+  
+  test = dt[,max(score), by = to]
+  names(test) = c("to","score")
+  res =  merge(  test, dt) 
+  
+  return(res[!duplicated(res$to)]) #check this line!!!
+}
+#fiveAsgr[fiveAsgr$exon_rank == 1] = firstExonsShifted
+#return(relist(fiveAsgr,fiveUTRs))
 #load leader, cds,
-#extend leader 1000
+#extend leader 1000 upstream, and to end of 1st cds downstream
 # look for cage peaks in leader upstream
 findNewTSS = function(fiveUTRs,dataName){
-  if(exists("optimizedfiveUTRs") == F){
-    #rawCageData = read.table(dataName,sep = "\t")
-    rawCageData = as.data.frame(fread(paste("gunzip -c",dataName),sep = "\t"))
-    rawCageData = toGR(rawCageData)
-    getCDS()
-    print("finished loading cage file")
-    filteredrawCageData = rawCageData[rawCageData$score > 1,] #filter on score 1
-    assign("filteredrawCageData",filteredrawCageData,envir = .GlobalEnv)
+  if(exists("maxPeakPosition") == F){
+   
+    getFilteredCageData(dataName) # get the cage data
     
-    namesUTRs = names(fiveUTRs)
-    shiftedfiveUTRs <- resize(fiveUTRs,  width = width(fiveUTRs)+1000, fix = 'end')
-    #shiftedfiveUTRs <- resize(fiveUTRs,  width = width(fiveUTRs)+200, fix = 'start')
+    shiftedfiveUTRs = extendsTSSExons(fiveUTRs)
     assign("shiftedfiveUTRs",shiftedfiveUTRs,envir = .GlobalEnv)
     cageOverlaps = findOverlaps(query = filteredrawCageData,subject = shiftedfiveUTRs)
-    assign("cageOverlaps",cageOverlaps,envir = .GlobalEnv)
     
-    maxPeakPosition = lapply(1:length(shiftedfiveUTRs),function(x) findMaxPeaks(x))
-    
+    maxPeakPosition = findMaxPeaks(cageOverlaps)
     assign("maxPeakPosition",maxPeakPosition,envir = .GlobalEnv)
-    optimizedfiveUTRs = shiftedfiveUTRs
-    assign("optimizedfiveUTRs",optimizedfiveUTRs,envir = .GlobalEnv)
+    
     print("found new cage peaks")
   }
 }
+
+makeGrlAndFilter = function(firstExons, fiveUTRs){
+  fiveAsgr = unlist(fiveUTRs)
+  fiveAsgr[fiveAsgr$exon_rank == 1] = firstExons
+  return(relist(fiveAsgr,fiveUTRs))
+}
+
 #add cage max peaks as new tss
 addNewTssOnLeaders = function(fiveUTRs){
-  print("now assigning new tss's")
-  goal = lapply(1:length(shiftedfiveUTRs), function(x) modifyUTR(x))
-  print("finished assigning new tss's")
-  assign("goal",goal,envir = .GlobalEnv)
-  names(goal) = names(fiveUTRs)
-  goal2 = !is.na(goal)
+  fiveAsgr = unlist(fiveUTRs)
+  firstExons = fiveAsgr[fiveAsgr$exon_rank == 1]
   
-  newUTRs = GRangesList(goal[goal2])
-  # Filter out UTRs with length 0
-  newUTRs = newUTRs[width(newUTRs) > 0]
-  return(newUTRs)
+  maxPeakPosition$names = names(firstExons[maxPeakPosition$to])
+  posIDs = maxPeakPosition$to[maxPeakPosition$strand == "+"]
+  minIDs = maxPeakPosition$to[maxPeakPosition$strand == "-"]
+  
+  firstExons[posIDs] = resize(firstExons[posIDs], width = end(firstExons[posIDs]) - maxPeakPosition$start[maxPeakPosition$strand == "+"] + 1, fix = "end")
+  firstExons[minIDs] = resize(firstExons[minIDs], width = end(firstExons[minIDs]) - maxPeakPosition$start[maxPeakPosition$strand == "-"] + 1, fix = "start")
+  
+  return( firstExons ) 
+  
 }
-#find and add cage max peaks as new tss's
 
+#find and add cage max peaks as new tss's
+# if a max peak > filter_size is found, it is reassigned, else it is kept
 ###NB! Must have Gtf in global scope
 getNewfivePrimeUTRs = function(fiveUTRs,dataName = standardCage){
   ###Read in cage files
   print(dataName)
   
   findNewTSS(fiveUTRs,dataName)
-  
-  newUTRs = addNewTssOnLeaders(fiveUTRs)
-  return(newUTRs)
+  fiveUTRs = makeGrlAndFilter(addNewTssOnLeaders(fiveUTRs), fiveUTRs)
+  fiveUTRs = addFirstCdsOnLeaderEnds(fiveUTRs)
+  return(fiveUTRs)
 }
-#needed to update lengths of utrs
+#Since cage redefines five utr lengths, the total lengths of tx must be updated
 findCageUTRFivelen = function(fiveUTRs,oldTxNames){
-  newfiveprimeLen = sapply(fiveUTRs, function(x) sum(width(x)))
-  newfiveprimeLen1 = newfiveprimeLen[match(oldTxNames,names(newfiveprimeLen))]
+  newfiveprimeLen = widthPerGRangesGroup(fiveUTRs)
+  return( newfiveprimeLen[match(oldTxNames,names(newfiveprimeLen))])
+}
+
+otherSpeciesCageCSV = function(name){
+  #pre loadings
+  #name = "/export/valenfs/data/processed_data/CAGE/nepal_2013_zebrafish/called_peaks/leaders_zv10_zf_02_fertilized_egg.csv"
+  cage = read.csv(name)
+  cage = cage[cage$count_at_highest_peak != 0,]
+  
+  fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
+
+  #make max peak object
+  cageGR = GRanges(seqnames = gsub("chr","",as.character(cage$chr)), ranges = IRanges(start = cage$highest_peak,end = cage$highest_peak),strand = cage$dir, names = cage$X.gene_id)
+  maxPeakPosition = as.data.table(findOverlaps(query = cageGR,subject = extendsTSSExons(fiveUTRs)))
+  names(maxPeakPosition) = c("from","to")
+  maxPeakPosition = maxPeakPosition[!duplicated(maxPeakPosition$to)]
+  maxPeakPosition$strand = as.character(strand(cageGR[maxPeakPosition$from]))
+  maxPeakPosition$start = start(cageGR[maxPeakPosition$from])
+  maxPeakPosition$end = end(cageGR[maxPeakPosition$from])
+  assign("maxPeakPosition",maxPeakPosition,envir = .GlobalEnv)
+  
+  #make new fiveUTRs
+  fiveUTRs = makeGrlAndFilter(addNewTssOnLeaders(fiveUTRs), fiveUTRs)
+  fiveUTRs = addFirstCdsOnLeaderEnds(fiveUTRs)
+  
+  unlistfgr = unlist(fiveUTRs)
+  #On zebra fish, the genome and gtf had different seqname naming, so must match!
+  seqnamesTransformed = as.character(seqnames(unlistfgr))
+  seqnamesTransformed[nchar(seqnamesTransformed) > 4] = paste0("Un_",seqnamesTransformed[nchar(seqnamesTransformed) > 4])
+  seqnamesTransformed = gsub("\\.","v",seqnamesTransformed)
+  seqnamesTransformed = paste0("chr",seqnamesTransformed)
+  unlistfgr = GRanges(seqnames = seqnamesTransformed, ranges = IRanges(start = start(unlistfgr),end = end(unlistfgr)),strand = strand(unlistfgr))
+  names(unlistfgr) = names(unlist(fiveUTRs))
+  fiveUTRs = GroupGRangesByNames(unlistfgr)
+  
+  return(fiveUTRs)
 }
 

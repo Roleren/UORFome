@@ -1,17 +1,15 @@
 getUOrfFeaturesMatrix = function(transcriptMatrix){
-  transcriptNames = gsub("\\..*","", transcriptNames)
-  grl = as.data.frame(rangesOfuORFs)
+  #stop("not working now!!!")
   
-  #starts
-  starts = aggregate(grl$start,by = list(grl$names),min)
-  names(starts) = c("names","start")
+  grORFs = unlist(rangesOfuORFs, use.names = F)
+  grlByORF = GroupGRangesByOther(grORFs, grORFs$names)
+  txCoords = getUORFTranscriptCoordinates()
   
-  #ends
-  ends = aggregate(grl$end,by = list(grl$names),min)
-  names(ends) = c("names","end")
+  #starts, remake these to faster versions
+  # starts = aggregate(grl$start,by = list(grl$names),min)
+  starts = GroupGRangesFirstExon(txCoords)
   
-  #filtered name
-  uorfName = getUORFnames(agUORFRibo$Group.1)
+  ends = GroupGRangesLastExon(txCoords)
   
   #distance between uorf and cds
   distUC = distancebetweenUORFandCds(ends)
@@ -20,44 +18,70 @@ getUOrfFeaturesMatrix = function(transcriptMatrix){
   #overlaping cds
   overlapUOrfCds = getOverlappingCds(distUC)
   
+  #filtered name
+  uorfName = unique(getUORFnames(grORFs$names))
+  
   #Get rank order of uorf
   rank = getUOrfRankOrder(uorfName)
   
   pass_filter = getPassFilter(normUORFRNA,normUORFRFP)
+  
+  tx.widths = widthPerGRangesGroup(txCoords)
+  
+  transcriptNames =gsub("_[0-9]*","", names(grlByORF)) 
+  gen.starts = GroupGRangesFirstStart(grlByORF, F)
+  gen.ends = GroupGRangesLastEnd(grlByORF,F)
+    
+  seqnames = as.character(seqnames(phead(grlByORF,1L)))
+  strands = as.character(strand(phead(grlByORF,1L)))
   #TODO: ORF score, too slow!
   # orfScores = ORFScores(unlist(rangesOfuORFs[1:50]))
   
-  
-  matrixB = cbind(transcriptNames,uorfName,start = starts$start,end = ends$end,
-                  width = ORFLengths$x,teUORF,
+  uorfID = paste(transcriptNames,seqnames, gen.starts,gen.ends,strands)
+  tissue = rep(tissueUsed,length(gen.starts)) #this is scary I think!
+  matrixB = cbind(transcriptNames,uorfName,seqnames,start = gen.starts,end = gen.ends,
+                  width = tx.widths,teUORF,
                   normUORFRNA, normUORFRFP,UCdists = distUC,frame = inFrame,
-                  overlapUOrfCds,rank,pass_filter)
+                  overlapUOrfCds,rank,pass_filter,uorfID,tissue)
   
-  colnames(matrixB)[6] <- "teUORF"
-  colnames(matrixB)[9] <- "UCdist"
+  colnames(matrixB)[7] <- "teUORF"
+  colnames(matrixB)[10] <- "UCdist"
   
-  matrixB = as.data.frame(as.matrix(matrixB))
+  matrixB = as.data.table(as.matrix(matrixB))
   class(matrixB$transcriptNames) = "character"
-  matrixB
+  return(matrixB)
+}
+
+getUORFTranscriptCoordinates = function(){
+  n = unlist(rangesOfuORFs, use.names = F)
+  #names of fives go to seqnames, so need to be removed
+  txCoordUORF = mapToTranscripts(n,fiveUTRs)
+  txCoordUORF = txCoordUORF[names(n[txCoordUORF$xHits]) == seqnames(txCoordUORF)]
+  txCoordUORF$xHits = NULL;txCoordUORF$transcriptsHits = NULL
+  #sort them by uorfs
+  txCoordUORF$names = n$names
+  return(GroupGRangesByOther(txCoordUORF, txCoordUORF$names))
 }
 
 #get distances between uorf end and start of that transcripts cds
 distancebetweenUORFandCds = function(ends){
-  ends$txNames = transcriptNames
+  cdsFirstExons = phead(cds,1L)
+  namesToUse = as.character( unlist(unique( seqnames(ends))))
+  cdsToUse = cdsFirstExons[namesToUse]
+  c = unlist(cdsToUse, use.names = F)
+  cdsToTranscript = mapToTranscripts(c,fiveUTRs)
+  c = unlist(cdsToUse)
+  cdsToUse = cdsToTranscript[names(c[cdsToTranscript$xHits]) == seqnames(cdsToTranscript)]
   
-  df.cds = as.data.frame(cds)
-  #only first start exon
-  df.cdsa = merge(aggregate( exon_rank ~ group_name, df.cds,min ),df.cds)
+  endsPos = ends[as.character(strand(ends)) == "+"]
+  endsMin = ends[as.character(strand(ends)) == "-"]
   
-  #Merge to get correct order
-  df.merge = merge(x = ends,y = df.cdsa, by.x = "txNames",by.y = "group_name",all.x = T)
-  
-  cdsStarts = df.merge[,c("txNames","names","end.x","start","strand")]
-
-  #match distance by strand, different for positive and negative strand
-  UCdist = lapply(1:nrow(cdsStarts),
-                 function(i) ifelse(test = (cdsStarts[i,5] == "+"), yes = cdsStarts[i,4] - cdsStarts[i,3],no = cdsStarts[i,3] - cdsStarts[i,4]))
-  cbind(UCdist)
+  distPos = start(cdsToUse[as.character(strand(cdsToUse)) == "+"]) - as.integer(end(endsPos))
+  distMin = as.integer(start(endsMin)) - end(cdsToUse[as.character(strand(cdsToUse)) == "-"])
+  dists = rep(NA,length(names(unlist(ends, use.names = F))))
+  dists[as.character(strand(unlist(ends))) == "+"] = distPos  
+  dists[as.character(strand(unlist(ends))) == "-"] = distMin
+  return(dists)
 }
 
 #check if reading frame changes. %3 = 0
@@ -98,6 +122,16 @@ getPassFilter = function(normUORFRNA,normUORFRFP){
 
 getUORFnames = function(unfilteredNames){
   gsub(".*\\.","", unfilteredNames)
+}
+
+getKozacSequenceScore = function(grl, fastaSeq){
+  #reassign start of + strands, and restrict end
+  #reassign end of - strands, and restrict start
+  
+  #get all sequences
+  
+  #score
+  
 }
 
 ORFScores = function(ORFs = NULL){

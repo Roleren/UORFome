@@ -7,25 +7,27 @@ source("./findUORFsOverlappingCDS.R")
 ###Get ranges of uorfs, fiveUTRs must be GRangesList
 ### Save to file set to false by default
 scanUORFs = function(fiveUTRs,saveToFile = T,outputName = NULL, assignUorf = T){
-  ###FIX LISTING###
-  print(thisCage)
-  #unlistfiveUTRs = unlist(fiveUTRs) ##Unlist from GRangeslist to Granges
-  #names(unlistfiveUTRs) = names(fiveUTRs) What happend to this part ????
   
-  getFasta() #get fasta and fai
+  cat("started scanning for uorfs\n")
   
-  cat("finished fiveUTR-seqs\n")
-  cat("finding ranges of uorfs, this takes around 4 hours.\n")
-  getUnfilteredUORFs(fiveUTRs)
-  rangesOfuORFs = removeFalseUORFs(outputFastaAndBed = T) #add possibilities here!
-  
+  rangesOfuORFs = getUnfilteredUORFsFast(fiveUTRs,assignUorf)
+  if(is.null(outputName)){
+    rangesOfuORFs = removeFalseUORFs(rangesOfuORFs, outputFastaAndBed = T)
+  }else{
+    rangesOfuORFs = removeFalseUORFs(rangesOfuORFs, outputFastaAndBed = T, nameSave = outputName)
+  }
   
   if(saveToFile){
     print("saving rangesOfuORFs")
-    if(!is.null(outputName))
-      save(rangesOfuORFs, file = outputName)
-    else
-      save(rangesOfuORFs, file = paste0(uorfFolder,getRelativePathName(thisCage),".uorf.rdata" ))
+    if(!is.null(outputName)){
+      save(rangesOfuORFs, file = getUORFRDataName(outputName))
+    }else if(exists("thisCage") && !is.null(thisCage)){
+      save(rangesOfuORFs, file = getUORFRDataName(thisCage))
+    }else if(exists("cageName") && !is.null(cageName)){
+      save(rangesOfuORFs, file = getUORFRDataName(cageName))
+    }else{
+      stop("no name to set RangesOfUorfs with!")
+    }
   }
   print("rangesOfuORFs finished")
   return(rangesOfuORFs)
@@ -37,24 +39,13 @@ scanUORFs = function(fiveUTRs,saveToFile = T,outputName = NULL, assignUorf = T){
 findInFrameUORF = function(i){
   grangesObj = fiveUTRs[i]
   
-  dna <- as.character(unlist(getSeq(fa, unlist(grangesObj))))
-  dna <- paste(dna,collapse = "")
-  
-  ORFdef <- find_in_frame_ORFs(dna,
+  ORFdef <- find_in_frame_ORFs(as.character(unlist(seqs[i])),
                                longestORF = F,
                                minimumLength = 8) #function for finding orfs
   
   if(length(ORFdef) > 0 ){ #if found any orfs
-    transcriptName = names(grangesObj) #get name of tx  
-    return( map_granges(ORFdef,grangesObj,transcriptName) ) # map it
-  }else return ( NULL ) #else return nothing
+    return( map_to_GRanges(ORFdef,unlist(grangesObj),names(grangesObj)) ) # map it
+  }
+  return ( NULL ) #else return nothing
 }
 
-#Use map_to_granges from the ORFik package by Cornel -CBU
-map_granges = function(ORFdef,grangesObj,transcriptName){
-  names(grangesObj[[1]]) <- rep(transcriptName, length(unlist(grangesObj)))
-  
-  # ORFranges <- GRanges(transcriptName, ORFdef)
-  
-  ORF = map_to_GRanges(ORFdef,unlist(grangesObj),transcriptName)
-}

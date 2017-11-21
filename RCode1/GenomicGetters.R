@@ -3,53 +3,38 @@
 getRFP = function(rfpSeq){
   
   if(!is.null(rfpSeq) && exists("RFP") == F){ #remember to fix this when bed files arrive!!!!
-    sortedBam = paste0(bamFolder,getRelativePathName(rfpSeq))
-    if(!file.exists(p(sortedBam,".bai"))){
-      sortBam(rfpSeq,rfe(sortedBam)) #rfe - remove file extension
-      indexBam(sortedBam)
-      cat("Created new rfp file, name:\n",sortedBam)
-    }
-    if(testBAM(sortedBam)){
-      RFP = readGAlignmentPairs(sortedBam)
-    }else 
-      RFP = readGAlignments(sortedBam)
+    RFP = loadBamFile(rfpSeq,"rfp")
+    assign("RFP",RFP,envir = .GlobalEnv)
   }
-
-  assign("RFP",RFP,envir = .GlobalEnv)
 }
 ##Get rna seq file and read it
 getRNAseq = function(rnaSeq){
   
   if(!is.null(rnaSeq) && exists("rna") == F){ #remember to fix this when bed files arrive!!!!
-    sortedBam = paste0(bamFolder,getRelativePathName(rnaSeq))
-    if(!file.exists(p(sortedBam,".bai"))){
-      sortBam(rnaSeq,rfe(sortedBam)) #rfe - remove file extension
-      indexBam(sortedBam)
-      cat("Created new rna-seq file, name:\n",sortedBam)
-    }
-    if(testBAM(sortedBam)){ ##Check if this is realy necesary
-      rna = readGAlignmentPairs(sortedBam)
-    }else 
-      rna = readGAlignments(sortedBam)
+    rna = loadBamFile(rnaSeq,"rna")
+    assign("rna",rna,envir = .GlobalEnv)
   }
-  
-  assign("rna",rna,envir = .GlobalEnv)
 }
 
 #Get the fasta file, fasta indexed file and assign them
 getFasta = function(){
-  if(exists("fasta") == F){
-    print("loading fasta files")
-    fasta =  readDNAStringSet(fastaName) ##Get fasta file
-    assign("fasta",fasta,envir = .GlobalEnv)
-  }
-  #faiFileNotexists = !findFF("fai",T)## Get fasta indexed file
-  #if(faiFileNotexists)indexFa(fastaName)
-  #if(faiFileNotexists){indexFa(findFF("fa"))}
-  if(exists("fa") == F){
+
+  if(exists("fa") == F){ #index files
+#       if(exists("fasta") == F){ #make possible to create fai from fa
+#         print("loading fasta files")
+#         fasta =  readDNAStringSet(fastaName) ##Get fasta file
+#         assign("fasta",fasta,envir = .GlobalEnv)
+#       }
     fa = FaFile(faiName)
     assign("fa",fa,envir = .GlobalEnv)
   }
+}
+
+#get sequences from a GRangeslist
+getSequencesFromFasta = function(grl){
+  getFasta() #get fasta and fai
+  seqs = extractTranscriptSeqs(fa, transcripts = grl)
+  assign("seqs",seqs,envir = .GlobalEnv)
 }
 #Get the Genomic transcript format, currently using GRch38 data
 getGTF = function(){
@@ -62,10 +47,14 @@ getGTF = function(){
   }
 }
 #Get the coding sequences from the gtf file
-getCDS = function(){
+getCDS = function(assignIt = T){
   if(exists("cds",mode = "S4") == F){
     cds = cdsBy(Gtf,"tx",use.names = T)
-    assign("cds",cds,envir = .GlobalEnv)
+    if(assignIt){
+      assign("cds",cds,envir = .GlobalEnv)
+    }else{
+      return(cds)
+    }
   }
 }
 #Get the 3' sequences from the gtf file
@@ -104,10 +93,6 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
     
     exportNamerdata = paste0(leadersFolder,getRelativePathName(p(cageName,".leader.rdata")))
     save(fiveUTRs,file = exportNamerdata)
-    #fiveUTRs = as.data.frame(fiveUTRs)
-    #fiveUTRstest <- split(fiveUTRs, fiveUTRs$name)
-    #fiveUTRstest = lapply(fv,function(x) as(x,"GRanges"))
-    #fiveUTRs = GRangesList(fiveUTRstest)
   }
   else{ #create from scratch
     
@@ -145,17 +130,38 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
 }
 
 #Get the upstream open reading frames from the 5' leader sequences, given as GRangesList
-getUnfilteredUORFs = function(fiveUTRs, assignRanges = T){
-  rangesOfuORFs = lapply(X = 1:length(fiveUTRs), FUN = findInFrameUORF)
+getUnfilteredUORFsFast = function(fiveUTRs, assignRanges = T){
+  getSequencesFromFasta(fiveUTRs)
+  rangesOfuORFs = get_all_ORFs_as_GRangesList(grl = fiveUTRs,fastaSeqs = seqs,minimumLength = 2)
   
-  rangesOfuORFs = GRangesList(unlist(rangesOfuORFs))
-  rangesOfuORFs = rangesOfuORFs[width(rangesOfuORFs) > 0] #filter out 0
   if(assignRanges)
     assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
   print("finished unfiltered UORFs")
-  rangesOfuORFs
+  return(rangesOfuORFs)
+}
+
+#Get the upstream open reading frames from the 5' leader sequences, given as GRangesList
+getUnfilteredUORFs = function(fiveUTRs, assignRanges = T){
+  cat("finding ranges of uorfs, this takes around 30 min.\n")
+  getSequencesFromFasta(fiveUTRs)
+  rangesOfuORFs = lapply(X = 1:length(fiveUTRs), FUN = findInFrameUORF)
+  
+  rangesOfuORFs = GRangesList(unlist(rangesOfuORFs))
+  gr = unlist(rangesOfuORFs, use.names = F)
+  transcriptNames = getTranscriptNames(gr$names)
+  names(rangesOfuORFs) = unique(transcriptNames)
+  
+  if(assignRanges)
+    assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
+  print("finished unfiltered UORFs")
+  return(rangesOfuORFs)
 }
   
+getAllTranscriptLengths = function(){
+  load(p(dataFolder,"/transcriptLengths.rdata"))
+  #transcriptLengths(Gtf,with.cds_len = T,with.utr5_len = T,with.utr3_len = T)
+  assign("allLengths",allLengths,envir = .GlobalEnv)
+}
 
 #Get the number of overlaps between the upstream open reading frames and the coding sequences
 getUOrfOverlaps = function(){

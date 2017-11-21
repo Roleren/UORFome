@@ -1,7 +1,6 @@
 #Creates normalizations of the counts
 FPKMNorlization = function(counts, lengthSize, librarySize){
-  result = (as.numeric(counts)*(10^9)) / (as.numeric(lengthSize)*as.numeric(librarySize))
-  return(result)
+  return((as.numeric(counts)*(10^9)) / (as.numeric(lengthSize)*as.numeric(librarySize)))
 }
 
 #as number coverter function
@@ -11,13 +10,15 @@ an = function(fac){
 
 #check that bamFile is paired or not, False = not paired
 testBAM = function(name){
-  testPairedEndBam(name)
+  testPairedEndBam(file = name,index = name)
 }
 
 #correct positions al: trainscript lengths
 cp = function(overlap,al){
   return(unlist(overlap[match(as.character( al$tx_name),names(overlap))]))
 }
+
+
 
 #Check if file format exists.
 #if boolreturn == F, find the file name
@@ -50,8 +51,8 @@ findFF = function(formatName, boolreturn = F, bamType = NULL){
     
   } else{
     if(boolreturn)return(F)
-    cat("No ", formatName,"file in this folder or duplicates")
-    stop()
+    
+    stop(cat("No ", formatName,"file in this folder or duplicates"))
   }
 }
 
@@ -63,4 +64,32 @@ rfe = function(name){#Only works on .bam right now!!!!
   return (gsub("*\\.bam", "", name))
 }
 
+loadBamFile = function(fileLocation, typeOfBam){
+  sortedBam = paste0(bamFolder,getRelativePathName(fileLocation))
+  if(!file.exists(p(sortedBam,".bai"))){
+    sortBam(fileLocation,rfe(sortedBam)) #rfe - remove file extension
+    indexBam(sortedBam)
+    cat("Created new ",typeOfBam,"-seq file, name:\n",sortedBam)
+  }
+  if(testBAM(sortedBam)){ ##Check if this is realy necesary
+    rseq = readGAlignmentPairs(sortedBam)
+  }else 
+    rseq = readGAlignments(sortedBam)
+  return(rseq)
+}
 
+
+loadMatrix = function(mname,toGlobalEnv = T){
+  return(fread(input = p(matrixFolder,mname),header = T))
+}
+
+loadRData = function(rdataname,toGlobalEnv = T){
+  if(toGlobalEnv)
+    load(p(RdataFolder,rdataname),envir = .GlobalEnv)
+  else
+    load(p(RdataFolder,rdataname))
+}
+
+loadUorfID = function(rdataname){
+  load(paste0(resultsFolder,"/uorfIDs/",rdataname), envir = .GlobalEnv)
+}

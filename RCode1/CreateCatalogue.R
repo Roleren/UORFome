@@ -1,23 +1,29 @@
-p = function(nameA,nameB){
-  paste0(nameA,nameB)
+setwd("/export/valenfs/projects/uORFome/RCode1/")
+source("./CreateCatalogueHelpers.R")
+
+
+
+
+#'Load all matricies and store them some how
+loadAllMatrices = function(){
+  Bigmatrix = data.table()
+  for(i in matrixFiles){
+    
+    matrix = loadMatrix(i)
+    matrix = matrix[matrix$pass_filter == T,]
+    if(isHealthy(i)){
+      healthy = rep(T,nrow(matrix))
+    }else{
+      healthy = rep(F,nrow(matrix))
+    }
+    matrix$healthy = healthy
+    Bigmatrix = rbindlist(l = list(Bigmatrix,matrix))
+    rm(matrix)
+    #find a way to combine the matrices into a bigger format
+  }
+  assign("Bigmatrix",Bigmatrix,envir = .GlobalEnv)
 }
 
-mainFolder = "./.."
-resultsFolder = p(mainFolder,"/test_results") #output folder
-matrixFolder = p(resultsFolder,"/Matrices/")
-matrixFiles = list.files(matrixFolder)
 
-# for(i in list.files(matrixFolder)){
-#   load(p(matrixFolder,i))
-#   #find a way to combine the matrices into a bigger format
-# }
-# 
-# plottingFolder = p(resultsFolder,"/Plotting/Comparisons_plots/")
-# #plotting(matrix,paste0(plottingFolder,gsub("%","_",detailedFullName),".pdf")) #plot results
-
-exists(p(matrixFolder,matrixFiles[2]))
-
-matrix = read.csv(p(matrixFolder,matrixFiles[5]))
-
-
-
+loadAllMatrices()
+splitIntoHealthyAndSick()

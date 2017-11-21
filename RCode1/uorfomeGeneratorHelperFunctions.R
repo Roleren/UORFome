@@ -7,20 +7,7 @@ source("./scanUORFs.R")
 source("./Plotting&Statistics/PlotUORFome.R")
 source("./HelperFunctions.R")
 source("./uOrfFeatures.R")
-
-
-### Print info about specific run
-infoPrints = function(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq = NULL,rfpSeq = NULL){
-  print("Estimated normal time is 5 hours\n")
-  cat("data output folder used is:",normalizePath(dataFolder),"\n")
-  if(doubleBAM == T)
-    cat("using bam-file for RFP\n")
-  if(usingNewCage)
-    cat("using cage-file named: \n",cageName,"\n")
-  
-  makeGeneralName(cageName,leaderBed,rnaSeq,rfpSeq)
-  cat("starting loading objects\n")
-}
+source("./GRangesHelpers.R")
 
 
 ###Make the output matrix, containing normalizations, te's, lengths and names.
@@ -28,18 +15,17 @@ infoPrints = function(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq = NULL,rf
 #Change ORFlengths to width ? 
 makeMatrix = function(allLengths,teCDS,te5UTR,te3UTR,teUORF,transcriptNames){
   #Get the general values for the transcript, and te's for them.
-  transcriptMatrix = cbind(allLengths,normCDSRNA,normCDSRFP,norm5UTRRNA,norm5UTRRFP,norm3UTRRNA,norm3UTRRFP,teCDS,te5UTR,te3UTR)
+  transcriptMatrix = as.data.table(cbind(allLengths,normCDSRNA,normCDSRFP,norm5UTRRNA,norm5UTRRFP,norm3UTRRNA,norm3UTRRFP,teCDS,te5UTR,te3UTR))
   #Get the uorf values
   uorfMatrix = getUOrfFeaturesMatrix(transcriptMatrix)
   
-  matrix = merge(transcriptMatrix, uorfMatrix, by.x = "tx_name", by.y = "transcriptNames", all = T)
+  #reduce transcriptMatrix to match uorfMatrix
+  txNames1 = 1:length(transcriptMatrix$tx_name)
+  names(txNames1) = transcriptMatrix$tx_name
+  txNames1 = txNames1[uorfMatrix$transcriptNames]
+  transcriptMatrix = transcriptMatrix[txNames1]
   
-  ###Remove all bad values from teCDS
-  #index = matrix[,"teCDS"] == 0 | is.na(matrix[,"teCDS"] ) | is.infinite(matrix[,"teCDS"] ) | is.nan(matrix[,"teCDS"] )
-  #matrix = matrix[!index,]
-  ###Remove all rows where there were no uorf hit on transcript
-  index = is.na(matrix$uorfName)
-  matrix = matrix[!index,]
+  matrix = as.data.table(cbind(transcriptMatrix,uorfMatrix))
   
   #set col classes
   class(matrix$width) = "integer"
@@ -54,6 +40,9 @@ makeMatrix = function(allLengths,teCDS,te5UTR,te3UTR,teUORF,transcriptNames){
   class(matrix$pass_filter) = "logical"
   class(matrix$UCdist) = "integer"
   class(matrix$teUORF) = "double"
+  class(matrix$uorfID) = "character"
+  class(matrix$tissue) = "character"
+  class(matrix$seqnames) = "character"
   
   assign("matrix",matrix,envir = .GlobalEnv)
   if(exists("generalName") == F){
@@ -65,7 +54,7 @@ makeMatrix = function(allLengths,teCDS,te5UTR,te3UTR,teUORF,transcriptNames){
 #Decide name to use for rdata file and save it
 saveRData = function(){
   if(exists("generalName") == F){
-    save.image(paste0(RdataFolder,"results.Rdata"))
+    save.image(p(RdataFolder,"results.Rdata"))
   }else{
     save.image(paste0(RdataFolder,detailedFullName,".results.Rdata",sep=""))
   }
@@ -74,10 +63,11 @@ saveRData = function(){
 getGeneralTEValues = function(usingNewCage,leaderBed){
   if(exists("te3UTR") == F){
     cat("finding all lengths\n")
-    allLengths = transcriptLengths(Gtf,with.cds_len = T,with.utr5_len = T,with.utr3_len = T)
+    allLengths = getAllTranscriptLengths()
     cat("finding te's of RNA and UTRs\n")
     
     if(usingNewCage || !is.null(leaderBed)){
+      print("redefining five-utr lengths for TE values, because of cage")
       new5Length = findCageUTRFivelen(fiveUTRs, allLengths$tx_name)
       allLengths$utr5_len = new5Length
       allLengths$tx_len = allLengths$utr5_len + allLengths$cds_len + allLengths$utr3_len
@@ -87,7 +77,7 @@ getGeneralTEValues = function(usingNewCage,leaderBed){
     te5UTR = getTE(fiveUTRs,rna,RFP,allLengths$tx_len,allLengths$utr5_len,allLengths,"te5UTR")
     te3UTR = getTE(threeUTRs,rna,RFP,allLengths$tx_len,allLengths$utr3_len,allLengths,"te3UTR")
     
-    assign("allLengths",allLengths,envir = .GlobalEnv)
+    
     assign("teCDS",teCDS,envir = .GlobalEnv)
     assign("te5UTR",te5UTR,envir = .GlobalEnv)
     assign("te3UTR",te3UTR,envir = .GlobalEnv)
@@ -98,20 +88,20 @@ getGeneralTEValues = function(usingNewCage,leaderBed){
 decideHowToGetUORFRanges = function(assignUorf = F,givenCage = NULL){ ###Watch out for assign uorf, might be buggy
   cat("started finding UORFS\n")
   if(UorfRangesNotExists(assignUorf,givenCage))
-    rangesOfuORFs = scanUORFs(fiveUTRs,saveToFile = T)
+    rangesOfuORFs = scanUORFs(fiveUTRs,saveToFile = T, assignUorf = assignUorf)
 }
 #Check if uorfRanges exist already, or if must be created.
 ###########Should make this more failsafe!!!!!!!!!! add possibility to give ranges!!!!!!!!
 UorfRangesNotExists = function(assignUorf = F, givenCage = NULL){
   if(exists("rangesOfuORFs") == F){
-    if(assignUorf)
+    if(!assignUorf){ #if not loading or assigning to global, we need cage name
       thisCage = givenCage
       assign("thisCage",thisCage,envir = .GlobalEnv)
-      
-    if(file.exists(paste0(uorfFolder,getRelativePathName(thisCage),".uorf.rdata" ))){
-      if(!assignUorf){
+    }
+    if(file.exists(getUORFRDataName(givenCage))){#!!!Will not work for single run now!!!
+      if(assignUorf){
         cat("loading rangesOfuorf from folder\n",uorfFolder,"\n")
-        load(paste0(uorfFolder,getRelativePathName(thisCage),".uorf.rdata" ),envir = .GlobalEnv)
+        load(getUORFRDataName(givenCage),envir = .GlobalEnv)
       }
       return(F)
       #TODO add possibility to use bed files instead of just rdata files for uorfs
@@ -135,43 +125,37 @@ UorfRangesNotExists = function(assignUorf = F, givenCage = NULL){
 #al: length of all sequences, might be NULL
 #specificTE: what type you  want to get TE of, CDS, LEADER, 3', uorfs etc.
 getTE = function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specificTE){
- 
+  
   libraryRna = length(dm1)
   libraryRPF = length(dm2)
   ###TE FOR UORF
   if(specificTE == "teUORF"){
-    overlap1 = countOverlaps(unlist(seq),dm1)
-    overlap2 = countOverlaps(unlist(seq),dm2)
     
-    grl = as.data.frame(rangesOfuORFs)
-    
-    agUORFRNA = aggregate(overlap1,by = list(grl$names), sum)
-    agUORFRibo = aggregate(overlap2,by = list(grl$names), sum)
-    assign("agUORFRibo",agUORFRibo, envir = .GlobalEnv)
+    gr = unlist(seq, use.names = F)
+    grl = GroupGRangesByOther(gr,gr$names)
+    overlapRNA = countOverlaps(grl,dm1)
+    overlapRFP = countOverlaps(grl,dm2)
     
     #Find lengths used for uorf fpkm values
-    ORFLengths = aggregate(grl[,"width"],by=list(grl[,"names"]),sum)
-    assign("ORFLengths",ORFLengths, envir = .GlobalEnv)
-    transcriptNames = gsub("_[0-9]*","", agUORFRNA$Group.1) #Move this to namegetters!!
-    transcriptNames = gsub("\\..*","", transcriptNames)
-    assign("transcriptNames",transcriptNames, envir = .GlobalEnv)
+    ORFLengths = widthPerGRangesGroup(grl,F)
+    
+    #find all tx-lengths used by orfs
     vector = allLengths$tx_len
     names(vector) = allLengths$tx_name
-    index = match(transcriptNames,names(vector))
+    index = match(gsub("_[0-9]*","", names(grl)),names(vector))
     vector = vector[index]
     
-    norm1 = FPKMNorlization(agUORFRNA$x,vector,libraryRna)
-    norm2 = FPKMNorlization(agUORFRibo$x,ORFLengths$x,libraryRPF)
+    norm1 = FPKMNorlization(overlapRNA,vector,libraryRna) #normalize by tx
+    norm2 = FPKMNorlization(overlapRFP,ORFLengths,libraryRPF)# normalize by orf
     
     assign("normUORFRNA",norm1, envir = .GlobalEnv)
     assign("normUORFRFP",norm2, envir = .GlobalEnv)
     
-    teUORF = norm2/norm1
-    teUORF = as.matrix(teUORF)
+    teUORF = as.matrix(norm2/norm1)
     assign("teUORF",teUORF, envir = .GlobalEnv)
     
     print("making matrix")
-    makeMatrix(allLengths,teCDS,te5UTR,te3UTR,teUORF,transcriptNames)
+    makeMatrix(allLengths,teCDS,te5UTR,te3UTR,teUORF)
   }
   ###TE FOR CDS AND UTR
   else{
@@ -193,8 +177,8 @@ getTE = function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specif
       assign("norm3UTRRFP",norm2, envir = .GlobalEnv)
     }
   }
-  te = norm2/norm1
-  te = as.matrix(te)
+  
+  te = as.matrix(norm2/norm1)
   return(te)
 }
 
@@ -204,6 +188,8 @@ startUORFomeGenerator = function(arcs){
   
   if(lArcs == 4) #Run from kjempetuja@uib hakontj account or other people
     getMatrix(usingNewCage = as.logical(arcs[1]),cageName = arcs[2],rnaSeq = arcs[3],rfpSeq = arcs[4])
+  if(lArcs == 5) #Run from kjempetuja@uib hakontj account or other people
+    getMatrix(usingNewCage = as.logical(arcs[1]),cageName = arcs[2],rnaSeq = arcs[3],rfpSeq = arcs[4],tissueUsed = as.character(arcs[5]))
   if(lArcs == 1)
     getMatrix()
   print("script finished")

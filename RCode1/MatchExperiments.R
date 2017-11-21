@@ -15,9 +15,13 @@ source("./MatchExperimentsHeader.R")
 
 
 getLinkerFile()
+filterBadStudies()
 
-sorted = getSpecificStudyAndSpecies()
-
-currentCageFiles =  getCageFiles(sorted,speciesName)
-
-runExperiments(sorted,currentCageFiles)
+for(study in unique(SpeciesGroup$Study)){ #for each study, run it
+  sorted = getSpecificStudyAndSpecies(study)
+  
+  currentCageFiles =  getCageFiles(sorted,speciesName)
+  
+  runExperiments(sorted,currentCageFiles)
+  
+}

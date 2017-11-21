@@ -17,7 +17,7 @@ dataFolder = helperMainFolder
 fastaName = p(dataFolder,"/Homo_sapiens.GRCh38.dna.primary_assembly.chr.fa")
 faiName = p(dataFolder,"/Homo_sapiens.GRCh38.dna.primary_assembly.chr.fa")
 gtfName = p(dataFolder,"/Homo_sapiens.GRCh38.79.chr.NO_PATCH.gtf")
-gtfdb = p(dataFolder,"Gtf.db")  ### This is wrong!!!
+gtfdb = p(dataFolder,"/test_dataGtf.db")  ### This is wrong!!!
 
 #output folders
 cageFolder = p(dataMainFolder,"/CAGE/human/")
@@ -30,6 +30,7 @@ fastaFolder = p(resultsFolder,"/fasta/")
 uorfBedFolder = p(resultsFolder,"/bedUORFS/")
 uorfFolder = p(resultsFolder,"/rangesOfUORFs/")
 bamFolder = p(resultsFolder,"/SortedAndIndexedBams/")
+idFolder = p(resultsFolder,"/uorfIDs/")
 #specific run names
 if(exists("detailedFullName") == F){
   detailedFullName = ""

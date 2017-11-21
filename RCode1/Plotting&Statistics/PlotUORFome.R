@@ -13,7 +13,9 @@ plotting = function(matrix,plottingName = "resultPlots.pdf"){
 #   matrix = matrix[!index2,]
 #   index3 = matrix[,"normUORFRFP"] < 0.1 | is.na(matrix[,"normUORFRFP"] ) | is.infinite(matrix[,"normUORFRFP"] ) | is.nan(matrix[,"normUORFRFP"] )
 #   matrix = matrix[!index3,]
-  
+  ###Remove all bad values from teCDS
+  #   index = matrix[,"teCDS"] == 0 | is.na(matrix[,"teCDS"] ) | is.infinite(matrix[,"teCDS"] ) | is.nan(matrix[,"teCDS"] )
+  #   matrix = matrix[!index,]
   pdf(plottingName)
   maxUORFTEList = aggregate(as.numeric(as.matrix(matrix$teUORF)),by = list(matrix$tx_name),max)
   maxCDSTEList = aggregate(as.numeric(as.matrix(matrix$teCDS)),by = list(matrix$tx_name),max)

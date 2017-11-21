@@ -26,6 +26,19 @@ makeGeneralName = function(cageName = NULL,leaderBed = NULL,rnaSeq = NULL,rfpSeq
   }
 }
 
+### Print info about specific run
+infoPrints = function(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq = NULL,rfpSeq = NULL){
+  print("Estimated normal time is 5 hours\n")
+  cat("data output folder used is:",normalizePath(dataFolder),"\n")
+  if(doubleBAM == T)
+    cat("using bam-file for RFP\n")
+  if(usingNewCage)
+    cat("using cage-file named: \n",cageName,"\n")
+  
+  makeGeneralName(cageName,leaderBed,rnaSeq,rfpSeq)
+  cat("starting loading objects\n")
+}
+
 #'Get name without extension, update this!!
 getCleanName = function(loadPath,nameUsed){
   if(!is.null(loadPath)){
@@ -42,14 +55,23 @@ getFastaName = function(cleanName){
 getUORFBedName = function(cleanName){
   return( paste0(uorfBedFolder,cleanName,".bed") )# for uorfBed
 }
+getUORFRDataName = function(cleanName){
+  return( paste0(uorfFolder,getRelativePathName(cleanName),".uorf.rdata") )# for uorfBed
+}
 
-chooseUORFName = function(loadPath){
-  if( exists("thisCage") && !is.null(thisCage)){
+chooseUORFName = function(loadPath = NULL, nameSave = NULL){
+  if( !is.null(nameSave)){
+    nameU = nameSave
+  }else if( exists("thisCage") && !is.null(thisCage)){
     nameU = thisCage
   }else if(is.null(loadPath) && exists("generalName")){ #fix this!!!!
     nameU = generalName
-  }else{
+  }else if(exists("cageName") &&is.null(cageName)){
+    nameU = generalName
+  }else if(!is.null(loadPath)){
     nameU = loadPath
+  }else{
+    stop("NO name for uorfs bed and fasta files!")
   }
   nameU
 }

@@ -11,7 +11,7 @@ rfpPath = "/export/valenfs/data/processed_data/Ribo-seq/"
 linkerPath = "./../SRA_Accessions.tab"
 linkerSmallPath = p(helperMainFolder,"/linkerFileSmall.rdata")
 experimentsIDPath = p(dataMainFolder,"/fantom6_Hakon_new.csv")
-
+unfilteredSpeciesGroupPath = p(dataFolder,"/unfilteredSpeciesGroup.rdata")
 #studyName = "Hsieh AC,2012"  #"Gonzalez C,2014"
 speciesName = "Human"
 rnaRFPMiddlePathName = "/final_results/aligned_GRCh38/" #Change this if mouse is needed!!!
@@ -19,26 +19,30 @@ bashScriptLocation = "./../prepareDataWithoutPredefinedLeaders.sh"
 
 maxCores = as.integer(detectCores()-(detectCores()/20)) #dont use too many, 60 on kjempetuja
 
-filterBadStudies = function(){
+filterBadStudies = function(filterUnequal = T){
   dat = read.csv(file = experimentsIDPath,sep = "\t")
   SpeciesGroup = dat[dat$Species == speciesName,]
   
   #filter micro rna studies
   SpeciesGroup = SpeciesGroup[-as.numeric(grep("mir",SpeciesGroup$Sample_description,ignore.case = T)),]
   SpeciesGroup =  SpeciesGroup[!(SpeciesGroup$Study == "Guo H,2010"),]
-  for(study in unique(SpeciesGroup$Study)){ #for each study, verify it
-    thisStudy = SpeciesGroup[SpeciesGroup$Study == study,]
-    if(( sum(thisStudy$Sample_Type == "RPF") != (sum(thisStudy$Sample_Type == "RNA") ))){
-      cat("Not equal number of matching rna and rfp files, in !",study,"\n")
-      
-      drop = SpeciesGroup$Study == study
-      SpeciesGroup = SpeciesGroup[!drop,]
+  if(filterUnequal){
+    
+    for(study in unique(SpeciesGroup$Study)){ #for each study, verify it
+      thisStudy = SpeciesGroup[SpeciesGroup$Study == study,]
+      if(( sum(thisStudy$Sample_Type == "RPF") != (sum(thisStudy$Sample_Type == "RNA") ))){
+        cat("Not equal number of matching rna and rfp files, in !",study,"\n")
+        
+        drop = SpeciesGroup$Study == study
+        SpeciesGroup = SpeciesGroup[!drop,]
+      }
     }
   }
   
   
   assign("SpeciesGroup",SpeciesGroup,envir = .GlobalEnv)
 }
+
 ####FUNCTIONS####
 getLinkerFile = function(){ #get files linking experiments to srr numbers
   if(!file.exists(linkerSmallPath)){ # this does not include srs studies
@@ -46,9 +50,11 @@ getLinkerFile = function(){ #get files linking experiments to srr numbers
     linkerFile = fread(linkerPath,sep = "\t")
     
     linkerFileSmall = linkerFile[grep("SRR",linkerFile$Accession)]
-    d = linkerFileSmall[grep("SRP029589",linkerFileSmall$study)] # cheat to add stumpf, needs to be automated in package
-    linkerFileSmall = linkerFileSmall[grep("GSM",linkerFileSmall$Alias)]
-    linkerFileSmall = rbind(linkerFileSmall, d[d$Study == "SRP029589",])
+    linkerFileSmall = linkerFileSmall[,.(Accession,Alias,Sample)]
+    linkerFileSmall = linkerFileSmall[linkerFileSmall$Alias != "-"]
+    # d = linkerFileSmall[grep("SRP029589",linkerFileSmall$study)] # cheat to add stumpf, needs to be automated in package
+    # linkerFileSmall = linkerFileSmall[grep("GSM",linkerFileSmall$Alias)]
+    # linkerFileSmall = rbind(linkerFileSmall, d[d$Study == "SRP029589",])
     save(linkerFileSmall, file = linkerSmallPath)
     
   }else{
@@ -73,7 +79,7 @@ makeCorrectExperimentNames = function(sorted,rnaRows,rpfRows){
   return(sorted)
 }
 
-checkExperimentNamesAreCorrect = function(sorted){
+checkExperimentNamesAreCorrect = function(sorted, requireMatches = T){
   
   #start with mRNA seqs
   #rnaSeqs = sorted[sorted[,"Sample_Type"] =="RNA",]
@@ -122,7 +128,7 @@ checkExperimentNamesAreCorrect = function(sorted){
                 print("hit rfp")
                 rpfRemoved = gsub(pattern = "RPF",replacement = "",x = rpfRows,ignore.case = T)
               }else{
-                stop(cat("could not find ribo seqs for study",as.character(sorted$Study[1])))
+                if(requireMatches) stop(cat("could not find ribo seqs for study",as.character(sorted$Study[1])))
               }
             }
           }
@@ -151,23 +157,11 @@ checkExperimentNamesAreCorrect = function(sorted){
   return(sorted)
 }
 
-getSpecificStudyAndSpecies = function(studyName){
-  #Choose study and species of study
-  
-  SpeciesStudyGroup = SpeciesGroup[SpeciesGroup$Study == studyName,]
-  
-  sorted = SpeciesStudyGroup[order(SpeciesStudyGroup$Sample_description),]
-  
-  if((nrow(sorted) %% 2 != 0) || ( sum(sorted$Sample_Type == "RPF") != (sum(sorted$Sample_Type == "RNA") ))){
-    stop("Not equal number of matching rna and rfp files!")
-  }
-  
-  sorted = checkExperimentNamesAreCorrect(sorted)
-  
-  #Make srr
-  getSRRs = function(x){ #It now chooses first
-    linkerFileSmall[grep(x,linkerFileSmall$Alias)]$Accession[1]
-  }
+getSRRs = function(x){ #It now chooses first
+  linkerFileSmall[grep(x,linkerFileSmall$Alias)]$Accession[1]
+}
+
+getAllSRRsForStudy = function(sorted,studyName){
   SRR = lapply(sorted$Sample_ID, function(x) getSRRs(x))
   if(is.na(SRR[1])){
     SRR = lapply(sorted$Sample_ID, function(x) {linkerFileSmall[grep(x,linkerFileSmall$Sample)]$Accession[1]})
@@ -175,17 +169,20 @@ getSpecificStudyAndSpecies = function(studyName){
   if(is.na(SRR[1])){
     stop(cat("Could not find SRR ids for study: ",studyName,"\n"))
   }
-  
-  study = strsplit(as.character(sorted$Study[1])," ")[[1]][1]
   sorted$SRR = SRR
+  return(sorted)
+}
+
+getRNARFPPaths = function(sorted){
+  study = strsplit(as.character(sorted$Study[1])," ")[[1]][1]
   
-  sorted = checkExperimentNamesAreCorrect(sorted)
-  
-  
-  ####Make rna seq and rfp paths
-  currentRnaPath = paste0(rnaPath,grep(study,list.files(rnaPath),ignore.case = T,value = T),rnaRFPMiddlePathName)
-  currentRfpPath = paste0(rfpPath,grep(study,list.files(rfpPath),ignore.case = T,value = T),rnaRFPMiddlePathName)
-  
+  if(study == "Gonzalez"){ #fix this cheat later
+    currentRnaPath = paste0(rnaPath,grep(study,list.files(rnaPath),ignore.case = T,value = T),rnaRFPMiddlePathName)
+    currentRfpPath = paste0(rfpPath,grep(study,list.files(rfpPath),ignore.case = T,value = T),rnaRFPMiddlePathName)
+  }else{
+    currentRnaPath = grep("mouse",paste0(rnaPath,grep(study,list.files(rnaPath),ignore.case = T,value = T),rnaRFPMiddlePathName),ignore.case = T,invert = T, value = T)
+    currentRfpPath = grep("mouse",paste0(rfpPath,grep(study,list.files(rfpPath),ignore.case = T,value = T),rnaRFPMiddlePathName),ignore.case = T,invert = T, value = T)
+  }
   folders = data.frame(matrix("A",  nrow = nrow(sorted),ncol = 1))
   for(i in 1:nrow(sorted)){ #Scary way to do it!!!!!!
     if(sorted[i,]$Sample_Type == "RPF"){
@@ -196,16 +193,61 @@ getSpecificStudyAndSpecies = function(studyName){
   }
   folders = t(folders)
   sorted$RnaRfpFolders = folders
-  sorted
+  return(sorted)
 }
 
-#'Supports only specific tissue conversions:
-#'Hela -> Ovary, HEK293 ->kidney, THP-1 ->macrophage, PC3 -> prostate
-getNameVariantsForCageTissue = function(sorted){
-  if(length(unique(sorted$Tissue_or_CellLine)) != 1){
+#' Get filtered ribo paths, so all have srr numbers
+getFilteredRFPPaths <- function(SpeciesGroup){
+  rnaSamples <- SpeciesGroup[SpeciesGroup$Sample_Type == "RNA",]
+  rpfSamples <- SpeciesGroup[SpeciesGroup$Sample_Type == "RPF",]
+  if(nrow(rnaSamples) + nrow(rpfSamples) != nrow(SpeciesGroup)) stop("could not split all samples into rna and rpf")
+  
+  rpfFilePaths <- rpfSamples$RnaRfpFolders
+  rpfFilePaths <- rpfFilePaths[-grep(pattern = "//", rpfFilePaths)]
+  rpfFilePaths <- rpfFilePaths[grep(".bam", rpfFilePaths)]
+  if (length(grep(".bam",rpfFilePaths)) != length(rpfFilePaths)) 
+    warning("not all rfp files found srr numbers")
+  return(rpfFilePaths)
+}
+
+getSpecificStudyAndSpecies = function(studyName, checkEven = T, checkNames = T, sortAll = T){
+  #Choose study and species of study
+  
+  SpeciesStudyGroup = SpeciesGroup[SpeciesGroup$Study == studyName,]
+  
+  if(sortAll){ sorted = SpeciesStudyGroup[order(SpeciesStudyGroup$Sample_description),]
+  }else{sorted = SpeciesStudyGroup[SpeciesStudyGroup$Sample_description,]}
+  
+  if(checkEven){
+    if((nrow(sorted) %% 2 != 0) || ( sum(sorted$Sample_Type == "RPF") != (sum(sorted$Sample_Type == "RNA") ))){
+      stop("Not equal number of matching rna and rfp files!")
+    }
+  }
+  
+  #sorted = checkExperimentNamesAreCorrect(sorted) # <- need this ?
+  
+  #Make srr
+  sorted = getAllSRRsForStudy(sorted,studyName)
+  
+  if(checkNames) sorted = checkExperimentNamesAreCorrect(sorted)
+  
+  ####Make rna seq and rfp paths
+  sorted = getRNARFPPaths(sorted)
+  
+  return(sorted)
+}
+
+
+convertToStandardTissueName = function(sorted = NULL, tissueTypeDirrect = NULL){
+  if(is.null(tissueTypeDirrect) && length(unique(sorted$Tissue_or_CellLine)) != 1){
     stop("warning! different tissue in experiment, not allowed!")
   }
-  cellLine = sorted$Tissue_or_CellLine[1]
+  if(is.null(tissueTypeDirrect)){
+    cellLine = sorted$Tissue_or_CellLine[1]
+  }else{
+    cellLine = tissueTypeDirrect
+  }
+  
   if(cellLine == "HeLa"){
     cellLine = "Ovary"
   }else if(cellLine == "HEK293" | cellLine == "HEK293T" ){
@@ -215,6 +257,13 @@ getNameVariantsForCageTissue = function(sorted){
   }else if(cellLine == "PC3"){
     cellLine = "prostate"
   }
+  return(cellLine)
+}
+
+#'Supports only specific tissue conversions:
+#'Hela -> Ovary, HEK293 ->kidney, THP-1 ->macrophage, PC3 -> prostate
+getNameVariantsForCageTissue = function(sorted){
+  cellLine = convertToStandardTissueName(sorted)
   
   currentCageFiles = grep(cellLine,list.files(cageFiles),ignore.case = T,value = T)
   if(length(currentCageFiles) == 0)
@@ -223,6 +272,28 @@ getNameVariantsForCageTissue = function(sorted){
   currentCageFiles = grep(".bed",currentCageFiles,ignore.case = T,value = T)
   currentCageFiles = paste0(cageFiles,currentCageFiles)
 }
+
+getNameVariantsForAllTissues = function(sorted){
+  sorted = as.data.frame(sorted,stringsAsFactors = F)
+  allTissues = as.character(unique(sorted$Tissue_or_CellLine))
+  allLevels = levels(sorted$Tissue_or_CellLine)
+  
+  for(i in allTissues){
+    if(class(sorted$Tissue_or_CellLine) == "factor"){
+      temp = convertToStandardTissueName(tissueTypeDirrect =  i)
+      levels(sorted$Tissue_or_CellLine) = c(levels(sorted$Tissue_or_CellLine),temp)
+      sorted[sorted$Tissue_or_CellLine == i,]$Tissue_or_CellLine = temp
+      
+    }else{
+      sorted[sorted$Tissue_or_CellLine == i,]$Tissue_or_CellLine = convertToStandardTissueName(tissueTypeDirrect =  i)
+    }
+    
+  }
+  sorted = sorted[order(sorted$Tissue_or_CellLine ),]
+  
+  return(sorted)
+}
+
 getCageFiles = function(sorted,speciesName){
   ###Make cage files specific for rna seq and rfp
   if(speciesName == "Human"){
@@ -237,6 +308,26 @@ getCageFiles = function(sorted,speciesName){
   }
   currentCageFiles
 }
+getUnfilteredSpeciesGroups = function(){
+  if(!file.exists(unfilteredSpeciesGroupPath)){
+    getLinkerFile()
+    filterBadStudies(filterUnequal = F)
+    SpeciesGroup =  getNameVariantsForAllTissues(SpeciesGroup)
+    a = SpeciesGroup
+    ########
+    SpeciesGroup = a
+    SpeciesGroup$SRR = rep("a",nrow(SpeciesGroup))
+    SpeciesGroup$RnaRfpFolders = rep("a",nrow(SpeciesGroup))
+    for(study in unique(SpeciesGroup$Study)){ # <- get all paths to ribo and rna
+      SpeciesGroup[SpeciesGroup$Study == study,] = getSpecificStudyAndSpecies(study,checkEven = F,checkNames = F)
+    }
+    save(SpeciesGroup, file =unfilteredSpeciesGroupPath)
+  }else{
+    load(file = unfilteredSpeciesGroupPath)
+  }
+  return(SpeciesGroup)
+}
+
 #'The acctual multithreaded run of the experiments
 #'Need to optimize this!!!, it will stop using cores
 runExperiments = function(sorted,currentCageFiles){

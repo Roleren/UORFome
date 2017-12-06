@@ -3,25 +3,20 @@
 source("./createfasta.R")
 library(GenomicFeatures)
 library(GenomicAlignments)
-require(data.table)
 
 
-###Find all uorf into the cds,filter bad ones
+
 
 # If called without path, need rangesofUORFs in global scope!!
-
-removeFalseUORFs = function(rangesOfuORFs, loadPath = NULL,saveToFile = F,outputFastaAndBed = F, nameSave = NULL){
+#' Find all uorf into the cds,filter bad ones
+filterORFs <- function(rangesOfuORFs, loadPath = NULL, saveToFile = F,outputFastaAndBed = F, nameSave = NULL){
   
-  ###########PRE LOADINGS#############
   print("starting to filter out bad ourfs...")
   if(!is.null(loadPath))
     load(loadPath,envir = .GlobalEnv)
   
-  ################FILTERING############
-  #rangesOfuORFs = rangesOfuORFs[width(rangesOfuORFs) > 5] #filter out 0
-  
   #check start upstream, ending downstream
-  rangesOfuORFs = removeUORFsThatAreAcctualyCDSs(rangesOfuORFs)
+  rangesOfuORFs = removeORFsWithinCDS(rangesOfuORFs)
   
   
   print("finished filtering bad ourfs")
@@ -40,21 +35,14 @@ removeFalseUORFs = function(rangesOfuORFs, loadPath = NULL,saveToFile = F,output
   return(rangesOfuORFs)
 }
 ### Use findOverlaps to find equal start sites, this work for - strand ?
-removeUORFsThatAreAcctualyCDSs = function(rangesOfuORFs){
+removeORFsWithinCDS <- function(grl){
  
   getGTF()
   getCDS()
-  cdsUsed = unlist(cds[names(rangesOfuORFs)])
-  gr = unlist(rangesOfuORFs,use.names = F)
-  overlaps =findOverlaps(query = IRanges(start(gr),end = end(gr)) ,
-                              subject = IRanges(start(cdsUsed),end=end(cdsUsed)), type = "equal")
-  #remove and recombine to grangeslist
-  gr = gr[-overlaps@from]
   
-  l = Rle(names(gr))
-  t = unlist(lapply(1:length(l@lengths),function(x){ rep(x,l@lengths[x])}))
-  grl = split(gr,t)
-  names(grl) = unique(names(gr))
+  overlaps <- findOverlaps(query = grl, cds, type = "within")
+  grl <- grl[-unique(from(overlaps))]
+  
   print("Removed uorfs that were acctualy cdss")
   return(grl)
 }

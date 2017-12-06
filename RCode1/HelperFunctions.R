@@ -1,4 +1,10 @@
-#Creates normalizations of the counts
+
+#' Creates normalizations of the counts, normally used in Translations efficiency calculations
+#' @param counts A list of counts per object
+#' @param lengthSizeA list of lengths per object
+#' @param librarySize A numeric of size 1, the size of the library
+#'
+#' @export
 FPKMNorlization = function(counts, lengthSize, librarySize){
   return((as.numeric(counts)*(10^9)) / (as.numeric(lengthSize)*as.numeric(librarySize)))
 }
@@ -64,17 +70,26 @@ rfe = function(name){#Only works on .bam right now!!!!
   return (gsub("*\\.bam", "", name))
 }
 
-loadBamFile = function(fileLocation, typeOfBam){
-  sortedBam = paste0(bamFolder,getRelativePathName(fileLocation))
-  if(!file.exists(p(sortedBam,".bai"))){
-    sortBam(fileLocation,rfe(sortedBam)) #rfe - remove file extension
-    indexBam(sortedBam)
+loadBamFile <- function(fileLocation, typeOfBam, notPaired = T, destination = NULL){
+  sortedBam <- paste0(bamFolder, getRelativePathName(fileLocation))
+  if (!file.exists(p(sortedBam,".bai"))){
+    if (is.null(destination)){
+      sortBam(fileLocation,rfe(sortedBam)) #rfe - remove file extension
+      indexBam(sortedBam)
+    } else{
+      sortBam(fileLocation,rfe(sortedBam)) #rfe - remove file extension
+      indexBam(sortedBam)
+    }
     cat("Created new ",typeOfBam,"-seq file, name:\n",sortedBam)
   }
-  if(testBAM(sortedBam)){ ##Check if this is realy necesary
-    rseq = readGAlignmentPairs(sortedBam)
-  }else 
-    rseq = readGAlignments(sortedBam)
+  if (notPaired){
+    if (testBAM(sortedBam)){ ##Check if this is realy necesary
+      rseq <- readGAlignmentPairs(sortedBam)
+    } else 
+      rseq <- readGAlignments(sortedBam)
+  } else{
+    rseq <- readGAlignments(sortedBam)
+  } 
   return(rseq)
 }
 

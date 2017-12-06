@@ -3,18 +3,18 @@
 library(ORFik)
 source("./HelperLibraries.R")
 source("./findUORFsOverlappingCDS.R")
-#source("./GenomicGetters.R")
-###Get ranges of uorfs, fiveUTRs must be GRangesList
-### Save to file set to false by default
+
+#' Get ranges of uorfs, fiveUTRs must be GRangesList
+#' Save to file set to false by default
 scanUORFs = function(fiveUTRs,saveToFile = T,outputName = NULL, assignUorf = T){
   
   cat("started scanning for uorfs\n")
   
-  rangesOfuORFs = getUnfilteredUORFsFast(fiveUTRs,assignUorf)
+  rangesOfuORFs = getUnfilteredUORFs(fiveUTRs,assignUorf)
   if(is.null(outputName)){
-    rangesOfuORFs = removeFalseUORFs(rangesOfuORFs, outputFastaAndBed = T)
+    rangesOfuORFs = filterORFs(rangesOfuORFs, outputFastaAndBed = T)
   }else{
-    rangesOfuORFs = removeFalseUORFs(rangesOfuORFs, outputFastaAndBed = T, nameSave = outputName)
+    rangesOfuORFs = filterORFs(rangesOfuORFs, outputFastaAndBed = T, nameSave = outputName)
   }
   
   if(saveToFile){
@@ -32,20 +32,3 @@ scanUORFs = function(fiveUTRs,saveToFile = T,outputName = NULL, assignUorf = T){
   print("rangesOfuORFs finished")
   return(rangesOfuORFs)
 }
-
-
-
-###For each 5'utr, find the uorfs, NB! Needs global fiveUTRs
-findInFrameUORF = function(i){
-  grangesObj = fiveUTRs[i]
-  
-  ORFdef <- find_in_frame_ORFs(as.character(unlist(seqs[i])),
-                               longestORF = F,
-                               minimumLength = 8) #function for finding orfs
-  
-  if(length(ORFdef) > 0 ){ #if found any orfs
-    return( map_to_GRanges(ORFdef,unlist(grangesObj),names(grangesObj)) ) # map it
-  }
-  return ( NULL ) #else return nothing
-}
-

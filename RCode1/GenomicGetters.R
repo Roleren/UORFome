@@ -52,6 +52,7 @@ getCDS = function(assignIt = T){
     cds = cdsBy(Gtf,"tx",use.names = T)
     if(assignIt){
       assign("cds",cds,envir = .GlobalEnv)
+      return(cds)
     }else{
       return(cds)
     }
@@ -108,7 +109,8 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
           assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)
           return
         }
-        fiveUTRs = getNewfivePrimeUTRs(fiveUTRs,cageName)
+        getCDS()
+        fiveUTRs = reassignTSSbyCage(fiveUTRs,cageName, cds = cds)
         if(1){ #TODO add possibility to not save utrs, now it always saves
           exportNamebed = paste0(leadersbedFolder,getRelativePathName(p(cageName,".leader.bed")))
           exportNamerdata = paste0(leadersFolder,getRelativePathName(p(cageName,".leader.rdata")))
@@ -130,9 +132,9 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
 }
 
 #Get the upstream open reading frames from the 5' leader sequences, given as GRangesList
-getUnfilteredUORFsFast = function(fiveUTRs, assignRanges = T){
+getUnfilteredUORFs = function(fiveUTRs, assignRanges = T){
   getSequencesFromFasta(fiveUTRs)
-  rangesOfuORFs = get_all_ORFs_as_GRangesList(grl = fiveUTRs,fastaSeqs = seqs,minimumLength = 2)
+  rangesOfuORFs = find_in_frame_ORFs(grl = fiveUTRs,fastaSeqs = seqs,minimumLength = 2)
   
   if(assignRanges)
     assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
@@ -140,22 +142,6 @@ getUnfilteredUORFsFast = function(fiveUTRs, assignRanges = T){
   return(rangesOfuORFs)
 }
 
-#Get the upstream open reading frames from the 5' leader sequences, given as GRangesList
-getUnfilteredUORFs = function(fiveUTRs, assignRanges = T){
-  cat("finding ranges of uorfs, this takes around 30 min.\n")
-  getSequencesFromFasta(fiveUTRs)
-  rangesOfuORFs = lapply(X = 1:length(fiveUTRs), FUN = findInFrameUORF)
-  
-  rangesOfuORFs = GRangesList(unlist(rangesOfuORFs))
-  gr = unlist(rangesOfuORFs, use.names = F)
-  transcriptNames = getTranscriptNames(gr$names)
-  names(rangesOfuORFs) = unique(transcriptNames)
-  
-  if(assignRanges)
-    assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
-  print("finished unfiltered UORFs")
-  return(rangesOfuORFs)
-}
   
 getAllTranscriptLengths = function(){
   load(p(dataFolder,"/transcriptLengths.rdata"))

@@ -1,6 +1,10 @@
+library(DBI)
+library(data.table)
+
 source("./HelperFunctions.R")
 source("./HelperVariables.R")
 source("./GRangesHelpers.R")
+source("./DataBaseMatchExperiments.R")
 #goals:
 #1. get some way to load matrices, they are big and many!
 #2. how should we filter here, only passed uorfs ? yes, i think so
@@ -12,6 +16,15 @@ source("./GRangesHelpers.R")
 matrixFiles = list.files(matrixFolder)
 uorfFiles = list.files(uorfFolder)
 idFiles = list.files(idFolder)
+cageFiles = list.files(cageFolder)
+
+
+
+setwd("/export/valenfs/projects/uORFome/dataBase/")
+databaseName = "uorfCatalogue"
+databaseName = paste0(databaseName,".sqlite")
+name = databaseName
+
 # for(i in list.files(matrixFolder)){
 #   load(p(matrixFolder,i))
 #   #find a way to combine the matrices into a bigger format

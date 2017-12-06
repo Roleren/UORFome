@@ -8,7 +8,7 @@ source("./Plotting&Statistics/PlotUORFome.R")
 source("./HelperFunctions.R")
 source("./uOrfFeatures.R")
 source("./GRangesHelpers.R")
-
+source("./bedMaker.R")
 
 ###Make the output matrix, containing normalizations, te's, lengths and names.
 ###Saves the matrix to inputfolder as matrix.csv

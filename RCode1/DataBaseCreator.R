@@ -1,160 +1,126 @@
-library(DBI)
+
 setwd("/export/valenfs/projects/uORFome/RCode1/")
 source("./CreateCatalogueHelpers.R")
-setwd("/export/valenfs/projects/uORFome/dataBase/")
-#databaseFolder = "../dataBase/"
-databaseName = "uorfCatalogue"
-databaseName = paste0(databaseName,".sqlite")
-name = databaseName
+source("./databaseHelpers.R")
 
-
-createDataBase = function(name){
-  return (dbConnect(RSQLite::SQLite(), name))
-}
-
-deleteDataBase = function(name){
-  dbDisconnect(uorfDB)
-  unlink(name)
-}
-deleteTable = function(tableName){
-  dbRemoveTable(uorfDB,tableName)
-}
-
-insertTable= function(Matrix, tableName, appends = F){
-  dbWriteTable(uorfDB, tableName, Matrix,append = appends)
-}
-innerJoinInsertTableTE = function(Matrix, table1, table2){
-  dbSendQuery(uorfDB,paste('SELECT',paste0(table1,'.uorfID,'),paste0(table1,'teUORF,'),paste0(table2,'teUORF'), 'FROM', table1,'INNER JOIN', table2,'ON', "teUORF" ,'=', "teUORF"))
-}
-
-
-readTable = function(tableName){
-  return(as.data.table(dbReadTable(uorfDB,tableName)))
-}
-
-createCatalogueDB = function(name, bigMatrix, tableName){
-  uorfDB = createDataBase(name)
-  insertTable(bigMatrix,tableName)
+createUORFAtlas <- function(){
   
-  dbListTables(uorfDB)
-  #test, get first row
-  dbGetQuery(uorfDB, paste('SELECT * FROM', tableName ,'ORDER BY ROWID ASC LIMIT 1') )
-  
-  
-  deleteDataBase(name)
-  rm(uorfDB)
-}
-uorfDB = createDataBase(databaseName)
-experiments = listAllExperiments()
-
-# insertTable(as.data.table(experiments),"experiments")
-
-# i = matrixFiles[1]
-# i = gsub(".csv","",i)
-# i = gsub("%",".",i)
-# i = gsub("\\.","",i)
-# tableName = gsub("-","_",i)
-#nameOfBigMatrix = i
-
-createUORFAtlas = function(){
   j = 1
-  for(i in idFiles[1735:length(idFiles)]){
+  for(i in idFiles){
     load(p(idFolder, i))
     
-    tes = uorfID[!duplicated(uorfID)]
+    uorfs <- uorfID[!duplicated(uorfID)]
     if(j == 1) {
-      tesTotal = data.table(cbind(tes,rep(T,length(tes))))
-      colnames(tesTotal) = c("uorfID", "1")
+      uorfsTotal <- data.table(cbind(uorfs,rep(T,length(uorfs))))
+      colnames(uorfsTotal) = c("uorfID", "1")
     }else{
-      tes = data.table(cbind(tes,rep(T,length(tes))))
-      colnames(tes) = c("uorfID", toString(j))
-      tesTotal = merge(tesTotal,tes,by = "uorfID", all = T)
-      colnames(tesTotal) = c("uorfID", as.character(1:(ncol(tesTotal)-1)))
+      uorfs <- data.table(cbind(uorfs,rep(T,length(uorfs))))
+      colnames(uorfs) = c("uorfID", toString(j))
+      uorfsTotal = merge(uorfsTotal,uorfs,by = "uorfID", all = T)
+      colnames(uorfsTotal) = c("uorfID", as.character(1:(ncol(uorfsTotal)-1)))
     }
     j = j+1
-    
   }
-  #save(tesTotal,file = "tempUORFAtlas.rdata")
-  load("./tempUORFAtlas.rdata")
-  ncol(tesTotal)
-  nrow(tesTotal)
-  insertTable(Matrix = tesTotal,tableName = "uorfAtlas")
-  rm(list=ls())
+  uorfIDs <- uorfsTotal
+  save(uorfIDs,file = "UORFAtlas.rdata")
+  insertTable(Matrix = uorfIDs,tableName = "uorfAtlas")
+  # for(i in 2:ncol(tesTotal)){
+  #   tesTotal[ is.na(tesTotal[,i, with = F]), i] = F 
+  # }
 }
 
-createTeTable = function(){
-  teTable = "TeValues"
+createUniqueIDs <- function(){
   j = 1
-  for(i in matrixFiles){
-    matrix = loadMatrix(i)
-    tes = matrix[ , .(uorfID,teUORF)]
-    tes = tes[!duplicated(tes$uorfID)]
+  for(i in idFiles){
+    load(p(idFolder, i))
+    
+    tes = as.data.table(uorfID[!duplicated(uorfID)])
+    colnames(tes) = "uorfID"
     if(j == 1) {
-      tesTotal = tes
-      colnames(tesTotal) = c("uorfID", "1")
+      allUniqueIDs = tes
     }else{
-      tesTotal = merge(tesTotal,tes,by = "uorfID")
-      colnames(tesTotal) = c("uorfID", as.character(1:(ncol(tesTotal)-1)))
+      allUniqueIDs = merge(tes,allUniqueIDs, by = "uorfID", all = T)
     }
     j = j+1
-    
   }
-  
-  insertTable(Matrix = tesTotal,tableName = teTable)
-  
-  teFilteredTable = "filteredTeValues"
-  filtered = tesTotal
-  for(i in 2:ncol(tesTotal)){
-    tempAnswer = tesTotal[,i, with =F]
-    tempIndexes = is.na(tempAnswer) | is.infinite(unlist(tempAnswer))
-    tempAnswer[tempIndexes] = 0
-    filtered[,i] = tempAnswer
-  }
-  insertTable(Matrix = filtered,tableName = teFilteredTable)
+  save(allUniqueIDs,file = "allUniqueIDs.rdata")
+  insertTable(Matrix = allUniqueIDs,tableName = "uniqueIDs")
 }
 
-teSumPerUORF = rowSums(filtered[,2:ncol(filtered), with = F])
-uorfsWithValidTE = sum(teSumPerUORF > 0)
-ratioOfValidTEs =  uorfsWithValidTE/nrow(filtered)
 
-createPassFilter = function(){
-  pfTable = "pfTable"
+
+getTissueTable = function(){
+  require(xlsx)
+  cageTable = read.xlsx("../HumanSamples2.0.sdrf.xlsx", sheetName = "Sheet1")
+  
+  cageTable = as.data.table(cageTable)
+  cageTable[is.na(Characteristics.Tissue.)] = "unclassifiable"
+  
+  insertTable(Matrix = cageTable,tableName = "cageInformation")
+  
+  uniqueTissues = unique(cageTable$Characteristics.Tissue.)  
+  
+  matchCageIDandCageName = rep("a",length(cageFiles))
   j = 1
-  for(i in matrixFiles){
-    matrix = loadMatrix(i)
-    tes = matrix[ , .(uorfID,pass_filter)]
-    tes = tes[!duplicated(tes$uorfID)]
-    if(j == 1) {
-      tesTotal = tes
-      colnames(tesTotal) = c("uorfID", "1")
-    }else{
-      tesTotal = merge(tesTotal,tes,by = "uorfID")
-      colnames(tesTotal) = c("uorfID", as.character(1:(ncol(tesTotal)-1)))
-    }
-    j = j+1
-    
+  for(i in uorfFiles){
+    matchCageIDandCageName[j] = gsub(".*\\.", "", gsub(".hg38.*","",gsub(".*CNhs","",i)))
+    j = j + 1
   }
-  insertTable(Matrix = tesTotal,tableName = pfTable)
+  
+  matchCageIDandCageName = as.data.table(matchCageIDandCageName)
+  colnames(matchCageIDandCageName) = colnames(cageTable)[1]
+  matchCageIDandCageName$cage_index = 1:nrow(matchCageIDandCageName)
+  cageWeHave <-  merge(cageTable, matchCageIDandCageName,by = "Source.Name")
+  
+  if(sum(duplicated(cageWeHave$cage_index)) != 0) stop("duplicated indexes used, check input")
+  
+  uorfIDs <- readTable("uniqueIDs")
+  uorfIDTable <- readTable("uorfAtlas")
+  
+  finalMatrix <- as.data.table(matrix(nrow = nrow(uorfIDs), ncol = length(uniqueTissues)+1))
+  finalMatrix[,1] <- uorfIDs
+  colnames(finalMatrix)[1] <- "uorfID"
+  uniqueTissues <- as.character(uniqueTissues)
+  colnames(finalMatrix)[2:ncol(finalMatrix)] <- uniqueTissues
+  
+  for(i in 2:(length(uniqueTissues)+1)){
+    cageFilestoCheck <- cageWeHave[Characteristics.Tissue. == uniqueTissues[i-1]]$cage_index
+    cageFilestoCheck <- cageFilestoCheck + 1
+    makeGroupingForColumn <- rowSums(!is.na(tesTotal[,cageFilestoCheck, with = F]))
+
+    finalMatrix[,i] <- makeGroupingForColumn > 1
+  }
+  #fix duplicates, merge them
+  test <- finalMatrix$urethra | finalMatrix$Urethra
+  finalMatrix$urethra <- test
+  finalMatrix$Urethra <- NULL
+  
+  save(finalMatrix,file = "tissueAtlas.rdata")
+  insertTable(Matrix = finalMatrix,tableName = "tissueAtlasByCage")
 }
 
-doubleFiltered = filtered
-for(i in 2:ncol(tesTotal)){
-  tempAnswer = doubleFiltered[,i, with =F]
-  tempIndexes = !tesTotal[,i,with=F]
-  tempAnswer[tempIndexes] = 0
-  doubleFiltered[,i] = tempAnswer
-}
 
-fteSumPerUORF = rowSums(doubleFiltered[,2:ncol(doubleFiltered), with = F])
-fuorfsWithValidTE = sum(teSumPerUORF > 0)
-fratioOfValidTEs =  uorfsWithValidTE/nrow(doubleFiltered)
 
-l = data.table(1:nrow(doubleFiltered))
-for(i in 1:nrow(doubleFiltered)){
-  l[i,]= min(doubleFiltered[i,2:ncol(doubleFiltered),with=F])
+rfpTables <- function(){
+  setwd("/export/valenfs/projects/uORFome/RCode1/")
+  source("./MatchExperimentsHeader.R")
+  source("./uorfomeGeneratorHelperFunctions.R")
+  setwd("/export/valenfs/projects/uORFome/dataBase/")
+  
+  grl <- uniqueIdsAsGR()
+  validateExperiments(grl)
+  # now make ribo and rna seq tables
+  SpeciesGroup <- getUnfilteredSpeciesGroups()
+  rpfFilePaths <- getFilteredRFPPaths(SpeciesGroup)
+  
+  riboTable <- riboAtlasFPKMAll(grl, rpfFilePaths)
+  
+  riboAtlasFPKMTissue(grl,rpfFilesPaths,riboTables,SpeciesGroup)
+  
   
 }
-insertTable(Matrix = l,tableName = "teRowSums")
+
+
 #createCatalogueDB(databaseName,matrix,tableName)
 #0st name of experiments
 ###1st cage supprt per uorf, bool, 
@@ -162,3 +128,14 @@ insertTable(Matrix = l,tableName = "teRowSums")
 ###3rd 
 
 ###example: find uorf that are only in certain tissue
+uorfDB = createDataBase(databaseName)
+#createUniqueIDs()
+#createUORFAtlas()
+#rfpAndrnaSupportTable()
+
+createCatalogueDB = function(name, bigMatrix, tableName){
+  uorfDB = createDataBase(databaseName)
+  createUniqueIDs()
+  createUORFAtlas()
+  rfpTables()
+}

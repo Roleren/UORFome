@@ -1,84 +1,67 @@
 
 setwd("/export/valenfs/projects/uORFome/RCode1/")
-source("./CreateCatalogueHelpers.R")
+source("./uorfomeGeneratorHelperFunctions.R")
 source("./databaseHelpers.R")
+source("./CreateCatalogueHelpers.R")
+
+
+#' Create 1 column of all unique ids from uorfID folder
+createUniqueIDs <- function(){
+  j = 1
+  for(i in idFiles){
+    load(p(idFolder, i))
+    uorfID <- unique(uorfID)
+    if (j == 1) {
+      allUniqueIDs <- uorfID
+    }else{
+      matching <- uorfID %in% allUniqueIDs
+      toAdd <- uorfID[which(matching == F)]
+      allUniqueIDs <- c(allUniqueIDs,toAdd)
+    }
+    j <- j+1
+  }
+  allUniqueIDs <- sort(allUniqueIDs)
+  save(allUniqueIDs,file = "allUniqueIDs.rdata")
+  insertTable(Matrix = allUniqueIDs,tableName = "uniqueIDs")
+}
 
 createUORFAtlas <- function(){
-  
+  uorfIDsAllUnique <- readTable("uniqueIDs")
+  colnames(uorfIDsAllUnique) = "uorfID"
+  uorfAtlas <- as.data.table(matrix(F, nrow = nrow(uorfIDsAllUnique), ncol = length(idFiles)+1))
+  uorfAtlas[,1] <- uorfIDsAllUnique
+  colnames(uorfAtlas) = c("uorfID", as.character(1:(length(idFiles))))
   j = 1
   for(i in idFiles){
     load(p(idFolder, i))
     
     uorfs <- uorfID[!duplicated(uorfID)]
-    if(j == 1) {
-      uorfsTotal <- data.table(cbind(uorfs,rep(T,length(uorfs))))
-      colnames(uorfsTotal) = c("uorfID", "1")
-    }else{
-      uorfs <- data.table(cbind(uorfs,rep(T,length(uorfs))))
-      colnames(uorfs) = c("uorfID", toString(j))
-      uorfsTotal = merge(uorfsTotal,uorfs,by = "uorfID", all = T)
-      colnames(uorfsTotal) = c("uorfID", as.character(1:(ncol(uorfsTotal)-1)))
-    }
-    j = j+1
-  }
-  uorfIDs <- uorfsTotal
-  save(uorfIDs,file = "UORFAtlas.rdata")
-  insertTable(Matrix = uorfIDs,tableName = "uorfAtlas")
-  # for(i in 2:ncol(tesTotal)){
-  #   tesTotal[ is.na(tesTotal[,i, with = F]), i] = F 
-  # }
-}
-
-createUniqueIDs <- function(){
-  j = 1
-  for(i in idFiles){
-    load(p(idFolder, i))
     
-    tes = as.data.table(uorfID[!duplicated(uorfID)])
-    colnames(tes) = "uorfID"
-    if(j == 1) {
-      allUniqueIDs = tes
-    }else{
-      allUniqueIDs = merge(tes,allUniqueIDs, by = "uorfID", all = T)
-    }
+    uorfAtlas[,(j+1)] <- uorfIDsAllUnique$uorfID %in% uorfs
+      
     j = j+1
   }
-  save(allUniqueIDs,file = "allUniqueIDs.rdata")
-  insertTable(Matrix = allUniqueIDs,tableName = "uniqueIDs")
+  
+  save(uorfAtlas,file = "UORFAtlas.rdata")
 }
 
-
-
-getTissueTable = function(){
-  require(xlsx)
-  cageTable = read.xlsx("../HumanSamples2.0.sdrf.xlsx", sheetName = "Sheet1")
+#' Create tissueTable for cage, 1 row per unique uorf 
+getTissueTable <- function(){
   
-  cageTable = as.data.table(cageTable)
-  cageTable[is.na(Characteristics.Tissue.)] = "unclassifiable"
+  cageTable <- getCageInfoTable()
+  uniqueTissues <- unique(cageTable$Characteristics.Tissue.)  
   
-  insertTable(Matrix = cageTable,tableName = "cageInformation")
+  cageWeHave <- getAllUsableCage(cageTable)
   
-  uniqueTissues = unique(cageTable$Characteristics.Tissue.)  
-  
-  matchCageIDandCageName = rep("a",length(cageFiles))
-  j = 1
-  for(i in uorfFiles){
-    matchCageIDandCageName[j] = gsub(".*\\.", "", gsub(".hg38.*","",gsub(".*CNhs","",i)))
-    j = j + 1
-  }
-  
-  matchCageIDandCageName = as.data.table(matchCageIDandCageName)
-  colnames(matchCageIDandCageName) = colnames(cageTable)[1]
-  matchCageIDandCageName$cage_index = 1:nrow(matchCageIDandCageName)
-  cageWeHave <-  merge(cageTable, matchCageIDandCageName,by = "Source.Name")
-  
-  if(sum(duplicated(cageWeHave$cage_index)) != 0) stop("duplicated indexes used, check input")
-  
+  # load needed tables, and make tissue atlas of cage
+  load("UORFAtlas.rdata")
   uorfIDs <- readTable("uniqueIDs")
-  uorfIDTable <- readTable("uorfAtlas")
+  colnames(uorfIDs) = "uorfID"
+  uorfAtlasRows0 <- which(rowSums(uorfAtlas[,2:ncol(uorfAtlas)]) == 0)
+  if(length(uorfAtlasRows0) > 0) stop("uorfAtlas and unique uorf IDs does not match!")
   
   finalMatrix <- as.data.table(matrix(nrow = nrow(uorfIDs), ncol = length(uniqueTissues)+1))
-  finalMatrix[,1] <- uorfIDs
+  finalMatrix[,1] <- uorfIDs$uorfID
   colnames(finalMatrix)[1] <- "uorfID"
   uniqueTissues <- as.character(uniqueTissues)
   colnames(finalMatrix)[2:ncol(finalMatrix)] <- uniqueTissues
@@ -86,17 +69,14 @@ getTissueTable = function(){
   for(i in 2:(length(uniqueTissues)+1)){
     cageFilestoCheck <- cageWeHave[Characteristics.Tissue. == uniqueTissues[i-1]]$cage_index
     cageFilestoCheck <- cageFilestoCheck + 1
-    makeGroupingForColumn <- rowSums(!is.na(tesTotal[,cageFilestoCheck, with = F]))
+    makeGroupingForColumn <- rowSums(uorfAtlas[,cageFilestoCheck, with = F])
 
     finalMatrix[,i] <- makeGroupingForColumn > 1
   }
-  #fix duplicates, merge them
-  test <- finalMatrix$urethra | finalMatrix$Urethra
-  finalMatrix$urethra <- test
-  finalMatrix$Urethra <- NULL
+  tissueAtlas <- finalMatrix
   
-  save(finalMatrix,file = "tissueAtlas.rdata")
-  insertTable(Matrix = finalMatrix,tableName = "tissueAtlasByCage")
+  save(tissueAtlas,file = "tissueAtlas.rdata")
+  insertTable(Matrix = tissueAtlas,tableName = "tissueAtlasByCage")
 }
 
 
@@ -104,7 +84,6 @@ getTissueTable = function(){
 rfpTables <- function(){
   setwd("/export/valenfs/projects/uORFome/RCode1/")
   source("./MatchExperimentsHeader.R")
-  source("./uorfomeGeneratorHelperFunctions.R")
   setwd("/export/valenfs/projects/uORFome/dataBase/")
   
   grl <- uniqueIdsAsGR()
@@ -112,11 +91,10 @@ rfpTables <- function(){
   # now make ribo and rna seq tables
   SpeciesGroup <- getUnfilteredSpeciesGroups()
   rpfFilePaths <- getFilteredRFPPaths(SpeciesGroup)
-  
+  insertTable(rpfFilePaths, "RiboSeqInfo")
   riboTable <- riboAtlasFPKMAll(grl, rpfFilePaths)
   
-  riboAtlasFPKMTissue(grl,rpfFilesPaths,riboTables,SpeciesGroup)
-  
+  riboAtlasFPKMTissue(grl,rpfFilesPaths,riboTable,SpeciesGroup)
   
 }
 
@@ -128,14 +106,21 @@ rfpTables <- function(){
 ###3rd 
 
 ###example: find uorf that are only in certain tissue
-uorfDB = createDataBase(databaseName)
+uorfDB <- createDataBase(databaseName)
 #createUniqueIDs()
 #createUORFAtlas()
-#rfpAndrnaSupportTable()
+#rfpTables()
 
-createCatalogueDB = function(name, bigMatrix, tableName){
-  uorfDB = createDataBase(databaseName)
-  createUniqueIDs()
-  createUORFAtlas()
-  rfpTables()
+# fix the presentation
+# Take all uorfs, and cluster the tissue based on uorfs
+# can you recover the cell type based on uorf usage
+# hclust
+clusterByCageTissue <- function(){
+  tissueAtlas <- readTable("tissueAtlasByCage")
+  binDist <- dist(x = t(tissueAtlas[1:1000, 2:4]), method = "binary")
+  setwd("/export/valenfs/projects/uORFome/dataBase/")
+  save(binDist,file = "binDist.rdata")
+  hclustResult <-  hclust(binDist)
+  save(hclustResult,file = "hclustResult.rdata")
 }
+#clusterByCageTissue()

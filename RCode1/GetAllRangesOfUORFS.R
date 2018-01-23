@@ -20,6 +20,7 @@ foreach(i=1:nLeadersList) %dopar% {
   if(UorfRangesNotExists(assignUorf =  F,givenCage = usedCage)){
     load(p(leadersFolder,leadersList[i]))
     scanUORFs(fiveUTRs, outputName = usedCage, assignUorf = F)
+    print("ok")
   }else{
     i
   }

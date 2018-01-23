@@ -1,13 +1,5 @@
 
-#' Creates normalizations of the counts, normally used in Translations efficiency calculations
-#' @param counts A list of counts per object
-#' @param lengthSizeA list of lengths per object
-#' @param librarySize A numeric of size 1, the size of the library
-#'
-#' @export
-FPKMNorlization = function(counts, lengthSize, librarySize){
-  return((as.numeric(counts)*(10^9)) / (as.numeric(lengthSize)*as.numeric(librarySize)))
-}
+
 
 #as number coverter function
 an = function(fac){

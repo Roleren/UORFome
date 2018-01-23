@@ -31,13 +31,14 @@ getFasta = function(){
 }
 
 #get sequences from a GRangeslist
-getSequencesFromFasta = function(grl){
+getSequencesFromFasta = function(grl, isSorted = F){
   getFasta() #get fasta and fai
+  if(!isSorted) grl <- ORFik:::sortPerGroup(grl)
   seqs = extractTranscriptSeqs(fa, transcripts = grl)
   assign("seqs",seqs,envir = .GlobalEnv)
 }
 #Get the Genomic transcript format, currently using GRch38 data
-getGTF = function(){
+getGTF = function(assignIt = T){
   if(exists("Gtf") == F){
     print("loading human GTF GRch38")
     library(AnnotationDbi)
@@ -49,6 +50,9 @@ getGTF = function(){
 #Get the coding sequences from the gtf file
 getCDS = function(assignIt = T){
   if(exists("cds",mode = "S4") == F){
+    if(exists("Gtf") == F){
+      getGTF()
+    }
     cds = cdsBy(Gtf,"tx",use.names = T)
     if(assignIt){
       assign("cds",cds,envir = .GlobalEnv)
@@ -79,8 +83,9 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
   
   if(!is.null(leader)){ #load as rdata
     print("loading leader from pre-existing rdata")
-    if(assignLeader)
-      load(leader)
+    load(leader)
+    if(!assignLeader)
+      return(fiveUTRs)
   }
   else if(!is.null(leaderBed)){
     cat("retrieving 5utrs from bed file: ", leaderBed,"\n")
@@ -100,8 +105,19 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
     if(exists("fiveUTRs") == F){
       cat("creating leader from scratch\n")
       getGTF()
-      cat("loading Leader from gtf\n")
-      fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
+      
+      if(file.exists(p(dataFolder,"/leader.rdata"))){
+        load(p(dataFolder,"/leader.rdata"))
+        if(!assignLeader){
+          return(fiveUTRs)
+        }
+        
+      } else {
+        cat("loading Leader from gtf\n")
+        fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
+        save(fiveUTRs, p(dataFolder,"/leader.rdata"))
+      }
+      
       if(usingNewCage){
         print("Using cage.. ")
         if(is.null(cageName)){
@@ -110,7 +126,7 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
           return
         }
         getCDS()
-        fiveUTRs = reassignTSSbyCage(fiveUTRs,cageName, cds = cds)
+        fiveUTRs = ORFik::reassignTSSbyCage(fiveUTRs,cageName, cds = cds)
         if(1){ #TODO add possibility to not save utrs, now it always saves
           exportNamebed = paste0(leadersbedFolder,getRelativePathName(p(cageName,".leader.bed")))
           exportNamerdata = paste0(leadersFolder,getRelativePathName(p(cageName,".leader.rdata")))
@@ -131,10 +147,14 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
   print("finished loading leaders")
 }
 
+
 #Get the upstream open reading frames from the 5' leader sequences, given as GRangesList
-getUnfilteredUORFs = function(fiveUTRs, assignRanges = T){
-  getSequencesFromFasta(fiveUTRs)
-  rangesOfuORFs = find_in_frame_ORFs(grl = fiveUTRs,fastaSeqs = seqs,minimumLength = 2)
+getUnfilteredUORFs = function(fiveUTRs, assignRanges = T, isSorted = F){
+  
+  getSequencesFromFasta(fiveUTRs, isSorted)
+  
+  
+  rangesOfuORFs = ORFik::find_in_frame_ORFs(grl = fiveUTRs,fastaSeqs = seqs,minimumLength = 2)
   
   if(assignRanges)
     assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)

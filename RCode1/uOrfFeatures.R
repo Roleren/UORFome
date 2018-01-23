@@ -3,10 +3,10 @@ source("./features.R")
 
 
 getUOrfFeaturesMatrix = function(transcriptMatrix){
-  #stop("not working now!!!")
+  stop("not working now!!!")
   
   grORFs = unlist(rangesOfuORFs, use.names = F)
-  grlByORF = GroupGRangesByOther(grORFs, grORFs$names)
+  grlByORF = groupGRangesBy(grORFs, grORFs$names)
   txCoords = getUORFTranscriptCoordinates()
   
   #starts, remake these to faster versions

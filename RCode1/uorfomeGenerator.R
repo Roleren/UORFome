@@ -14,8 +14,8 @@
 
 
 #################INPUT READ FROM SHELL#############
-arcs = commandArgs(trailingOnly = T)
-lArcs = length(arcs)
+arcs <- commandArgs(trailingOnly = T)
+lArcs <- length(arcs)
 if(lArcs == 5){
   # setwd(arcs[1])
   setwd("/export/valenfs/projects/uORFome/RCode1/")
@@ -32,7 +32,7 @@ if(lArcs != 1) #if using preload, dont do this!
 
 
 ###MAIN FUNCTION###
-getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageName = standardCage ,rnaSeq = NULL,rfpSeq = NULL,doPreLoadings = T, tissueUsed = NULL){
+getMatrix <- function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageName = standardCage ,rnaSeq = NULL,rfpSeq = NULL,doPreLoadings = T, tissueUsed = NULL){
   assign("tissueUsed",tissueUsed,envir = .GlobalEnv)
   infoPrints(doubleBAM,usingNewCage,cageName,leaderBed,rnaSeq,rfpSeq) #print info about run
   ##################PRE LOADINGS##############
@@ -59,7 +59,7 @@ getMatrix = function(leaderBed = NULL,  doubleBAM = F, usingNewCage = F, cageNam
   
   cat("finding Te-UORFs\n")
   if(exists("teUORF") == F){
-    teUORF = getTE(rangesOfuORFs,rna,RFP,allLengths$tx_len,sapply(rangesOfuORFs, function(x) sum(width(x))),specificTE = "teUORF")
+    teUORF <- getTE(rangesOfuORFs,rna,RFP,allLengths$tx_len,sapply(rangesOfuORFs, function(x) sum(width(x))),specificTE = "teUORF")
     
     assign("teUORF",teUORF,envir = .GlobalEnv)
   }

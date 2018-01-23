@@ -1,6 +1,6 @@
 
 #always define loadPath if rangesOfUorfs is not in global scope!
-createFastaAndBedFile = function(rangesOfuORFs,loadPath =NULL,nameUsed = "rangesOfUorfs"){
+createFastaAndBedFile <- function(rangesOfuORFs,loadPath =NULL,nameUsed = "rangesOfUorfs"){
   print("Starting making fasta and Bed files")
   if(!is.null(loadPath))
     load(loadPath,envir = .GlobalEnv)
@@ -10,18 +10,18 @@ createFastaAndBedFile = function(rangesOfuORFs,loadPath =NULL,nameUsed = "ranges
   print("fasta list of uorfs is finished")
   
   #make correct output name
-  fName = getCleanName(loadPath,nameUsed)
-  ffName = getFastaName(fName)
-  bName =  getUORFBedName(fName) #for bed uorfs
+  Name = getCleanName(loadPath,nameUsed)
+  fName = getFastaName(Name)
+  bName =  getUORFBedName(Name) #for bed uorfs
   
   bed6(rangesOfuORFs,bName) #create ranges bed file
-  cat("new fasta name is: ", ffName)
+  cat("new fasta name is: ", fName)
   
   #write out fastalist
   
   stringSet = unlist(DNAStringSetList(seqs))
   
-  writeXStringSet(stringSet, ffName)
+  writeXStringSet(stringSet, fName)
   
   return(stringSet)
 }

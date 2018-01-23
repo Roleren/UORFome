@@ -14,7 +14,7 @@ RiboFPKM = function(seq, riboFilePath){
     stop("riboFilePath must be either character, Galignments or GalignmentPairs")
   }
   if (class(riboFilePath) != "GAlignments"){
-    riboGAllignment = readGAlignments(riboFilePath)
+    riboGAllignment <- readGAlignments(riboFilePath)
   }
   
   libraryRPF <- length(riboGAllignment)
@@ -28,67 +28,8 @@ RiboFPKM = function(seq, riboFilePath){
   # Find lengths used for uorf fpkm values
   ORFLengths <- widthPerGRangesGroup(seq, F)
   
-  fpkm <- FPKMNorlization(overlapRFP, ORFLengths, libraryRPF)# normalize by orf
+  fpkm <- fpkm(overlapRFP, ORFLengths, libraryRPF)# normalize by orf
   return(fpkm)
-}
-
-getUORFTranscriptCoordinates = function(){
-  n = unlist(rangesOfuORFs, use.names = F)
-  #names of fives go to seqnames, so need to be removed
-  txCoordUORF = mapToTranscripts(n,fiveUTRs)
-  txCoordUORF = txCoordUORF[names(n[txCoordUORF$xHits]) == seqnames(txCoordUORF)]
-  txCoordUORF$xHits = NULL;txCoordUORF$transcriptsHits = NULL
-  #sort them by uorfs
-  txCoordUORF$names = n$names
-  return(GroupGRangesByOther(txCoordUORF, txCoordUORF$names))
-}
-
-#get distances between uorf end and start of that transcripts cds
-distancebetweenUORFandCds = function(ends){
-  cdsFirstExons = phead(cds,1L)
-  namesToUse = as.character( unlist(unique( seqnames(ends))))
-  cdsToUse = cdsFirstExons[namesToUse]
-  c = unlist(cdsToUse, use.names = F)
-  cdsToTranscript = mapToTranscripts(c,fiveUTRs)
-  c = unlist(cdsToUse)
-  cdsToUse = cdsToTranscript[names(c[cdsToTranscript$xHits]) == seqnames(cdsToTranscript)]
-  
-  endsPos = ends[as.character(strand(ends)) == "+"]
-  endsMin = ends[as.character(strand(ends)) == "-"]
-  
-  distPos = start(cdsToUse[as.character(strand(cdsToUse)) == "+"]) - as.integer(end(endsPos))
-  distMin = as.integer(start(endsMin)) - end(cdsToUse[as.character(strand(cdsToUse)) == "-"])
-  dists = rep(NA,length(names(unlist(ends, use.names = F))))
-  dists[as.character(strand(unlist(ends))) == "+"] = distPos  
-  dists[as.character(strand(unlist(ends))) == "-"] = distMin
-  return(dists)
-}
-
-OrfToTranscriptNames = function(grlByORF){
-  gsub("_[0-9]*","", names(grlByORF)) 
-}
-
-
-#check if reading frame changes. %3 = 0
-inFrameWithCDS = function(distUC){
-  #for each distance found beween uorfEnd and cds start, do %3
-  frame = cbind(unlist(distUC) %% 3)
-  colnames(frame) = "frame"
-  as.integer(frame)
-}
-
-#check if uorf is overlapping cds
-getOverlappingCds = function(distUC){
-  overlap = cbind(distUC < 0)
-  colnames(overlap) = "overlap"
-  overlap
-}
-
-#Get the uorf number in transcript from left, ig. second uorf -> 2
-getUOrfRankOrder = function(uorfName){
-  n = cbind(as.integer(gsub(".*_","", uorfName)))
-  colnames(n) = "rank"
-  n
 }
 
 getTissue = function(){
@@ -107,65 +48,22 @@ getPassFilter = function(normUORFRNA,normUORFRFP){
   pass_filter
 }
 
-getUORFnames = function(unfilteredNames){
+getORFnames = function(unfilteredNames){
   gsub(".*\\.","", unfilteredNames)
 }
 
-getKozacSequenceScore = function(grl, fastaSeq){
-  #reassign start of + strands, and restrict end
-  #reassign end of - strands, and restrict start
+getAllFeatures <- function(){
+  getCDS()
+  getThreeUTRs()
+  RFP <- readGAlignments("/export/valenfs/data/processed_data/Ribo-seq/gonzalez_C_2014_human_mouse/final_results/aligned_GRCh38/Gonzalez_C_2014.Human.brain.RPF.GRCh38.SRR1562540.bam")
+  RNA <- readGAlignments("/export/valenfs/data/processed_data/RNA-seq/gonzalez_C_2014_human_mouse/final_results/aligned_GRCh38/Gonzalez_C_2014.Human.brain.RNA.GRCh38.SRR1562546.bam")
   
-  #get all sequences
-  
-  #score
-  
+  dt <- ORFik:::allFeatures(grl = grl,orfFeatures = T, RFP = RFP, RNA = RNA,
+                             Gtf = Gtf, fiveUTRs = fiveUTRs, cds = cds,
+                            threeUTRs = threeUTRs, faFile = fa, riboStart = 26, riboStop = 34,
+                            extension = 1000)
 }
 
-ORFScores = function(ORFs = NULL){
-  
-  
-  #ORFscore
-  tilex <- tile(ORFs, width=1)
-  
-  tilex1 <- lapply(tilex, function(x){
-    if(as.vector(strand(x) == "+")[1]){
-      x[seq(1, length(x), 3)]
-    }else{
-      x[seq(length(x), 1, -3)]
-    }})
-  tilex2 <- lapply(tilex, function(x){
-    if(as.vector(strand(x) == "+")[1]){
-      x[seq(2, length(x), 3)]
-    }else{
-      x[seq(length(x)-1, 1, -3)]
-    }})
-  tilex3 <- lapply(tilex, function(x){
-    if(as.vector(strand(x) == "+")[1]){
-      x[seq(3, length(x), 3)]
-    }else{
-      x[seq(length(x)-2, 1, -3)]
-    }})
-  
-  countsTile1 <- countOverlaps(GRangesList(tilex1), RFP)#my edits!!
-  countsTile2 <- countOverlaps(GRangesList(tilex2), RFP)#my edits!!
-  countsTile3 <- countOverlaps(GRangesList(tilex3), RFP)#my edits!!
-  
-  RP = countsTile1 + countsTile2 + countsTile3
-  
-  Ftotal <- RP/3
-  
-  tile1 <- (countsTile1 - Ftotal)^2 / Ftotal
-  tile2 <- (countsTile2 - Ftotal)^2 / Ftotal
-  tile3 <- (countsTile3 - Ftotal)^2 / Ftotal
-  
-  dfORFs <- NULL
-  dfORFs$frame_zero_RP <- countsTile1
-  dfORFs$frame_one_RP <- countsTile2
-  dfORFs$frame_two_RP <- countsTile3
-  
-  ORFscore <- log2(tile1 + tile2 + tile3 + 1)
-  revORFscore <-  which(tile1 < tile2 | tile1 < tile3)
-  ORFscore[revORFscore] <- -1 * ORFscore[revORFscore]
-  ORFscore[is.na(ORFscore)] <- 0
-  dfORFs$ORFscore <- ORFscore
-}
+
+
+

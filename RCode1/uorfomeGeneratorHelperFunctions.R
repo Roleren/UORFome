@@ -13,7 +13,7 @@ source("./bedMaker.R")
 ###Make the output matrix, containing normalizations, te's, lengths and names.
 ###Saves the matrix to inputfolder as matrix.csv
 #Change ORFlengths to width ? 
-makeMatrix = function(allLengths,teCDS,te5UTR,te3UTR,teUORF,transcriptNames){
+makeMatrix <- function(allLengths,teCDS,te5UTR,te3UTR,teUORF,transcriptNames){
   #Get the general values for the transcript, and te's for them.
   transcriptMatrix = as.data.table(cbind(allLengths,normCDSRNA,normCDSRFP,norm5UTRRNA,norm5UTRRFP,norm3UTRRNA,norm3UTRRFP,teCDS,te5UTR,te3UTR))
   #Get the uorf values
@@ -52,7 +52,7 @@ makeMatrix = function(allLengths,teCDS,te5UTR,te3UTR,teUORF,transcriptNames){
   }
 }
 #Decide name to use for rdata file and save it
-saveRData = function(){
+saveRData <- function(){
   if(exists("generalName") == F){
     save.image(p(RdataFolder,"results.Rdata"))
   }else{
@@ -60,7 +60,7 @@ saveRData = function(){
   }
 }
 ##Get TE for leader, cds and 3' + all lengths of the different, then save them
-getGeneralTEValues = function(usingNewCage,leaderBed){
+getGeneralTEValues <- function(usingNewCage,leaderBed){
   if(exists("te3UTR") == F){
     cat("finding all lengths\n")
     allLengths = getAllTranscriptLengths()
@@ -85,17 +85,17 @@ getGeneralTEValues = function(usingNewCage,leaderBed){
   }
 }
 #check if uorf ranges already exists, if not make load them or make them from scratch
-decideHowToGetUORFRanges = function(assignUorf = F,givenCage = NULL){ ###Watch out for assign uorf, might be buggy
+decideHowToGetUORFRanges <- function(assignUorf = F,givenCage = NULL){ ###Watch out for assign uorf, might be buggy
   cat("started finding UORFS\n")
   if(UorfRangesNotExists(assignUorf,givenCage))
-    rangesOfuORFs = scanUORFs(fiveUTRs,saveToFile = T, assignUorf = assignUorf)
+    rangesOfuORFs <- scanUORFs(fiveUTRs,saveToFile = T, assignUorf = assignUorf)
 }
 #Check if uorfRanges exist already, or if must be created.
 ###########Should make this more failsafe!!!!!!!!!! add possibility to give ranges!!!!!!!!
-UorfRangesNotExists = function(assignUorf = F, givenCage = NULL){
+UorfRangesNotExists <- function(assignUorf = F, givenCage = NULL){
   if(exists("rangesOfuORFs") == F){
     if(!assignUorf){ #if not loading or assigning to global, we need cage name
-      thisCage = givenCage
+      thisCage <- givenCage
       assign("thisCage",thisCage,envir = .GlobalEnv)
     }
     if(file.exists(getUORFRDataName(givenCage))){#!!!Will not work for single run now!!!
@@ -124,7 +124,7 @@ UorfRangesNotExists = function(assignUorf = F, givenCage = NULL){
 #seqLength: length of seq
 #al: length of all sequences, might be NULL
 #specificTE: what type you  want to get TE of, CDS, LEADER, 3', uorfs etc.
-getTE = function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specificTE){
+getTE <- function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specificTE){
   
   libraryRna = length(dm1)
   libraryRPF = length(dm2)
@@ -184,7 +184,7 @@ getTE = function(seq, dm1 = rna,dm2 = RFP,seqLength1,seqLength2,al = NULL,specif
 
 ###Script starting point
 ##Either run with reference to input folder, or use standard folder UORFome/test_data on kjempetuja
-startUORFomeGenerator = function(arcs){
+startUORFomeGenerator <- function(arcs){
   
   if(lArcs == 4) #Run from kjempetuja@uib hakontj account or other people
     getMatrix(usingNewCage = as.logical(arcs[1]),cageName = arcs[2],rnaSeq = arcs[3],rfpSeq = arcs[4])

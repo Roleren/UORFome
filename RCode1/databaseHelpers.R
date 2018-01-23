@@ -12,7 +12,8 @@ deleteTable = function(tableName){
 
 insertTable= function(Matrix, tableName, appends = F, rmOld = F){
   if (rmOld){
-    deleteTable(tableName)
+    if(!tableNotExists(tableName))
+      deleteTable(tableName)
   }
   dbWriteTable(uorfDB, tableName, as.data.table(Matrix),append = appends)
 }

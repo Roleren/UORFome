@@ -38,3 +38,4 @@ if(exists("detailedFullName") == F){
 }
 #debug/test variables
 standardCage = p(cageFolder,"brain%2c%20adult%2c%20donor1.CNhs11796.10084-102B3.hg38.nobarcode.ctss.bed.gz")
+standardRFP <- "/export/valenfs/data/processed_data/Ribo-seq/gonzalez_C_2014_human_mouse/final_results/aligned_GRCh38/Gonzalez_C_2014.Human.brain.RPF.GRCh38.SRR1562539.bam"

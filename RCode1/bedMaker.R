@@ -1,17 +1,17 @@
-
+library(data.table)
 
 #' bedName is bed name
 #' chr, start,end,nameUORF,score = length? or ., strand
 #' uscs bed 6 format
-bed6 = function(grl,bedName = NULL){
+bed6 <- function(grl,bedName = NULL){
   if(class(grl) != "GRangesList") stop("grl, must be of class GRangesList")
   cat("writing bed file with name: ", bedName)
   
-  df.grl = as.data.frame(df.grl)
+  dt.grl <- as.data.table(grl)
   
-  bedColumns = df.grl[,c("seqnames","start","end","names",score = "width","strand")]
+  bedColumns <- dt.grl[,c("seqnames","start","end","names",score = "width","strand")]
   
-  if(is.null(bedName))
+  if (is.null(bedName))
     write.table(x = bedColumns,file = paste0(uorfBedFolder,"rangesOfUorfsLight.bed") ,sep = "\t",col.names = F,row.names = F, quote = F)
   else
     write.table(x = bedColumns,file = bedName ,sep = "\t",col.names = F,row.names = F, quote = F)
@@ -22,6 +22,7 @@ bed6 = function(grl,bedName = NULL){
 bed12 <- function(grl,bedName, fixChromoNaming = F){
   if(class(grl) != "GRangesList") stop("grl, must be of class GRangesList")
   if (fixChromoNaming) grl <- GroupGRangesFixSeqnames(grl)
+  grl <- sortPerGroup(grl,ignore.strand = T) # <- sort bed way!
   
   dt.grl <- data.table(seqnames = GroupGRangesSeqnames(grl, F))
   dt.grl$start <- as.integer(GroupGRangesFirstStart(grl,keep.names = F) -1)

@@ -8,13 +8,13 @@ createUniqueIDsAtlasNonTranscript <- function(){
   insertTable(Matrix = uniqueIDs, tableName = "uorfIDNonTranscript")
 }
 
-
+#' get GrangesList from uniqueIDs as strings
 uniqueIdsAsGR <- function(){
   if(tableNotExists("SplittedByExonsuniqueUORFs")){
     uniqueIDs <- readTable("uniqueIDs")
     if (sum(duplicated(uniqueIDs)) > 0 ) stop("duplicated uorf names in uniqueIDs")
     grl <- toGRFromUniqueID(uniqueIDs)
-    insertTable(Matrix = grl,tableName = "SplittedByExonsuniqueUORFs")
+    insertTable(Matrix = grl,tableName = "SplittedByExonsuniqueUORFs", rmOld = T)
     #grl <- readTable("SplittedByExonsuniqueUORFs", asGR = T)
     
     #now make uscs bed 12 format
@@ -26,19 +26,13 @@ uniqueIdsAsGR <- function(){
   return(grl)
 }
 
-
 #' This is a check to see that pipeline have done everything correctly
 #' if redoing the findOverlaps does not find all orfs within fiveUTRs
 #' it means that some orfs are outside the mapping area
 #' this should not happen!
 validateExperiments <- function(grl){
   
-  getGTF()
-  getLeaders()
-  getCDS()
-  
-  fiveUTRs <- addFirstCdsOnLeaderEnds(
-    makeGrlAndFilter(extendsTSSexons(fiveUTRs), fiveUTRs), cds)
+  fiveUTRs <- leaderAllSpanning()
   a <- findOverlaps(query = unlist(grl, use.names = F), fiveUTRs)
   a <- a[!duplicated(from(a))]
   if(length(a) != length(unlist(grl))){ 
@@ -62,7 +56,7 @@ riboAtlasFPKMAll <- function(grl,rpfFilePaths){
   # save(test,file = "riboFPKM.rdata")
   colnames(riboTable)[1] <- "uorfIndex"
   save(riboTable,file = "riboFPKM.rdata")
-  insertTable(riboTable,"riboAll")
+  insertTable(riboTable,"riboAll", rmOld = T)
   if ((ncol(riboTable) - 1) != length(rpfFilePaths)){
     stop("something wrong in creation of riboTable")
   }
@@ -71,11 +65,11 @@ riboAtlasFPKMAll <- function(grl,rpfFilePaths){
 #' Riboseq table grouped by tissue
 #' 1st table is filtered on fpkm > 1 per tissue
 #' 2nd table is mean fpkm per tissue
-riboAtlasFPKMTissue <- function(grl,rpfFilesPaths,riboTables,SpeciesGroup){
+riboAtlasFPKMTissue <- function(grl,rpfFilesPaths,riboTable,SpeciesGroup){
   # now do per tissue true/false
   rpfSamples <- SpeciesGroup[SpeciesGroup$Sample_Type == "RPF",]
   #1. we have tissues in speciesGroup
-  tissuesUsed <- rpfSamples[rpfSamples$RnaRfpFolders %in% rpfFilePaths,]
+  tissuesUsed <- rpfSamples[rpfSamples$RnaRfpFolders %in% rpfFilesPaths,]
   uniqueTissues <- as.character(unique(tissuesUsed$Tissue_or_CellLine))
   #2. we have all the tables in riboTables
   #3. So for each tissue, find the group, then for each group ->
@@ -95,7 +89,7 @@ riboAtlasFPKMTissue <- function(grl,rpfFilesPaths,riboTables,SpeciesGroup){
     riboByTissue[,i] <- rowSums(riboColumns > 1) > 1
     
   }
-  insertTable(Matrix = riboByTissue,tableName = "RiboByTissueTF")
+  insertTable(Matrix = riboByTissue,tableName = "RiboByTissueTF", rmOld = T)
   
   #now get mean value instead of true/false
   riboByTissueMean <- riboByTissue
@@ -109,5 +103,97 @@ riboAtlasFPKMTissue <- function(grl,rpfFilesPaths,riboTables,SpeciesGroup){
     riboColumns <- riboTable[,indexes, with=F]
     riboByTissueMean[,i] <- rowMeans(riboColumns)
   }
-  insertTable(Matrix = riboByTissueMean,tableName = "RiboByTissueMean")
+  insertTable(Matrix = riboByTissueMean,tableName = "RiboByTissueMean", rmOld = T)
+}
+getCageInfoTable <- function(){
+  if (tableNotExists("cageInformation")){
+    require(xlsx)
+    cageTable <- read.xlsx("../HumanSamples2.0.sdrf.xlsx", sheetName = "Sheet1")
+    #filter bed tissues
+    cageTable <- as.data.table(cageTable)
+    cageTable[is.na(Characteristics.Tissue.)] <- "unclassifiable"
+    cageTable[Characteristics.Tissue. == "Urethra"]$Characteristics.Tissue. <- "urethra" 
+    cageTable[Characteristics.Tissue. == "adipose tissue"]$Characteristics.Tissue. <-"adipose"
+    
+    insertTable(Matrix <- cageTable,tableName = "cageInformation")
+  } else{
+    cageTable <- readTable("cageInformation")
+  }
+  return(cageTable)
+}
+#' get all cage files that we have info on
+getAllUsableCage <- function(cageFiles){
+  matchCageIDandCageName <- rep("a",length(cageFiles))
+  j = 1
+  for(i in uorfFiles){
+    matchCageIDandCageName[j] = gsub(".*\\.", "", gsub(".hg38.*","",gsub(".*CNhs","",i)))
+    j = j + 1
+  }
+  
+  matchCageIDandCageName = as.data.table(matchCageIDandCageName)
+  colnames(matchCageIDandCageName) = colnames(cageTable)[1]
+  matchCageIDandCageName$cage_index = 1:nrow(matchCageIDandCageName)
+  cageWeHave <-  merge(cageTable, matchCageIDandCageName,by = "Source.Name")
+  
+  if(sum(duplicated(cageWeHave$cage_index)) != 0) stop("duplicated indexes used, check input")
+  if(nrow(cageWeHave) < nrow(matchCageIDandCageName)) warning("did not find all cage experiments in info table")
+  return(cageWeHave)
+}
+
+#' Get the leader that should span all uorfs
+leaderAllSpanning <- function(){
+  getGTF()
+  getLeaders()
+  getCDS()
+  
+  fiveUTRs <- ORFik:::addFirstCdsOnLeaderEnds(
+    ORFik:::makeGrlAndFilter(ORFik:::extendsTSSexons(fiveUTRs), fiveUTRs), cds)
+  return(fiveUTRs)
+}
+
+# get variance between different leader versions
+getAllLeaderChanges <- function(){
+  if(!file.exists(p(dataFolder,"/leaderOriginalWidths.rdata"))){
+    getLeaders()
+    widths <- ORFik:::widthPerGroup(fiveUTRs)
+    save(widths, file = p(dataFolder,"/leaderOriginalWidths.rdata"))
+    rm(fiveUTRs)
+  }
+  
+  library(doParallel)
+  setwd("/export/valenfs/projects/uORFome/RCode1/")
+  maxCores = as.integer(detectCores()/2)
+  cl <- makeCluster(maxCores)
+  registerDoParallel(cl)
+  leadersList = list.files(leadersFolder)
+  nLeadersList = length(leadersList)
+  rm(fiveUTRs)
+  output <- foreach(i=1:nLeadersList, .combine = 'rbind') %dopar% {
+    source("./uorfomeGeneratorHelperFunctions.R")
+    leadersList = list.files(leadersFolder)
+    
+    load(p(dataFolder,"/leaderOriginalWidths.rdata"))
+    load(p(leadersFolder,leadersList[i]))
+    widthsCage <- ORFik:::widthPerGroup(fiveUTRs)
+    
+    diffWidths <- widths - widthsCage
+    same <- sum(diffWidths == 0)
+    bigger <- sum(diffWidths < 0)
+    smaller <- sum(diffWidths > 0)
+    meanDifBigger <- mean(diffWidths[diffWidths < 0])
+    meanDifSmaller <- mean(diffWidths[diffWidths > 0])
+    return(c(same,bigger,smaller,meanDifBigger,meanDifSmaller))
+  }
+  dt <- as.data.table(matrix(output, ncol = 5))
+  colnames(dt) <- c("same", "bigger", "smaller", "meanBigger", "meanSmaller")
+  stopCluster(cl)
+  setwd("/export/valenfs/projects/uORFome/dataBase/")
+  save(dt,file = "leaderWidthChanges.rdata")
+}
+
+createCatalogueDB <- function(){
+  uorfDB <- createDataBase(databaseName)
+  createUniqueIDs()
+  createUORFAtlas()
+  rfpTables()
 }

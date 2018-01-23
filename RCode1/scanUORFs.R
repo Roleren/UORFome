@@ -6,15 +6,17 @@ source("./findUORFsOverlappingCDS.R")
 
 #' Get ranges of uorfs, fiveUTRs must be GRangesList
 #' Save to file set to false by default
-scanUORFs = function(fiveUTRs,saveToFile = T,outputName = NULL, assignUorf = T){
+scanUORFs = function(fiveUTRs,saveToFile = T,outputName = NULL, assignUorf = T, outputFastaAndBed = T){
   
   cat("started scanning for uorfs\n")
   
-  rangesOfuORFs = getUnfilteredUORFs(fiveUTRs,assignUorf)
+  rangesOfuORFs <- getUnfilteredUORFs(fiveUTRs,assignUorf)
+  unlRanges <- unlist(rangesOfuORFs, use.names = F)
+  rangesOfuORFs <- GroupGRangesByOther(unlRanges, unlRanges$names)
   if(is.null(outputName)){
-    rangesOfuORFs = filterORFs(rangesOfuORFs, outputFastaAndBed = T)
+    rangesOfuORFs <- filterORFs(rangesOfuORFs, outputFastaAndBed = outputFastaAndBed)
   }else{
-    rangesOfuORFs = filterORFs(rangesOfuORFs, outputFastaAndBed = T, nameSave = outputName)
+    rangesOfuORFs <- filterORFs(rangesOfuORFs, outputFastaAndBed = outputFastaAndBed, nameSave = outputName)
   }
   
   if(saveToFile){

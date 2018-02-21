@@ -11,8 +11,8 @@ scanUORFs = function(fiveUTRs,saveToFile = T,outputName = NULL, assignUorf = T, 
   cat("started scanning for uorfs\n")
   
   rangesOfuORFs <- getUnfilteredUORFs(fiveUTRs,assignUorf)
-  unlRanges <- unlist(rangesOfuORFs, use.names = F)
-  rangesOfuORFs <- GroupGRangesByOther(unlRanges, unlRanges$names)
+  gr <- unlist(rangesOfuORFs, use.names = F)
+  rangesOfuORFs <- ORFik:::groupGRangesBy(gr, gr$names)
   if(is.null(outputName)){
     rangesOfuORFs <- filterORFs(rangesOfuORFs, outputFastaAndBed = outputFastaAndBed)
   }else{

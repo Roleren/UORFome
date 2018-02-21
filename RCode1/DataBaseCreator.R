@@ -2,6 +2,7 @@
 setwd("/export/valenfs/projects/uORFome/RCode1/")
 source("./uorfomeGeneratorHelperFunctions.R")
 source("./databaseHelpers.R")
+source("./DataBaseGetters.R")
 source("./CreateCatalogueHelpers.R")
 
 

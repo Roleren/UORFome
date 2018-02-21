@@ -26,21 +26,6 @@ uniqueIdsAsGR <- function(){
   return(grl)
 }
 
-#' This is a check to see that pipeline have done everything correctly
-#' if redoing the findOverlaps does not find all orfs within fiveUTRs
-#' it means that some orfs are outside the mapping area
-#' this should not happen!
-validateExperiments <- function(grl){
-  
-  fiveUTRs <- leaderAllSpanning()
-  a <- findOverlaps(query = unlist(grl, use.names = F), fiveUTRs)
-  a <- a[!duplicated(from(a))]
-  if(length(a) != length(unlist(grl))){ 
-    stop("Not all orfs where within the FiveUTRs used
-         to make them, something is wrong!")
-  } else { print("experiments look valid")}
-}
-
 #' Riboseq table per experiment(ribo-seq file)
 riboAtlasFPKMAll <- function(grl,rpfFilePaths){
   # get all ribo experiment, map reads, get fpkm, put in column
@@ -61,6 +46,10 @@ riboAtlasFPKMAll <- function(grl,rpfFilePaths){
     stop("something wrong in creation of riboTable")
   }
   return(riboTable)
+}
+
+allFeaturesAtlas <- function(){
+  
 }
 #' Riboseq table grouped by tissue
 #' 1st table is filtered on fpkm > 1 per tissue
@@ -140,17 +129,6 @@ getAllUsableCage <- function(cageFiles){
   return(cageWeHave)
 }
 
-#' Get the leader that should span all uorfs
-leaderAllSpanning <- function(){
-  getGTF()
-  getLeaders()
-  getCDS()
-  
-  fiveUTRs <- ORFik:::addFirstCdsOnLeaderEnds(
-    ORFik:::makeGrlAndFilter(ORFik:::extendsTSSexons(fiveUTRs), fiveUTRs), cds)
-  return(fiveUTRs)
-}
-
 # get variance between different leader versions
 getAllLeaderChanges <- function(){
   if(!file.exists(p(dataFolder,"/leaderOriginalWidths.rdata"))){
@@ -189,6 +167,39 @@ getAllLeaderChanges <- function(){
   stopCluster(cl)
   setwd("/export/valenfs/projects/uORFome/dataBase/")
   save(dt,file = "leaderWidthChanges.rdata")
+}
+
+
+#' Assign transcriptnames to orfs, and find rank for each orf
+#' 
+#' Given orfs and transcripts, find all transcripts the orfs are within
+#' and name them by this. Also the second orf in 
+linkORFsToTx <- function(){
+  leaders <- leaderAllSpanning()
+  grl <- readTable("SplittedByExonsuniqueUORFs", asGR = T)
+  overlaps <- findOverlaps(grl,leaders, type = "within")
+  sortedIndeces <- order(to(overlaps))
+  from <- from(overlaps)[sortedIndeces]
+  to <- to(overlaps)[sortedIndeces]
+  txNames <- names(leaders)[to]
+  uorfIDs <- ORFik:::orfID(grl)[from]
+  dt <- data.table(uorfID = uorfIDs, txNames = txNames)
+  insertTable(Matrix = dt, tableName = "linkORFsToTx",rmOld = T)
+  
+  # now make grl with transcript mapping
+  grl <- grl[from]
+  names(grl) <- txNames
+  grlb <- sortPerGroup(grl)
+  grls <- ORFik:::makeORFNames(grlb)
+  ranks <- ORFik:::makeExonRanks(grlb, T)
+  asGR <- unlist(grlb, use.names = F)
+  asGR$names <- paste0(names(asGR), "_", ranks)
+  grlf <- groupGRangesBy(asGR, asGR$names)
+  insertTable(Matrix = grlf, tableName = "uorfsAsGRWithTx",rmOld = T)
+  
+  
+  # grlf <- sortPerGroup(grlf)
+  # insertTable(Matrix = dt, tableName = "uorfsAsGRByTX",rmOld = T)
 }
 
 createCatalogueDB <- function(){

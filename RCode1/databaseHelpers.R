@@ -21,7 +21,9 @@ insertTable= function(Matrix, tableName, appends = F, rmOld = F){
 readTable = function(tableName, asGR = F){
   if (asGR){
     grl <- as.data.table(dbReadTable(uorfDB,tableName))
-    return(makeGRangesListFromDataFrame(grl, split.field = "group"))
+    return(makeGRangesListFromDataFrame(grl, split.field = "group",
+                                        names.field = "group_name",
+                                        keep.extra.columns = TRUE))
     
   } else{
     return(as.data.table(dbReadTable(uorfDB,tableName)))

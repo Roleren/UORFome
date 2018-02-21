@@ -24,10 +24,14 @@ numberOfTx <- length(fiveUTRs)
 
 widthsMeanOriginal <- mean(ORFik:::widthPerGroup(fiveUTRs,F))
 originalUorfsByTx <- getUnfilteredUORFs(fiveUTRs, assignRanges = F)
-nTxWithUorfs <- length(originalUorfsByTx)
-uorfTxRatio <- nTxWithUorfs/numberOfTx
+
 gr <- unlist(originalUorfsByTx, use.names = F)
 originalUorfs <- groupGRangesBy(gr, gr$names)
+originalUorfs <- removeORFsWithinCDS(originalUorfs)
+gr <- unlist(originalUorfs, use.names = F)
+originalUorfsByTx <- groupGRangesBy(gr, names(gr))
+nTxWithUorfs <- length(originalUorfsByTx)
+uorfTxRatio <- nTxWithUorfs/numberOfTx
 nOrfsOriginal <- length(originalUorfs)
 uorfsPerTx <- nOrfsOriginal/numberOfTx
 uorfsPerTxNormalized <- uorfsPerTx/uorfTxRatio

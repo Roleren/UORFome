@@ -36,18 +36,11 @@ filterORFs <- function(rangesOfuORFs, loadPath = NULL, saveToFile = F,outputFast
 }
 ### Use findOverlaps to find equal start sites, this work for - strand ?
 removeORFsWithinCDS <- function(grl){
- 
-  getGTF()
   getCDS()
-  
+
   overlaps <- findOverlaps(query = grl, cds, type = "within")
   grl <- grl[-unique(from(overlaps))]
   
-  print("Removed uorfs that were acctualy cdss")
+  print("Removed uorfs that were within cds'")
   return(grl)
-}
-
-saveOverlaps = function(rangesOfuORFs,cds){
-  numberOfOverlaps = getUOrfOverlaps()
-  assign("numberOfOverlaps",numberOfOverlaps,envir = .GlobalEnv)
 }

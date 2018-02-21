@@ -37,7 +37,8 @@ getSequencesFromFasta = function(grl, isSorted = F){
   seqs = extractTranscriptSeqs(fa, transcripts = grl)
   assign("seqs",seqs,envir = .GlobalEnv)
 }
-#Get the Genomic transcript format, currently using GRch38 data
+
+#' Get the Genomic transcript format, currently using GRch38 data
 getGTF = function(assignIt = T){
   if(exists("Gtf") == F){
     print("loading human GTF GRch38")
@@ -47,24 +48,44 @@ getGTF = function(assignIt = T){
     assign("Gtf",Gtf,envir = .GlobalEnv)
   }
 }
+
+#' Get transcripts from gtf
+getTx <- function(assignIt = F){
+  if (exists("tx",mode = "S4") == F) {
+    if (exists("Gtf") == F) {
+      getGTF()
+    }
+    tx <- exonsBy(Gtf, by = "tx", use.names = TRUE)
+    if (assignIt) {
+      assign("tx",cds,envir = .GlobalEnv)
+      return(tx)
+    } else {
+      return(tx)
+    }
+  }
+}
+
 #Get the coding sequences from the gtf file
 getCDS = function(assignIt = T){
-  if(exists("cds",mode = "S4") == F){
-    if(exists("Gtf") == F){
+  if (exists("cds",mode = "S4") == F) {
+    if (exists("Gtf") == F) {
       getGTF()
     }
     cds = cdsBy(Gtf,"tx",use.names = T)
-    if(assignIt){
+    if (assignIt) {
       assign("cds",cds,envir = .GlobalEnv)
       return(cds)
-    }else{
+    } else {
       return(cds)
     }
   }
 }
 #Get the 3' sequences from the gtf file
 getThreeUTRs = function(){
-  if(!exists("threeUTRs")){
+  if (!exists("threeUTRs")) {
+    if (exists("Gtf") == F) {
+      getGTF()
+    }
     threeUTRs = threeUTRsByTranscript(Gtf,use.names = T)
     assign("threeUTRs",threeUTRs,envir = .GlobalEnv)
   }
@@ -142,9 +163,38 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
     }
   }
   if(assignLeader)
-    assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)
+    assign("fiveUTRs",fiveUTRs, envir = .GlobalEnv)
   
   print("finished loading leaders")
+}
+
+#' Get the leader that should span all uorfs
+leaderAllSpanning <- function(){
+  getGTF()
+  getLeaders()
+  getCDS()
+  
+  fiveUTRs <- ORFik:::addFirstCdsOnLeaderEnds(
+    ORFik:::assignFirstExons(ORFik:::extendsTSSexons(fiveUTRs), fiveUTRs), cds)
+  return(fiveUTRs)
+}
+
+getAll <- function(include.cage = T, extendTx = F){
+  getFasta()
+  getCDS()
+  getThreeUTRs()
+  tx <- getTx()
+  if (extendTx){
+    tx <- ORFik:::extendLeaders(tx)
+  }
+  assign("tx", tx,  envir = .GlobalEnv)
+  
+  #or with extension
+  if (include.cage) {
+    cageFiveUTRs <- leaderAllSpanning()
+    assign("cageFiveUTRs", cageFiveUTRs,  envir = .GlobalEnv)
+  }
+  return(NULL)
 }
 
 

@@ -25,7 +25,7 @@ GroupGRangesFixSeqnames <- function(grl){
   return(groupGRangesBy(temp))
 }
 
-toUniqueIDFromGR <- function(grl){
+toUniqueIDFromGR <- function(grl, with.tx = FALSE){
   seqnames = as.character(seqnames(phead(grl,1L)))
   strands = ORFik:::strandPerGroup(grl,F)
   
@@ -34,6 +34,9 @@ toUniqueIDFromGR <- function(grl){
   names(exonInfo) <- NULL
   
   uorfID <- paste(seqnames, strands, exonInfo, sep = ",")
+  if (with.tx) {
+    uorfID <- paste(uorfID, OrfToTxNames(grl))
+  }
   return(uorfID)
 }
 

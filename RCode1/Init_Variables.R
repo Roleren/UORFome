@@ -1,0 +1,52 @@
+#########Variables used by uorfome data-base############
+#Change them if needed on other folders!
+#####SLASH IS ALWAYS ADDED IN START#####
+
+p = function(nameA,nameB){ # just for parsing relative paths together
+  paste0(nameA,nameB)
+}
+
+# set these 4 directories
+ 
+mainFolder = "./.." # main folder is one back from RCode1/ folder
+
+codeFolder = p(mainFolder,"/RCode1") # the rcode location
+
+resultsFolder = p(mainFolder,"/test_results") #output folder
+
+dataFolder = p(resultsFolder,"/Old_Tests/test_data") #location of gtf, fasta and .fai
+faiName = p(dataFolder,"/Homo_sapiens.GRCh38.dna.primary_assembly.chr.fa")
+gtfName = p(dataFolder,"/Homo_sapiens.GRCh38.79.chr.NO_PATCH.gtf")
+
+# now validate all that directories exist
+if(!all(dir.exists(c(codeFolder, resultsFolder, dataFolder)))){
+  stop("not all directories exists")
+}
+
+# now validate all files exist
+if(!all(file.exists(c(faiName, gtfName)))){
+  stop("not all files needed exists")
+}
+
+# input folders (cage, ribo and rna) Optional (set to NULL if not needed)
+cageFolder = "/export/valenfs/projects/uORFome/DATA/CAGE/human/"
+rfpFolder <- "/export/valenfs/data/processed_data/Ribo-seq/fantom_human_bed/per_length/merged/"
+rnaFolder <- "/export/valenfs/data/processed_data/RNA-seq/"
+
+if(!is.null(cageFolder)){
+  if(!dir.exists(cageFolder)){
+    stop("cage folder not found")
+  }
+}
+
+if(!is.null(rfpFolder)){
+  if(!dir.exists(cageFolder)){
+    stop("ribo-seq folder not found")
+  }
+}
+
+if(!is.null(rfpFolder)){
+  if(!dir.exists(cageFolder)){
+    stop("rna-seq folder not found")
+  }
+}

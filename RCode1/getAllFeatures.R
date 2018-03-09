@@ -10,6 +10,7 @@ library(doParallel)
 maxCores <- as.integer(detectCores()-(detectCores()/2))
 cl <- makeCluster(maxCores)
 registerDoParallel(cl)
+
 rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
 nrfpList <- length(rfpList)
 
@@ -21,14 +22,11 @@ foreach(i=1:nrfpList) %dopar% {
   rfpList <- grep(pattern = "merged",
                   x = list.files(rfpFolder), value = T)
   RFPPath <- p(rfpFolder, rfpList[i])
-  grl <- readTable("uorfsAsGRWithTx", asGR = T)
-  gr <- unlist(grl, use.names = F)
-  names(gr) <- gsub("_[0-9]*", "", names(gr))
   
-  grl <- groupGRangesBy(gr, gr$names)
+  grl <- getUorfsInDb()
   
   getAllFeatures(grl,RFPPath, i = i)
-  
+  print(i)
 }
 
 setwd("/export/valenfs/projects/uORFome/RCode1/")
@@ -62,9 +60,9 @@ foreach(i=1:nrfpList) %do% {
   fpkmRFP[, p("fpkmRFP_",i)] <- dt$fpkmRFP
   ORFScores[, p("ORFScores_",i)] <- dt$ORFScores
   ioScore[, p("ioScore_",i)] <- dt$ioScore
-  
+  print(i)
 }
-
+# insert all the ribo features tables
 insertTable(floss, "floss")
 insertTable(entropyRFP, "entropyRFP")
 insertTable(disengagementScores, "disengagementScores")
@@ -75,6 +73,7 @@ insertTable(ORFScores, "ORFScores")
 insertTable(ioScore, "ioScore")
 
 # insert info
-insertTable(rfpList, "RiboSeqInfo")
+getRiboInfoTable(rfpList = rfpList)
 
 stopCluster(cl)
+rm(cl)

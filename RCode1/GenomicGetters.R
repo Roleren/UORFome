@@ -1,13 +1,20 @@
 
-##Get riboseq file and read it
+#' Get riboseq file and read it
 getRFP = function(rfpSeq){
-  
+  library(tools)
   if(!is.null(rfpSeq) && exists("RFP") == F){ #remember to fix this when bed files arrive!!!!
-    RFP = loadBamFile(rfpSeq,"rfp")
-    assign("RFP",RFP,envir = .GlobalEnv)
+    if (file_ext(rfpSeq) == "bam") {
+      RFP = loadBamFile(rfpSeq,"rfp")
+      assign("RFP",RFP,envir = .GlobalEnv)
+    }
+    if (file_ext(rfpSeq) == "bed") {
+      RFP = ORFik:::cageFromFile(rfpSeq)
+      assign("RFP",RFP,envir = .GlobalEnv)
+    }
   }
 }
-##Get rna seq file and read it
+
+#' Get rna seq file and read it
 getRNAseq = function(rnaSeq){
   
   if(!is.null(rnaSeq) && exists("rna") == F){ #remember to fix this when bed files arrive!!!!
@@ -16,23 +23,29 @@ getRNAseq = function(rnaSeq){
   }
 }
 
-#Get the fasta file, fasta indexed file and assign them
-getFasta = function(){
+#' Get the fasta indexed file
+#' 
+#' if assignIt is TRUE, the object is not return to local scope
+#' Only assigned to globalenvir
+getFasta = function(filePath = NULL, assignIt = T){
 
   if(exists("fa") == F){ #index files
-#       if(exists("fasta") == F){ #make possible to create fai from fa
-#         print("loading fasta files")
-#         fasta =  readDNAStringSet(fastaName) ##Get fasta file
-#         assign("fasta",fasta,envir = .GlobalEnv)
-#       }
-    fa = FaFile(faiName)
-    assign("fa",fa,envir = .GlobalEnv)
+    if (is.null(filePath)){
+      fa = FaFile(faiName)
+    } else {
+      fa = FaFile(filePath)
+    }
+    if (assignIt){
+      assign("fa",fa,envir = .GlobalEnv)
+    } else {
+      return(fa)
+    }
   }
 }
 
-#get sequences from a GRangeslist
+#' get sequences from a GRangeslist
 getSequencesFromFasta = function(grl, isSorted = F){
-  getFasta() #get fasta and fai
+  getFasta() #get .fai
   if(!isSorted) grl <- ORFik:::sortPerGroup(grl)
   seqs = extractTranscriptSeqs(fa, transcripts = grl)
   assign("seqs",seqs,envir = .GlobalEnv)
@@ -43,9 +56,16 @@ getGTF = function(assignIt = T){
   if(exists("Gtf") == F){
     print("loading human GTF GRch38")
     library(AnnotationDbi)
+    if(is.null(gtfdb)){
+      if(file.exists(gtfName)){
+        Gtf = makeTxDbFromGFF(gtfName)
+      } else {
+        stop("could not find gtf file, check path")
+      }
+    }
     Gtf = loadDb(gtfdb)
-    #Gtf = makeTxDbFromGFF(gtfName) #Fix this!!!!!!!!!!!!
-    assign("Gtf",Gtf,envir = .GlobalEnv)
+    if(assignIt)
+      assign("Gtf",Gtf,envir = .GlobalEnv)
   }
 }
 
@@ -80,6 +100,7 @@ getCDS = function(assignIt = T){
     }
   }
 }
+
 #Get the 3' sequences from the gtf file
 getThreeUTRs = function(){
   if (!exists("threeUTRs")) {

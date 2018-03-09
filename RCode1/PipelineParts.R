@@ -1,0 +1,182 @@
+
+getLeadersFromCage <- function(nCageList){
+  foreach(i=1:nCageList) %dopar% {
+    
+    source("./uorfomeGeneratorHelperFunctions.R")
+    cageList = list.files(cageFolder)
+    getLeaders(usingNewCage = T, cageName = p(cageFolder,cageList[i]) , assignLeader = F )
+    
+  }
+}
+
+getUorfsFromLeaders <- function(nLeadersList){
+  foreach(i=1:nLeadersList) %dopar% {
+    source("./uorfomeGeneratorHelperFunctions.R")
+    leadersList = list.files(leadersFolder)
+    
+    usedCage = gsub(pattern = ".leader.rdata",replacement = "",x = leadersList[i]) 
+    
+    if(UorfRangesNotExists(assignUorf =  F,givenCage = usedCage)){
+      load(p(leadersFolder,leadersList[i]))
+      scanUORFs(fiveUTRs, outputName = usedCage, assignUorf = F)
+      print("ok")
+    }else{
+      i
+    }
+  }
+  
+}
+
+getAllFeaturesFromUorfs <- function(){
+  rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
+  nrfpList <- length(rfpList)
+  # all rfp features
+  foreach(i=1:nrfpList) %dopar% {
+    setwd("/export/valenfs/projects/uORFome/RCode1/")
+    source("./DataBaseCreator.R")
+    setwd("/export/valenfs/projects/uORFome/dataBase/")
+    rfpList <- grep(pattern = "merged",
+                    x = list.files(rfpFolder), value = T)
+    RFPPath <- p(rfpFolder, rfpList[i])
+    grl <- readTable("uorfsAsGRWithTx", asGR = T)
+    gr <- unlist(grl, use.names = F)
+    names(gr) <- gsub("_[0-9]*", "", names(gr))
+    
+    grl <- groupGRangesBy(gr, gr$names)
+    
+    getAllFeatures(grl,RFPPath, i = i)
+    print(i)
+  }
+  
+  setwd("/export/valenfs/projects/uORFome/RCode1/")
+  source("./DataBaseCreator.R")
+  setwd("/export/valenfs/projects/uORFome/dataBase/")
+  
+  uorfID <- getORFNamesDB(T, F, F)
+  floss <- uorfID
+  entropyRFP <- uorfID        
+  disengagementScores <- uorfID
+  RRS <- uorfID                
+  RSS <- uorfID           
+  fpkmRFP <- uorfID           
+  ORFScores <- uorfID
+  ioScore <- uorfID
+  #rm(list = c("floss","entropyRFP","disengagementScores", "RRS", "RSS", "fpkmRFP", "ORFScores", "ioScore" ))
+  
+  # all dt features, split them, save them seperatly
+  foreach(i=1:nrfpList) %do% {
+    
+    dtFolder <- "featureTablesTemp/"
+    dtPath <- paste0(dtFolder, "dt_",i,".rdata")
+    
+    load(dtPath)
+    if(ncol(dt) != 8) stop(paste("not correct ncol of", i))
+    floss[, p("floss_",i)] <- dt$floss
+    entropyRFP[, p("entropyRFP_",i)] <- dt$entropyRFP
+    disengagementScores[, p("disengagementScores_",i)] <- dt$disengagementScores 
+    RRS[, p("RRS_",i)] <- dt$RRS
+    RSS[, p("RSS_",i)] <- dt$RSS
+    fpkmRFP[, p("fpkmRFP_",i)] <- dt$fpkmRFP
+    ORFScores[, p("ORFScores_",i)] <- dt$ORFScores
+    ioScore[, p("ioScore_",i)] <- dt$ioScore
+    print(i)
+  }
+  # insert all the ribo features tables
+  insertTable(floss, "floss")
+  insertTable(entropyRFP, "entropyRFP")
+  insertTable(disengagementScores, "disengagementScores")
+  insertTable(RRS, "RRS")
+  insertTable(RSS, "RSS")
+  insertTable(fpkmRFP, "Ribofpkm")
+  insertTable(ORFScores, "ORFScores")
+  insertTable(ioScore, "ioScore")
+  
+  # insert info
+  getRiboInfoTable(rfpList = rfpList)
+}
+
+getRNAFpkms <- function(){
+  load("/export/valenfs/projects/uORFome/test_results/Old_Tests/test_data/unfilteredSpeciesGroup.rdata")
+  rnaList <- SpeciesGroup[SpeciesGroup$Sample_Type == "RNA",]$RnaRfpFolders
+  rnaList <- grep(pattern = ".bam",x = rnaList, value = T)
+  nrnaList <- length(rnaList)
+  rm(SpeciesGroup)
+  # all rfp features
+  
+  rnaFPKMs <- foreach(i=1:nrnaList, .combine = 'cbind') %dopar% {
+    setwd("/export/valenfs/projects/uORFome/RCode1/")
+    source("./DataBaseCreator.R")
+    setwd("/export/valenfs/projects/uORFome/dataBase/")
+    load("/export/valenfs/projects/uORFome/test_results/Old_Tests/test_data/unfilteredSpeciesGroup.rdata")
+    rnaList <- SpeciesGroup[SpeciesGroup$Sample_Type == "RNA",]$RnaRfpFolders
+    rnaList <- grep(pattern = ".bam",x = rnaList, value = T)
+    RNAPath <- rnaList[i]
+    grlNames <- getORFNamesDB(T, T, T)
+    
+    # get tx
+    tx <- ORFik:::extendLeaders(getTx())
+    tx <- tx[grlNames]
+    RNA <- readGAlignments(RNAPath)
+    rnaFPKM <- ORFik:::fpkm(tx, reads = RNA)
+  }
+  uorfIDs <- getORFNamesDB(with.transcript = T, asCharacter = F)
+  rnaFPKMs <- as.data.table(rnaFPKMs)
+  rnaFPKMs <- data.table(uorfIDs, rnaFPKMs)
+  
+  setwd("/export/valenfs/projects/uORFome/RCode1/")
+  source("./DataBaseCreator.R")
+  insertTable(rnaFPKMs, "RNAfpkm")
+  getRNASeqInfoTable(rnaList = rnaList)
+}
+
+getTeFeatures <- function(){
+  setwd("/export/valenfs/projects/uORFome/dataBase/")
+  
+  # load linking and ribo / rna
+  
+  linking <- matchRNA_RFPInfo("linkRnaRfp")
+  
+  RFP <- readTable("Ribofpkm")
+  RNA <- readTable("RNAfpkm")
+  
+  # find number of linkings we have
+  nTE <- max(linking$matching)
+  
+  # unfiltered without pseudoCounts
+  teTable <- foreach(i = 1:nTE, .combine = 'cbind') %do% {
+    rows <- linking[linking$matching == i, c(Sample_Type, originalIndex)]
+    if(length(rows) != 4) stop("something wrong te with nrows")
+    type <- rows[1:2]
+    indices <- as.integer(rows[3:4])
+    
+    if ((type[1] == "RNA") && (type[2] == "RPF")) {
+      return(RFP[,(indices[2]+2), with = F] / RNA[,indices[1], with = F])
+    } else if ((type[1] == "RPF") && (type[2] == "RNA")) {
+      return(RFP[,(indices[1]+2), with = F] / RNA[,indices[2], with = F]) # + uorf id columns
+    } else {
+      stop("something wrong te with nrows")
+    }
+  }
+  
+  
+  insertTable(teTable, "teUnfiltered")
+  
+  # filtered with pseudoCounts
+  
+  teTable <- foreach(i = 1:nTE, .combine = 'cbind') %do% {
+    rows <- linking[linking$matching == i, c(Sample_Type, originalIndex)]
+    if(length(rows) != 4) stop("something wrong te with nrows")
+    type <- rows[1:2]
+    indices <- as.integer(rows[3:4])
+    
+    if ((type[1] == "RNA") && (type[2] == "RPF")) {
+      return( (RFP[,(indices[2]+2), with = F] + 1) / (RNA[,indices[1], with = F] + 1))
+    } else if ((type[1] == "RPF") && (type[2] == "RNA")) {
+      return((RFP[,(indices[1]+2), with = F] + 1)  / (RNA[,indices[2], with = F] + 1)) # + uorf id columns
+    } else {
+      stop("something wrong te with nrows")
+    }
+  }
+  
+  insertTable(teTable, "teFiltered")
+}

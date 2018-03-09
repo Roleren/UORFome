@@ -26,13 +26,6 @@ databaseName = "uorfCatalogue"
 databaseName = paste0(databaseName,".sqlite")
 name = databaseName
 
-# for(i in list.files(matrixFolder)){
-#   load(p(matrixFolder,i))
-#   #find a way to combine the matrices into a bigger format
-# }
-# 
-# plottingFolder = p(resultsFolder,"/Plotting/Comparisons_plots/")
-# #plotting(matrix,paste0(plottingFolder,gsub("%","_",detailedFullName),".pdf")) #plot results
 
 #'Group the matricies by tissue
 groupMatriciesByTissue = function(){

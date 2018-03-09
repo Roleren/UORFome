@@ -1,9 +1,4 @@
 
-#Since cage redefines five utr lengths, the total lengths of tx must be updated
-findCageUTRFivelen = function(fiveUTRs, oldTxNames){
-  newfiveprimeLen <- widthPerGRangesGroup(fiveUTRs)
-  return( newfiveprimeLen[match(oldTxNames,names(newfiveprimeLen))])
-}
 
 otherSpeciesCageCSV = function(name){
   #pre loadings

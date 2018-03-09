@@ -4,19 +4,24 @@ library(ORFik)
 source("./HelperLibraries.R")
 source("./findUORFsOverlappingCDS.R")
 
-#' Get ranges of uorfs, fiveUTRs must be GRangesList
-#' Save to file set to false by default
-scanUORFs = function(fiveUTRs,saveToFile = T,outputName = NULL, assignUorf = T, outputFastaAndBed = T){
+#' Find uorfs
+#' 
+#' @param fiveUTRs must be GRangesList
+#' @param saveToFile set to false by default
+scanUORFs = function(fiveUTRs, saveToFile = T, outputName = NULL,
+                     assignUorf = T, outputFastaAndBed = T, filterORFs = T){
   
   cat("started scanning for uorfs\n")
   
   rangesOfuORFs <- getUnfilteredUORFs(fiveUTRs,assignUorf)
   gr <- unlist(rangesOfuORFs, use.names = F)
   rangesOfuORFs <- ORFik:::groupGRangesBy(gr, gr$names)
-  if(is.null(outputName)){
-    rangesOfuORFs <- filterORFs(rangesOfuORFs, outputFastaAndBed = outputFastaAndBed)
-  }else{
-    rangesOfuORFs <- filterORFs(rangesOfuORFs, outputFastaAndBed = outputFastaAndBed, nameSave = outputName)
+  if (filterORFs) {
+    if(is.null(outputName)){
+      rangesOfuORFs <- filterORFs(rangesOfuORFs, outputFastaAndBed = outputFastaAndBed)
+    }else{
+      rangesOfuORFs <- filterORFs(rangesOfuORFs, outputFastaAndBed = outputFastaAndBed, nameSave = outputName)
+    }
   }
   
   if(saveToFile){

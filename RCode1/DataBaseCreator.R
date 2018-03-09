@@ -3,6 +3,9 @@ setwd("/export/valenfs/projects/uORFome/RCode1/")
 source("./uorfomeGeneratorHelperFunctions.R")
 source("./databaseHelpers.R")
 source("./DataBaseGetters.R")
+source("./DataBaseInfo.R")
+source("./DataBaseValidation.R")
+source("./TissueTables.R")
 source("./CreateCatalogueHelpers.R")
 
 
@@ -82,22 +85,22 @@ getTissueTable <- function(){
 
 
 
-rfpTables <- function(){
-  setwd("/export/valenfs/projects/uORFome/RCode1/")
-  source("./MatchExperimentsHeader.R")
-  setwd("/export/valenfs/projects/uORFome/dataBase/")
-  
-  grl <- uniqueIdsAsGR()
-  validateExperiments(grl)
-  # now make ribo and rna seq tables
-  SpeciesGroup <- getUnfilteredSpeciesGroups()
-  rpfFilePaths <- getFilteredRFPPaths(SpeciesGroup)
-  insertTable(rpfFilePaths, "RiboSeqInfo")
-  riboTable <- riboAtlasFPKMAll(grl, rpfFilePaths)
-  
-  riboAtlasFPKMTissue(grl,rpfFilesPaths,riboTable,SpeciesGroup)
-  
-}
+# rfpTables <- function(){
+#   setwd("/export/valenfs/projects/uORFome/RCode1/")
+#   source("./MatchExperimentsHeader.R")
+#   setwd("/export/valenfs/projects/uORFome/dataBase/")
+#   
+#   grl <- uniqueIdsAsGR()
+#   validateExperiments(grl)
+#   # now make ribo and rna seq tables
+#   SpeciesGroup <- getUnfilteredSpeciesGroups()
+#   rpfFilePaths <- getFilteredRFPPaths(SpeciesGroup)
+#   insertTable(rpfFilePaths, "RiboSeqInfo")
+#   riboTable <- riboAtlasFPKMAll(grl, rpfFilePaths)
+#   
+#   riboAtlasFPKMTissue(grl,rpfFilesPaths,riboTable,SpeciesGroup)
+#   
+# }
 
 
 #createCatalogueDB(databaseName,matrix,tableName)

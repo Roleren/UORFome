@@ -18,7 +18,7 @@ insertTable= function(Matrix, tableName, appends = F, rmOld = F){
   dbWriteTable(uorfDB, tableName, as.data.table(Matrix),append = appends)
 }
 
-readTable = function(tableName, asGR = F){
+readTable = function(tableName, asGR = FALSE, with.IDs = TRUE){
   if (asGR){
     grl <- as.data.table(dbReadTable(uorfDB,tableName))
     return(makeGRangesListFromDataFrame(grl, split.field = "group",
@@ -26,12 +26,22 @@ readTable = function(tableName, asGR = F){
                                         keep.extra.columns = TRUE))
     
   } else{
+    if (!with.IDs) {
+      dt <- as.data.table(dbReadTable(uorfDB,tableName))
+      if (!is.numeric(dt[1,1][[1]])) {
+        dt <- dt[, -1]
+        if (!is.numeric(dt[1,1][[1]])) {
+          dt <- dt[, -1]
+        }
+      }
+      return(dt)
+    }
     return(as.data.table(dbReadTable(uorfDB,tableName)))
   }
 }
 
 listTables = function(){
-  dbListTables(uorfDB)
+  sort(dbListTables(uorfDB))
 }
 
 tableNotExists <- function(name){

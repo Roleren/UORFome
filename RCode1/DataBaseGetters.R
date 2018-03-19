@@ -51,6 +51,46 @@ getMatchingTable <- function(){
           Old_Tests/test_data/unfilteredSpeciesGroup.rdata")
 }
 
+#' Takes two tables from the database and extracts the rows of toBeMatched
+#' that matches the txNames in referenced.
+#' Both must have a column called txNames
+#' @return the toBeMatched object matched by txNames
+matchByTranscript <- function(toBeMatched, referenced){
+  
+  Indices <- data.table(txNames = toBeMatched$txNames, ind = 1:length(toBeMatched$txNames))
+  merged <- merge(Indices, data.table(txNames = referenced$txNames),
+                  by = "txNames", all.y = T, sort = F) 
+  return(toBeMatched[merged$ind, ])
+}
+
+getIDColumns <- function(dt, allowNull = F){
+  nIDs <- 0
+  if (!is.numeric(dt[1,1][[1]])) {
+    nIDs = nIDs + 1
+    if (!is.numeric(dt[1,2][[1]])) {
+      nIDs = nIDs + 1
+    }
+  }
+  if(!nIDs){
+    if (allowNull) {
+      return(NULL)
+    } else {
+      stop("No id columns found for dt")
+    }
+  }
+  return(dt[, nIDs, with = FALSE])
+}
+
+removeIDColumns <- function(dt){
+  if (!is.numeric(dt[1,1][[1]])) {
+    dt <- dt[, -1]
+    if (!is.numeric(dt[1,1][[1]])) {
+      dt <- dt[, -1]
+    }
+  }
+  return(dt)
+}
+
 #' get the uorfs in the database
 #' @param withExons should the uorfs be splitted by exons
 #' @param withTranscripts should the uorfs have transcript information, 

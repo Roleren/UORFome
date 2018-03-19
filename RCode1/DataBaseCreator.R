@@ -6,6 +6,7 @@ source("./DataBaseGetters.R")
 source("./DataBaseInfo.R")
 source("./DataBaseValidation.R")
 source("./TissueTables.R")
+source("./PipelineParts.R")
 source("./CreateCatalogueHelpers.R")
 
 

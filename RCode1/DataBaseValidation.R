@@ -255,14 +255,13 @@ kozakVsRiboseq <- function(){
   worstMean <- mean(colMeans(ribo[worst,]))
   
   getCDS()
-  cds <- cds[ORFik:::OrfToTxNames(grl)]
-  getRFP(standardRFP)
-  cdsFPKM <-fpkm(cds, RFP)
+  
+  cdsFPKM <- readTable("cdsRfpFPKMs", with.IDs = F)
   kozakCDS <- kozakSequenceScore(cds, fa)
-  bestCDS <-  which(kozakCDS > quantile(kozakCDS, 0.99))
-  bestMeanCDS <- mean(cdsFPKM[bestCDS])
-  worstCDS <-  which(kozakCDS < quantile(kozakCDS, 0.01))
-  worstMeanCDS <- mean(cdsFPKM[worstCDS])
+  bestCDS <-  which(kozakCDS > quantile(kozakCDS, 0.90))
+  bestMeanCDS <- mean(colMeans(cdsFPKM[bestCDS,]))
+  worstCDS <-  which(kozakCDS < quantile(kozakCDS, 0.10))
+  worstMeanCDS <- mean(colMeans(cdsFPKM[worstCDS,]))
 }
 
 # Looks like the distance increases with better kozak sequence
@@ -287,3 +286,60 @@ kozakVsORFScores <- function(){
   worstMean <- mean(colMeans(ORFScores[worst,]))
 }
 
+#' How much does the TE go down for CDS with uorfs in tx
+uorfTeVsCDSTe <- function(){
+  cdsTEs <- readTable("cdsTeFiltered", with.IDs = T)
+  grl <- getUorfsInDb()
+  uorfNames <- unique(OrfToTxNames(grl))
+  uorfTXCDS <- cdsTEs$txNames %in% uorfNames
+  cdsTEUORFs <- cdsTEs[uorfTXCDS, 2:ncol(cdsTEs)]
+  withUorfCDS <- sum(colMeans(cdsTEUORFs))
+  withoutUorfCDS <- sum(colMeans(cdsTEs[!uorfTXCDS, 2:ncol(cdsTEs)]))
+  
+  # quantile
+  cdsTxUorfs <- OrfToTxNames(grl) %in% cdsTEs$txNames
+  uorfTEs <- readTable("teFiltered", with.IDs = F)
+  
+  
+  # uorfTEs <- data.table(riboFPKM[,1:2], uorfTEs)
+  uorfTEs <- uorfTEs[, lapply(.SD, mean), by = OrfToTxNames(grl)]
+  colnames(uorfTEs)[1] <- "txNames"
+  # best
+  rowMeansUorfs <- rowMeans(uorfTEs[,2:ncol(uorfTEs)])
+  q90 <- quantile(rowMeansUorfs, 0.90)
+  best <- which(rowMeansUorfs > q90)
+  bestCDSTEs <- sum(colMeans(cdsTEUORFs[best, ]))
+  #worst
+  q10 <- quantile(rowMeansUorfs, 0.10)
+  worst <- which(rowMeansUorfs < q10)
+  worstCDSTEs <- sum(colMeans(cdsTEUORFs[worst,]))
+  # conclusion, no q90/q10 correlation it looks like
+  
+  rowMeansCDS <- rowMeans(cdsTEs[uorfTXCDS, 2:ncol(cdsTEs)])
+  
+  corResult <- cor.test(rowMeansUorfs, rowMeansCDS)
+  
+  
+  return((1 - withoutUorfCDS/withUorfCDS)*100)
+}
+
+distVSCDSTe <- function(){
+  
+  cdsTEs <- readTable("cdsTeFiltered", with.IDs = T)
+  dists <- readTable("distORFCDS")
+  riboFPKM <- readTable("Ribofpkm")
+  
+  q90 <- quantile(dists$distORFCDS, 0.90)
+  best <- which(dists$distORFCDS > q90)
+  bestDists <- dists[best,]
+  
+  longestTXNames <- cdsTEs$txNames %in% riboFPKM$txNames[riboFPKM$uorfID %in% bestDists$uorfID]
+  longestCDSTe <- sum(colMeans(cdsTEs[longestTXNames, 2:ncol(cdsTEs)]))
+  
+  q10 <- quantile(dists$distORFCDS, 0.10)
+  worst <- which(dists$distORFCDS < q10)
+  worstDists <- dists[worst,]
+  
+  shortestTXNames <- cdsTEs$txNames %in% riboFPKM$txNames[riboFPKM$uorfID %in% worstDists$uorfID]
+  shortestCDSTe <- sum(colMeans(cdsTEs[shortestTXNames, 2:ncol(cdsTEs)]))
+}

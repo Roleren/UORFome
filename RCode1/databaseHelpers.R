@@ -28,13 +28,8 @@ readTable = function(tableName, asGR = FALSE, with.IDs = TRUE){
   } else{
     if (!with.IDs) {
       dt <- as.data.table(dbReadTable(uorfDB,tableName))
-      if (!is.numeric(dt[1,1][[1]])) {
-        dt <- dt[, -1]
-        if (!is.numeric(dt[1,1][[1]])) {
-          dt <- dt[, -1]
-        }
-      }
-      return(dt)
+
+      return(removeIDColumns(dt))
     }
     return(as.data.table(dbReadTable(uorfDB,tableName)))
   }

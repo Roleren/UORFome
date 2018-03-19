@@ -160,6 +160,7 @@ pipelineCluster <- function(maxCores = NULL){
     }
     cl <- makeCluster(maxCores)
     registerDoParallel(cl)
+    assign("cl",cl,envir = .GlobalEnv)
   }
   
   message("running with number of threads: ", maxCores)

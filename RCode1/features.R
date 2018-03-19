@@ -119,3 +119,4 @@ getAllFeatures <- function(grl, RFPPath, RNAPath = NULL, i){
   save(dt,file = paste0("featureTablesTemp/dt_",i,".rdata"))
   return(i)
 }
+

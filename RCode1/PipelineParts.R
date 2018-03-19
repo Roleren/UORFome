@@ -24,7 +24,6 @@ getUorfsFromLeaders <- function(nLeadersList){
       i
     }
   }
-  
 }
 
 getAllFeaturesFromUorfs <- function(){
@@ -38,11 +37,7 @@ getAllFeaturesFromUorfs <- function(){
     rfpList <- grep(pattern = "merged",
                     x = list.files(rfpFolder), value = T)
     RFPPath <- p(rfpFolder, rfpList[i])
-    grl <- readTable("uorfsAsGRWithTx", asGR = T)
-    gr <- unlist(grl, use.names = F)
-    names(gr) <- gsub("_[0-9]*", "", names(gr))
-    
-    grl <- groupGRangesBy(gr, gr$names)
+    grl <- getUorfsInDb()
     
     getAllFeatures(grl,RFPPath, i = i)
     print(i)
@@ -95,6 +90,11 @@ getAllFeaturesFromUorfs <- function(){
   getRiboInfoTable(rfpList = rfpList)
 }
 
+#' Make RNA-seq fpkm values for database
+#' 
+#' Since rna-seq fpkms are normalized by transcript, the size of this
+#' tabke might be different than the ribo-seq. i.g. there can be several
+#' uORFs per transcript.
 getRNAFpkms <- function(){
   load("/export/valenfs/projects/uORFome/test_results/Old_Tests/test_data/unfilteredSpeciesGroup.rdata")
   rnaList <- SpeciesGroup[SpeciesGroup$Sample_Type == "RNA",]$RnaRfpFolders
@@ -111,17 +111,17 @@ getRNAFpkms <- function(){
     rnaList <- SpeciesGroup[SpeciesGroup$Sample_Type == "RNA",]$RnaRfpFolders
     rnaList <- grep(pattern = ".bam",x = rnaList, value = T)
     RNAPath <- rnaList[i]
-    grlNames <- getORFNamesDB(T, T, T)
     
     # get tx
-    tx <- ORFik:::extendLeaders(getTx())
-    tx <- tx[grlNames]
+    tx <- getTx()
+    tx <- ORFik:::extendLeaders(tx)
     RNA <- readGAlignments(RNAPath)
     rnaFPKM <- ORFik:::fpkm(tx, reads = RNA)
   }
-  uorfIDs <- getORFNamesDB(with.transcript = T, asCharacter = F)
+  tx <- getTx()
   rnaFPKMs <- as.data.table(rnaFPKMs)
-  rnaFPKMs <- data.table(uorfIDs, rnaFPKMs)
+  txNames <- names(tx)
+  rnaFPKMs <- data.table(txNames, rnaFPKMs)
   
   setwd("/export/valenfs/projects/uORFome/RCode1/")
   source("./DataBaseCreator.R")
@@ -129,19 +129,28 @@ getRNAFpkms <- function(){
   getRNASeqInfoTable(rnaList = rnaList)
 }
 
-getTeFeatures <- function(){
+getTeFeatures <- function(riboDbName = "Ribofpkm",
+                          dbOutputNames = c("teUnfiltered", "teFiltered")){
   setwd("/export/valenfs/projects/uORFome/dataBase/")
+  if(length(dbOutputNames) != 2) stop("dbOutputNames must have 2 character elements")
   
   # load linking and ribo / rna
   
   linking <- matchRNA_RFPInfo("linkRnaRfp")
   
-  RFP <- readTable("Ribofpkm")
+  RFP <- readTable(riboDbName)
+  txNames <- RFP$txNames
   RNA <- readTable("RNAfpkm")
+  RNA <- matchByTranscript(RNA, RFP)
+  RFP <- removeIDColumns(RFP)
+  RNA <- removeIDColumns(RNA)
+  
+  if(nrow(RFP) != nrow(RNA)) stop("riboseq and rnaseq tables have different # of rows")
   
   # find number of linkings we have
   nTE <- max(linking$matching)
   
+  library(foreach)
   # unfiltered without pseudoCounts
   teTable <- foreach(i = 1:nTE, .combine = 'cbind') %do% {
     rows <- linking[linking$matching == i, c(Sample_Type, originalIndex)]
@@ -150,16 +159,16 @@ getTeFeatures <- function(){
     indices <- as.integer(rows[3:4])
     
     if ((type[1] == "RNA") && (type[2] == "RPF")) {
-      return(RFP[,(indices[2]+2), with = F] / RNA[,indices[1], with = F])
+      return(RFP[,(indices[2]), with = F] / RNA[,indices[1], with = F])
     } else if ((type[1] == "RPF") && (type[2] == "RNA")) {
-      return(RFP[,(indices[1]+2), with = F] / RNA[,indices[2], with = F]) # + uorf id columns
+      return(RFP[,(indices[1]), with = F] / RNA[,indices[2], with = F])
     } else {
       stop("something wrong te with nrows")
     }
   }
   
-  
-  insertTable(teTable, "teUnfiltered")
+  teTable <- data.table(txNames, teTable)
+  insertTable(teTable, dbOutputNames[1])
   
   # filtered with pseudoCounts
   
@@ -170,13 +179,54 @@ getTeFeatures <- function(){
     indices <- as.integer(rows[3:4])
     
     if ((type[1] == "RNA") && (type[2] == "RPF")) {
-      return( (RFP[,(indices[2]+2), with = F] + 1) / (RNA[,indices[1], with = F] + 1))
+      return( (RFP[,(indices[2]), with = F] + 1) / (RNA[,indices[1], with = F] + 1))
     } else if ((type[1] == "RPF") && (type[2] == "RNA")) {
-      return((RFP[,(indices[1]+2), with = F] + 1)  / (RNA[,indices[2], with = F] + 1)) # + uorf id columns
+      return((RFP[,(indices[1]), with = F] + 1)  / (RNA[,indices[2], with = F] + 1))
     } else {
       stop("something wrong te with nrows")
     }
   }
+  teTable <- data.table(txNames, teTable)
+  insertTable(teTable, dbOutputNames[2])
+}
+
+getCDSFeatures <- function(){
+  ## Riboseq fpkm
+  if(tableNotExists("cdsRfpFPKMs")) {
+    rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
+    nrfpList <- length(rfpList)
+    # all rfp features
+    cdsRfpFPKMs <- foreach(i=1:nrfpList, .combine = 'cbind') %dopar% {
+      setwd("/export/valenfs/projects/uORFome/RCode1/")
+      source("./DataBaseCreator.R")
+      setwd("/export/valenfs/projects/uORFome/dataBase/")
+      rfpList <- grep(pattern = "merged",
+                      x = list.files(rfpFolder), value = T)
+      RFPPath <- p(rfpFolder, rfpList[i])
+      RFP <- ORFik:::cageFromFile(RFPPath)
+      getCDS()
+      
+      rfps <- fpkm(cds, RFP)
+    }
+   
+    getCDS()
+    txNames <- names(cds)
+    cdsRfpFPKMs <- as.data.table(cdsRfpFPKMs)
+    cdsRfpFPKMs <- data.table(txNames, cdsRfpFPKMs)
+    
+    setwd("/export/valenfs/projects/uORFome/RCode1/")
+    source("./DataBaseCreator.R")
+    insertTable(cdsRfpFPKMs, "cdsRfpFPKMs")
+    
+    riboAtlasFPKMTissue(riboDbName = "cdsRfpFPKMs",
+                        dbOutputNames = c("cdsRiboByTissueTF", "cdsRiboByTissueMean"))
+  }
   
-  insertTable(teTable, "teFiltered")
+  ## RNA fpkms already made, so go to TE:
+  if(tableNotExists("cdsTeFiltered")) {
+    getTeFeatures(riboDbName = "cdsRfpFPKMs",
+                  dbOutputNames = c("cdsTeUnfiltered", "cdsTeFiltered"))
+  }
+  
+  
 }

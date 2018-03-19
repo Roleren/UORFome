@@ -2,13 +2,13 @@
 #' Get riboseq file and read it
 getRFP = function(rfpSeq){
   library(tools)
-  if(!is.null(rfpSeq) && exists("RFP") == F){ #remember to fix this when bed files arrive!!!!
+  if(!is.null(rfpSeq) && exists("RFP") == F){
     if (file_ext(rfpSeq) == "bam") {
-      RFP = loadBamFile(rfpSeq,"rfp")
+      RFP <- loadBamFile(rfpSeq,"rfp")
       assign("RFP",RFP,envir = .GlobalEnv)
     }
     if (file_ext(rfpSeq) == "bed") {
-      RFP = ORFik:::cageFromFile(rfpSeq)
+      RFP <- ORFik:::cageFromFile(rfpSeq)
       assign("RFP",RFP,envir = .GlobalEnv)
     }
   }
@@ -82,7 +82,7 @@ getTx <- function(assignIt = F){
     } else {
       return(tx)
     }
-  }
+  } 
 }
 
 #Get the coding sequences from the gtf file

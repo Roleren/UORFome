@@ -11,15 +11,15 @@ library(GenomicAlignments)
 #' Find all uorf into the cds,filter bad ones
 filterORFs <- function(rangesOfuORFs, loadPath = NULL, saveToFile = F,outputFastaAndBed = F, nameSave = NULL){
   
-  print("starting to filter out bad ourfs...")
+  print("starting to filter out ourfs...")
   if(!is.null(loadPath))
     load(loadPath,envir = .GlobalEnv)
   
   #check start upstream, ending downstream
   rangesOfuORFs = removeORFsWithinCDS(rangesOfuORFs)
   
-  
-  print("finished filtering bad ourfs")
+  rangesOfuORFs <- ORFik:::sortPerGroup(rangesOfuORFs)
+  print("finished filtering ourfs")
   
   ################SAVING###############
   ####Save overlaps of cds and uorfs for plotting later

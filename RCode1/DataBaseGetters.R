@@ -98,9 +98,16 @@ removeIDColumns <- function(dt){
 #' @return a GRangesList or data.table, if(F, F)
 getUorfsInDb <- function(withExons = T, withTranscripts = T){
   if (withExons && withTranscripts) {
-    grl <- readTable("uorfsAsGRWithTx", asGR = T)
-    gr <- unlist(grl, use.names = F)
-    names(gr) <- gsub("_[0-9]*", "", names(gr))
+    if(file.exists(p(dataBaseFolder, "/uORFsAsGR.rdata"))) {
+      load(p(dataBaseFolder, "/uORFsAsGR.rdata"))
+      return(grl)
+    } else if(!tableNotExists("uorfsAsGRWithTx")) {
+      grl <- readTable("uorfsAsGRWithTx", asGR = T)
+      gr <- unlist(grl, use.names = F)
+      names(gr) <- gsub("_[0-9]*", "", names(gr))
+    } else {
+      stop("uORFs could not be found, check that they exist")
+    }
     return(groupGRangesBy(gr, gr$names))
   } else if (!withExons) {
     return(readTable("uniqueIDs"))

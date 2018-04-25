@@ -77,7 +77,7 @@ getTx <- function(assignIt = F){
     }
     tx <- exonsBy(Gtf, by = "tx", use.names = TRUE)
     if (assignIt) {
-      assign("tx",cds,envir = .GlobalEnv)
+      assign("tx",tx, envir = .GlobalEnv)
       return(tx)
     } else {
       return(tx)
@@ -91,9 +91,9 @@ getCDS = function(assignIt = T){
     if (exists("Gtf") == F) {
       getGTF()
     }
-    cds = cdsBy(Gtf,"tx",use.names = T)
+    cds = cdsBy(Gtf,"tx", use.names = TRUE)
     if (assignIt) {
-      assign("cds",cds,envir = .GlobalEnv)
+      assign("cds", cds, envir = .GlobalEnv)
       return(cds)
     } else {
       return(cds)
@@ -107,13 +107,16 @@ getThreeUTRs = function(){
     if (exists("Gtf") == F) {
       getGTF()
     }
-    threeUTRs = threeUTRsByTranscript(Gtf,use.names = T)
-    assign("threeUTRs",threeUTRs,envir = .GlobalEnv)
+    threeUTRs = threeUTRsByTranscript(Gtf, use.names = TRUE)
+    assign("threeUTRs", threeUTRs, envir = .GlobalEnv)
   }
 }
 
-#Get the 5' leaders, either from gtf, cage data to reassign the transcription start site(TSS), or load from existing data either as .rdata or .bed (bed6)
-getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader = NULL,assignLeader = T){
+#' Get the 5' leaders, either from gtf, cage data to reassign
+#' the transcription start site(TSS), or load from existing data
+#' either as .rdata or .bed (bed6)
+getLeaders = function(leaderBed = NULL, usingNewCage = F, cageName = NULL,
+                      leader = NULL, assignLeader = T, exportAsBed = F){
   
   if(!is.null(cageName)){#check if leader is already made, either as rdata or bed
     if(file.exists(paste0(leadersFolder,getRelativePathName(cageName),".leader.rdata"))){
@@ -134,12 +137,14 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
     fu = import.bed(leaderBed)
     vec = vector(mode="list",length = length(unique(fu$name)))
     names(vec) <- unique(fu$name)
-    for(i in unique(fu$name)){ #combine by name, to make transcripts by exons
+    #combine by name, to make transcripts by exons
+    for(i in unique(fu$name)){ 
       vec[[i]] <- fu[fu$name == i]
     }
     fiveUTRs = GRangesList(vec)
     
-    exportNamerdata = paste0(leadersFolder,getRelativePathName(p(cageName,".leader.rdata")))
+    exportNamerdata = paste0(leadersFolder,getRelativePathName(
+      p(cageName,".leader.rdata")))
     save(fiveUTRs,file = exportNamerdata)
   }
   else{ #create from scratch
@@ -148,33 +153,35 @@ getLeaders = function(leaderBed = NULL,usingNewCage = F, cageName = NULL,leader 
       cat("creating leader from scratch\n")
       getGTF()
       
-      if(file.exists(p(dataFolder,"/leader.rdata"))){
+      if (file.exists(p(dataFolder,"/leader.rdata"))) {
         load(p(dataFolder,"/leader.rdata"))
-        if(!assignLeader){
-          return(fiveUTRs)
-        }
-        
       } else {
         cat("loading Leader from gtf\n")
         fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
         save(fiveUTRs, p(dataFolder,"/leader.rdata"))
       }
       
-      if(usingNewCage){
+      if (usingNewCage) {
         print("Using cage.. ")
-        if(is.null(cageName)){
+        if (is.null(cageName)) {
           print("error no cageName, continueing without cage")
           assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)
           return
         }
         getCDS()
         fiveUTRs = ORFik::reassignTSSbyCage(fiveUTRs,cageName, cds = cds)
-        if(1){ #TODO add possibility to not save utrs, now it always saves
-          exportNamebed = paste0(leadersbedFolder,getRelativePathName(p(cageName,".leader.bed")))
-          exportNamerdata = paste0(leadersFolder,getRelativePathName(p(cageName,".leader.rdata")))
-          print("exporting new leaders")
+        fiveUTRs <- ORFik:::sortPerGroup(fiveUTRs)
+        print("exporting new leaders")
+        exportNamerdata = paste0(leadersFolder,
+                                 getRelativePathName(p(cageName,
+                                                       ".leader.rdata")))
+        save(fiveUTRs,file = exportNamerdata)
+        if (exportAsBed) {
+          #TODO add possibility to not save utrs, now it always saves
+          exportNamebed = paste0(leadersbedFolder,
+                                 getRelativePathName(p(cageName,
+                                                       ".leader.bed")))
           export.bed(unlist(fiveUTRs),exportNamebed)
-          save(fiveUTRs,file = exportNamerdata)
         }
         print("finished new 5' UTRs")
       }
@@ -196,36 +203,68 @@ leaderAllSpanning <- function(){
   getCDS()
   
   fiveUTRs <- ORFik:::addFirstCdsOnLeaderEnds(
-    ORFik:::assignFirstExons(ORFik:::extendsTSSexons(fiveUTRs), fiveUTRs), cds)
+    ORFik:::assignFirstExons(ORFik:::extendsTSSexons(fiveUTRs),
+                             fiveUTRs), cds)
+  fiveUTRs <- sortPerGroup(fiveUTRs)
   return(fiveUTRs)
+}
+
+leaderCage <- function(width.cds = TRUE){
+  if(width.cds) {
+    load(p(dataBaseFolder,"/CageFiveUTRsWithCDS.rdata"))
+    return(CageFiveWithCDS)
+  }
+  load(p(dataBaseFolder,"/CageFiveUTRs.rdata"))
+  
+  return(CageFiveUTRs)
 }
 
 getAll <- function(include.cage = T, extendTx = F){
   getFasta()
   getCDS()
   getThreeUTRs()
+  getLeaders()
   tx <- getTx()
-  if (extendTx){
-    tx <- ORFik:::extendLeaders(tx)
-  }
-  assign("tx", tx,  envir = .GlobalEnv)
+  
   
   #or with extension
   if (include.cage) {
-    cageFiveUTRs <- leaderAllSpanning()
+    cageFiveUTRs <- leaderCage()
     assign("cageFiveUTRs", cageFiveUTRs,  envir = .GlobalEnv)
   }
+  if (extendTx){
+    tx <- ORFik:::extendLeaders(tx, cageFiveUTRs)
+  }
+  assign("tx", tx,  envir = .GlobalEnv)
+  
   return(NULL)
 }
 
+# delete all
+da <- function(){
+  if (exists("threeUTRs")) {
+    rm(threeUTRs)
+  }
+  if (exists("cds", mode = "S4")){
+    rm(cds)
+  }
+  if (exists("tx", mode = "S4")) {
+    rm(tx)
+  }
+  if (exists("fiveUTRs", mode = "S4")) {
+    rm(fiveUTRs)
+  }
+}
 
-#Get the upstream open reading frames from the 5' leader sequences, given as GRangesList
-getUnfilteredUORFs = function(fiveUTRs, assignRanges = T, isSorted = F){
+#' Convenience wrapper from findMapORFs
+#' Get the upstream open reading frames from the 5' leader sequences, given as GRangesList 
+getUnfilteredUORFs = function(fiveUTRs, assignRanges = T, isSorted = F,
+                              startCodons = "ATG"){
   
   getSequencesFromFasta(fiveUTRs, isSorted)
   
   
-  rangesOfuORFs = ORFik::find_in_frame_ORFs(grl = fiveUTRs,fastaSeqs = seqs,minimumLength = 2)
+  rangesOfuORFs = ORFik::findMapORFs(grl = fiveUTRs,seqs = seqs,minimumLength = 2, startCodon = startCodons)
   
   if(assignRanges)
     assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)

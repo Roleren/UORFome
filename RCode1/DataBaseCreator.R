@@ -1,53 +1,122 @@
 
-setwd("/export/valenfs/projects/uORFome/RCode1/")
-source("./uorfomeGeneratorHelperFunctions.R")
-source("./databaseHelpers.R")
-source("./DataBaseGetters.R")
-source("./DataBaseInfo.R")
-source("./DataBaseValidation.R")
-source("./TissueTables.R")
-source("./PipelineParts.R")
-source("./CreateCatalogueHelpers.R")
-
-
 #' Create 1 column of all unique ids from uorfID folder
 createUniqueIDs <- function(){
-  j = 1
-  for(i in idFiles){
-    load(p(idFolder, i))
-    uorfID <- unique(uorfID)
-    if (j == 1) {
-      allUniqueIDs <- uorfID
-    }else{
-      matching <- uorfID %in% allUniqueIDs
-      toAdd <- uorfID[which(matching == F)]
-      allUniqueIDs <- c(allUniqueIDs,toAdd)
-    }
-    j <- j+1
+  if (length(idFiles) == 0) {
+    stop("idFiles can not have 0 length")
   }
-  allUniqueIDs <- sort(allUniqueIDs)
-  save(allUniqueIDs,file = "allUniqueIDs.rdata")
-  insertTable(Matrix = allUniqueIDs,tableName = "uniqueIDs")
+  if (tableNotExists("uniqueIDs")) {
+    j = 1
+    for(i in idFiles){
+      load(p(idFolder, i))
+      uorfID <- unique(uorfID)
+      if (j == 1) {
+        allUniqueIDs <- uorfID
+      }else{
+        matching <- data.table::`%chin%`(uorfID, allUniqueIDs)
+        toAdd <- uorfID[which(matching == F)]
+        allUniqueIDs <- c(allUniqueIDs,toAdd)
+      }
+      j <- j+1
+    } 
+    allUniqueIDs <- allUniqueIDs[data.table::chorder(allUniqueIDs)]
+    
+    #save(allUniqueIDs,file = "allUniqueIDs.rdata")
+    insertTable(Matrix = allUniqueIDs,tableName = "uniqueIDs")
+  } else {
+    message("uniqueIDs already exist, skipping remake of them")
+  }
 }
 
-createUORFAtlas <- function(){
-  uorfIDsAllUnique <- readTable("uniqueIDs")
-  colnames(uorfIDsAllUnique) = "uorfID"
-  uorfAtlas <- as.data.table(matrix(F, nrow = nrow(uorfIDsAllUnique), ncol = length(idFiles)+1))
-  uorfAtlas[,1] <- uorfIDsAllUnique
-  colnames(uorfAtlas) = c("uorfID", as.character(1:(length(idFiles))))
-  j = 1
-  for(i in idFiles){
-    load(p(idFolder, i))
+#' #' Create 1 column of all unique ids from uorfID folder
+#' createUniqueIDsFast <- function(){
+#'   if (length(idFiles) == 0) {
+#'     stop("idFiles can not have 0 length")
+#'   }
+#'   if (tableNotExists("uniqueIDs")) {
+#'     
+#'     j = 1
+#'     
+#'     for(i in idFiles[1:50]){
+#'       load(p(idFolder, i))
+#'       uorfID <- unique(uorfID)
+#'       if (j == 1) {
+#'         allUniqueIDs <- uorfID
+#'       }else{
+#'         
+#'         matching <- data.table::`%chin%`(uorfID,allUniqueIDs)
+#'         toAdd <- uorfID[which(matching == F)]
+#'         allUniqueIDs <- c(allUniqueIDs,toAdd)
+#'       }
+#'       j <- j+1
+#'     }
+#'     #data.table::`%chin%`(a,allUniqueIDs[1:100])
+#'     c <- foreach(i=seq_along(idFiles), .combine=function(x,y){unique(c(unique(x), unique(y)))}) %dopar% {
+#'       setwd("/export/valenfs/projects/uORFome/RCode1/")
+#'       source("./uorfomeGeneratorHelperFunctions.R")
+#'       load(p(idFolder, idFiles[i]))
+#'       return(uorfID)
+#'     }
+#'     
+#'     allUniqueIDs <- sort(allUniqueIDs)
+#'     #save(allUniqueIDs,file = "allUniqueIDs.rdata")
+#'     insertTable(Matrix = allUniqueIDs,tableName = "uniqueIDs")
+#'   } else {
+#'     message("uniqueIDs already exist, skipping remake of them")
+#'   }
+#' }
+
+#' convert to gr from string and filter NB!!! put this  in pipeline!!
+createGRObjects <- function(makeBed = T){
+  if (!file.exists(paste0(getwd(),"/uniqueUorfsAsGR.rdata"))) {
+    uniqueIDs <- readTable("uniqueIDs")
+    grl <- toGRFromUniqueID(uniqueIDs$Matrix)
+    getCDS()
     
-    uorfs <- uorfID[!duplicated(uorfID)]
+    # filter out uORFs with same start as cds
+    starts <- startSites(grl, asGR = T, is.sorted = T)
+    cdsstarts <- startSites(cds, asGR = T, is.sorted = T)
+    overlaps <- findOverlaps(starts, cdsstarts, type = "within")
     
-    uorfAtlas[,(j+1)] <- uorfIDsAllUnique$uorfID %in% uorfs
-      
-    j = j+1
+    grl <- grl[-unique(from(overlaps))]
+    uniq <- uniqueIDs$Matrix
+    uniq <- uniq[-unique(from(overlaps))]
+    save(grl, file = "./uniqueUorfsAsGR.rdata")
+    insertTable(Matrix = uniq, tableName =  "uniqueIDs", rmOld = T)
+    insertTable(Matrix = grl,tableName = "SplittedByExonsuniqueUORFs", rmOld = T)
+    
+    if (makeBed)
+      bed12(grl, "bedUniqueUorfs.bed", T)
+    
+    # make all spanning cage leader from cage
+    allLeadersSpanningLeader()
+    # find tx matching
+    linkORFsToTx()
   }
-  
-  save(uorfAtlas,file = "UORFAtlas.rdata")
+}
+
+#' Create a data.table of true Fase
+createUORFAtlas <- function(){
+  if (!file.exists(paste0(getwd(),"/UORFAtlas.rdata"))) {
+    uorfIDsAllUnique <- readTable("uniqueIDs")
+    colnames(uorfIDsAllUnique) = "uorfID"
+    uorfAtlas <- as.data.table(matrix(F, nrow = nrow(uorfIDsAllUnique), ncol = length(idFiles)+1))
+    uorfAtlas[,1] <- uorfIDsAllUnique
+    colnames(uorfAtlas) = c("uorfID", as.character(1:(length(idFiles))))
+    j = 1
+    for(i in idFiles){
+      load(p(idFolder, i))
+      
+      uorfs <- uorfID[!duplicated(uorfID)]
+      
+      uorfAtlas[,(j+1)] <- data.table::`%chin%`(uorfIDsAllUnique$uorfID, uorfs)
+        
+      j = j+1
+    }
+    
+    save(uorfAtlas,file = "UORFAtlas.rdata")
+  } else {
+    message("UORFAtlas already exist, skipping remake of them")
+  }
 }
 
 #' Create tissueTable for cage, 1 row per unique uorf 
@@ -84,8 +153,6 @@ getTissueTable <- function(){
   insertTable(Matrix = tissueAtlas,tableName = "tissueAtlasByCage")
 }
 
-
-
 # rfpTables <- function(){
 #   setwd("/export/valenfs/projects/uORFome/RCode1/")
 #   source("./MatchExperimentsHeader.R")
@@ -102,19 +169,6 @@ getTissueTable <- function(){
 #   riboAtlasFPKMTissue(grl,rpfFilesPaths,riboTable,SpeciesGroup)
 #   
 # }
-
-
-#createCatalogueDB(databaseName,matrix,tableName)
-#0st name of experiments
-###1st cage supprt per uorf, bool, 
-###2nd rna ribo seq supprt and te per uorf, matrix
-###3rd 
-
-###example: find uorf that are only in certain tissue
-uorfDB <- createDataBase(databaseName)
-#createUniqueIDs()
-#createUORFAtlas()
-#rfpTables()
 
 # fix the presentation
 # Take all uorfs, and cluster the tissue based on uorfs

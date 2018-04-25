@@ -9,13 +9,14 @@ source("./findUORFsOverlappingCDS.R")
 #' @param fiveUTRs must be GRangesList
 #' @param saveToFile set to false by default
 scanUORFs = function(fiveUTRs, saveToFile = T, outputName = NULL,
-                     assignUorf = T, outputFastaAndBed = T, filterORFs = T){
+                     assignUorf = T, outputFastaAndBed = T, filterORFs = T,
+                     startCodons = "ATG"){
   
   cat("started scanning for uorfs\n")
   
-  rangesOfuORFs <- getUnfilteredUORFs(fiveUTRs,assignUorf)
+  rangesOfuORFs <- getUnfilteredUORFs(fiveUTRs,assignUorf, startCodons = startCodons)
   gr <- unlist(rangesOfuORFs, use.names = F)
-  rangesOfuORFs <- ORFik:::groupGRangesBy(gr, gr$names)
+  rangesOfuORFs <- groupGRangesBy(gr, gr$names)
   if (filterORFs) {
     if(is.null(outputName)){
       rangesOfuORFs <- filterORFs(rangesOfuORFs, outputFastaAndBed = outputFastaAndBed)

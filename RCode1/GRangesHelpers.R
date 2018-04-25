@@ -1,29 +1,5 @@
 
-# Not merged properly yet!
-GroupGRangesExonsPerGroup <- function(grl, keep.names = T, other = NULL){
-  if (!is.null(other)){
-    exonsPerGroup <- Rle(other)
-    return(runLength(exonsPerGroup))
-  }
-  if (!is.null(names(unlist(grl, use.names = F)))){
-    exonsPerGroup <- Rle(names(unlist(grl, use.names = F)))
-    return(runLength(exonsPerGroup))
-  } else if (!is.null(names(unlist(grl)))){
-    exonsPerGroup <- Rle(names(unlist(grl)))
-    return(runLength(exonsPerGroup))
-  } else stop("no names to group exons")
-}
 
-GroupGRangesFixSeqnames <- function(grl){
-  temp <- unlist(grl)
-  seqnamesTransformed <- as.character(seqnames(temp))
-  indexes <- which(nchar(seqnamesTransformed) < 6)
-  temp <- temp[indexes]
-  seqlevels(temp) <- sub(replacement = "chrY",pattern = "Y",seqlevels(temp))
-  seqlevels(temp) <- sub(replacement = "chrX",pattern = "X",seqlevels(temp))
-  seqlevels(temp) <- as.character(unique(seqnames(unlist(temp))))
-  return(groupGRangesBy(temp))
-}
 
 toUniqueIDFromGR <- function(grl, with.tx = FALSE){
   seqnames = as.character(seqnames(phead(grl,1L)))
@@ -97,10 +73,17 @@ toGRFromUniqueID <- function(uniqueIDs){
                  strand = strands[t])
     
     grl = groupGRangesBy(gr,t)
+    grl <- sortPerGroup(grl)
   } else stop("not correct ncols in uniqueIDs")
   #test the orfs
   widths <- ORFik:::widthPerGroup(grl,F)
   if(sum(widths %% 3) != 0) stop("widths of uorfs are not %3 = 0!")
   if (length(grl) != nrow(uniqueIDs)) stop("not all ranges was reconstructed properly, check data!")
+  return(grl)
+}
+
+getNegExonGrl <- function(grl) {
+  grl <- grl[!strandBool(grl)]
+  grl <- grl[ORFik:::numExonsPerGroup(grl) > 1]
   return(grl)
 }

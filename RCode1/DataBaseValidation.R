@@ -16,6 +16,26 @@ validateExperiments <- function(grl){
   } else { print("experiments look valid")}
 }
 
+#' check that all orfs acctually have a valid start codon
+#' A good check for minus strand errors.
+validateStartCodons <- function(uniqueIDs, startCodons){
+  gr <- toGRFromUniqueID(uniqueIDs)
+  names(gr) <- seq(length(gr))
+  g <- unlist(gr, use.names = TRUE)
+  gr <- groupGRangesBy(gr)
+  
+  st <- startCodons(gr)
+  getSequencesFromFasta(st, T)
+  
+  starts <- unlist(str_split(startCodons, pattern = "\\|"))
+  temp <- 0 
+  for( codon in starts) {
+    temp <- temp + sum(seqs == codon)
+  }
+  
+  return(temp == length(gr))
+}
+
 #' Get variance between different leader versions
 #' 
 #' For validation
@@ -257,7 +277,7 @@ kozakVsRiboseq <- function(){
   getCDS()
   
   cdsFPKM <- readTable("cdsRfpFPKMs", with.IDs = F)
-  kozakCDS <- kozakSequenceScore(cds, fa)
+  kozakCDS <- readTable("cdsKozak", with.IDs = F)$kozakCDS
   bestCDS <-  which(kozakCDS > quantile(kozakCDS, 0.90))
   bestMeanCDS <- mean(colMeans(cdsFPKM[bestCDS,]))
   worstCDS <-  which(kozakCDS < quantile(kozakCDS, 0.10))
@@ -284,35 +304,47 @@ kozakVsORFScores <- function(){
   bestMean <- mean(colMeans(ORFScores[best,]))
   worst <- which(kozak < quantile(kozak, 0.01))
   worstMean <- mean(colMeans(ORFScores[worst,]))
+  
+  # now cds
+  kozak <- as.numeric(unlist(readTable("cdsKozak", with.IDs = FALSE), use.names = FALSE))
+  q99 <- quantile(kozak, 0.99)
+  best <- which(kozak > q99)
+  ORFScores <- readTable("cdsORFScore", with.IDs = FALSE)
+  bestMean <- mean(rowMeans(ORFScores[best,]))
+  worst <- which(kozak < quantile(kozak, 0.01))
+  worstMean <- mean(rowMeans(ORFScores[worst,]))
+  
+  # Looks like a good seperator
 }
 
 #' How much does the TE go down for CDS with uorfs in tx
 uorfTeVsCDSTe <- function(){
   cdsTEs <- readTable("cdsTeFiltered", with.IDs = T)
   grl <- getUorfsInDb()
-  uorfNames <- unique(OrfToTxNames(grl))
+  uorfNames <- unique(txNames(grl))
   uorfTXCDS <- cdsTEs$txNames %in% uorfNames
   cdsTEUORFs <- cdsTEs[uorfTXCDS, 2:ncol(cdsTEs)]
-  withUorfCDS <- sum(colMeans(cdsTEUORFs))
-  withoutUorfCDS <- sum(colMeans(cdsTEs[!uorfTXCDS, 2:ncol(cdsTEs)]))
-  
+  withUorfCDS <- mean(colMeans(cdsTEUORFs))
+  withoutUorfCDS <- mean(colMeans(cdsTEs[!uorfTXCDS, 2:ncol(cdsTEs)]))
+  hist(withUorfCDS, withoutUorfCDS)
+  boxplot(colMeans(cdsTEs[uorfTXCDS, 2:ncol(cdsTEs)]),colMeans(cdsTEs[!uorfTXCDS, 2:ncol(cdsTEs)]))
   # quantile
-  cdsTxUorfs <- OrfToTxNames(grl) %in% cdsTEs$txNames
+  cdsTxUorfs <- txNames(grl) %in% cdsTEs$txNames
   uorfTEs <- readTable("teFiltered", with.IDs = F)
   
   
   # uorfTEs <- data.table(riboFPKM[,1:2], uorfTEs)
-  uorfTEs <- uorfTEs[, lapply(.SD, mean), by = OrfToTxNames(grl)]
+  uorfTEs <- uorfTEs[, lapply(.SD, mean), by = txNames(grl)]
   colnames(uorfTEs)[1] <- "txNames"
   # best
   rowMeansUorfs <- rowMeans(uorfTEs[,2:ncol(uorfTEs)])
   q90 <- quantile(rowMeansUorfs, 0.90)
   best <- which(rowMeansUorfs > q90)
-  bestCDSTEs <- sum(colMeans(cdsTEUORFs[best, ]))
+  bestCDSTEs <- mean(colMeans(cdsTEUORFs[best, ]))
   #worst
   q10 <- quantile(rowMeansUorfs, 0.10)
   worst <- which(rowMeansUorfs < q10)
-  worstCDSTEs <- sum(colMeans(cdsTEUORFs[worst,]))
+  worstCDSTEs <- mean(colMeans(cdsTEUORFs[worst,]))
   # conclusion, no q90/q10 correlation it looks like
   
   rowMeansCDS <- rowMeans(cdsTEs[uorfTXCDS, 2:ncol(cdsTEs)])
@@ -334,12 +366,288 @@ distVSCDSTe <- function(){
   bestDists <- dists[best,]
   
   longestTXNames <- cdsTEs$txNames %in% riboFPKM$txNames[riboFPKM$uorfID %in% bestDists$uorfID]
-  longestCDSTe <- sum(colMeans(cdsTEs[longestTXNames, 2:ncol(cdsTEs)]))
+  longestCDSTe <- mean(colMeans(cdsTEs[longestTXNames, 2:ncol(cdsTEs)]))
   
   q10 <- quantile(dists$distORFCDS, 0.10)
   worst <- which(dists$distORFCDS < q10)
   worstDists <- dists[worst,]
   
   shortestTXNames <- cdsTEs$txNames %in% riboFPKM$txNames[riboFPKM$uorfID %in% worstDists$uorfID]
-  shortestCDSTe <- sum(colMeans(cdsTEs[shortestTXNames, 2:ncol(cdsTEs)]))
+  shortestCDSTe <- mean(colMeans(cdsTEs[shortestTXNames, 2:ncol(cdsTEs)]))
+}
+
+bestTeUorfsOnTxEffect <- function(){
+  uorfTEs <- readTable("teFiltered", with.IDs = T)
+  
+  #maxTEs <- uorfTEs[, lapply(.SD, max), by = txNames]
+  
+  rowMeansUorfs <- rowMeans(uorfTEs[,3:ncol(uorfTEs)])
+  q90 <- quantile(rowMeansUorfs, 0.90)
+  best <- which(rowMeansUorfs > q90)
+  bestNames <- uorfTEs[best, txNames]
+  
+  numberOfUorfsPerTx <- readTable("numberOfUorfsPerTx")
+  
+  whichNames <- numberOfUorfsPerTx$txNames %in% bestNames
+  meanNumberBest <- mean(numberOfUorfsPerTx$nUorfs[whichNames])
+  
+  # worst
+  q10 <- quantile(rowMeansUorfs, 0.10)
+  worst <- which(rowMeansUorfs < q10)
+  worstNames <- uorfTEs[worst, txNames]
+  whichNames <- numberOfUorfsPerTx$txNames %in% worstNames
+  
+  meanNumberWorst <- mean(numberOfUorfsPerTx$nUorfs[whichNames])
+  
+  # so this is not a good feature by itself
+  cdsTEs <- readTable("cdsTeFiltered", with.IDs = T)
+  rowMeansCDS <- rowMeans(cdsTEs[,2:ncol(cdsTEs)])
+  
+  q90 <- quantile(rowMeansCDS, 0.90)
+  best <- which(rowMeansCDS > q90)
+  bestNames <- cdsTEs[best, txNames]
+  
+  whichNames <- numberOfUorfsPerTx$txNames %in% bestNames
+  meanNumberBest <- mean(numberOfUorfsPerTx$nUorfs[whichNames])
+  
+  # worst
+  q10 <- quantile(rowMeansCDS, 0.10)
+  worst <- which(rowMeansCDS < q10)
+  worstNames <- cdsTEs[worst, txNames]
+  whichNames <- numberOfUorfsPerTx$txNames %in% worstNames
+  
+  meanNumberWorst <- mean(numberOfUorfsPerTx$nUorfs[whichNames])
+  
+  # number of uORFs seem to correlate with TE of cds
+}
+
+# Looks like the No correlation
+kozakVsCDSTe <- function(){
+  
+  # mean grouped by transcript
+  kozak <- readTable("kozak", with.IDs = T)
+  mappingTxUorfs <- readTable("linkORFsToTx")
+  kozak$txNames <- mappingTxUorfs$txNames
+  kozak$uorfID <- NULL
+  
+  kozakMean <- kozak[, lapply(.SD, mean), by = txNames]
+  kozakNames <- kozakMean$txNames
+  kozak <- as.numeric(unlist(kozakMean$kozak, use.names = FALSE))
+  cdsTEs <- readTable("cdsTeFiltered", with.IDs = T)
+  rowMeansCDS <- rowMeans(cdsTEs[,2:ncol(cdsTEs)])
+  q90 <- quantile(rowMeansCDS, 0.99)
+  best <- which(rowMeansCDS > q90)
+  bestNames <- cdsTEs[best, txNames]
+  
+  whichNames <- kozakNames %in% bestNames
+  meanNumberBest <- mean(kozak[whichNames])
+  
+  #worst
+  q10 <- quantile(rowMeansCDS, 0.01)
+  worst <- which(rowMeansCDS < q10)
+  worstNames <- cdsTEs[worst, txNames]
+  whichNames <- kozakNames %in% worstNames
+  
+  meanNumberWorst <- mean(kozak[whichNames])
+  
+  # max grouped by transcript
+  
+  kozak <- readTable("kozak", with.IDs = T)
+  mappingTxUorfs <- readTable("linkORFsToTx")
+  kozak$txNames <- mappingTxUorfs$txNames
+  kozak$uorfID <- NULL
+  
+  kozakMean <- kozak[, lapply(.SD, max), by = txNames]
+  kozakNames <- kozakMean$txNames
+  kozak <- as.numeric(unlist(kozakMean$kozak, use.names = FALSE))
+  cdsTEs <- readTable("cdsTeFiltered", with.IDs = T)
+  rowMeansCDS <- rowMeans(cdsTEs[,2:ncol(cdsTEs)])
+  q90 <- quantile(rowMeansCDS, 0.99)
+  best <- which(rowMeansCDS > q90)
+  bestNames <- cdsTEs[best, txNames]
+  
+  whichNames <- kozakNames %in% bestNames
+  meanNumberBest <- mean(kozak[whichNames])
+  
+  #worst
+  q10 <- quantile(rowMeansCDS, 0.01)
+  worst <- which(rowMeansCDS < q10)
+  worstNames <- cdsTEs[worst, txNames]
+  whichNames <- kozakNames %in% worstNames
+  
+  meanNumberWorst <- mean(kozak[whichNames])
+  
+}
+
+# te of next uORF downstream vs distance to it
+teDownstreamVSDistance <- function(){
+  uorfTEs <- readTable("teFiltered", with.IDs = T)
+  
+  numberOfUorfsPerTx <- readTable("numberOfUorfsPerTx")
+  
+  cdsTEs <- readTable("cdsTeFiltered", with.IDs = T)
+  
+  #maxTEs <- uorfTEs[, lapply(.SD, max), by = txNames]
+  
+  rowMeansUorfs <- rowMeans(uorfTEs[,3:ncol(uorfTEs)])
+  q90 <- quantile(rowMeansUorfs, 0.90)
+  best <- which(rowMeansUorfs > q90)
+  bestNames <- uorfTEs[best, txNames]
+  
+  # group by tx
+  # 
+  
+}
+
+distanceVsUorfTE <- function(){
+  uorfTEs <- readTable("teFiltered", with.IDs = T)
+  
+  dists <- readTable("distORFCDS")
+  
+  rowMeansUorfs <- rowMeans(uorfTEs[,3:ncol(uorfTEs)])
+  which <- rowMeansUorfs > 1
+  plot(dists$distORFCDS[which], rowMeansUorfs[which],
+       ylim = c(0.7,100), xlim = c(-1000,1000))
+  cor.test(dists$distORFCDS[which], rowMeansUorfs[which])
+  numberOfUorfsPerTx <- readTable("numberOfUorfsPerTx")
+  whichOne <- numberOfUorfsPerTx$nUorfs == 1
+  txToUse <- numberOfUorfsPerTx$txNames[whichOne]
+  
+  matchedNames <- uorfTEs$txNames %in% txToUse
+  
+  mean(rowMeansUorfs[matchedNames])
+  
+  
+  ### for cds te
+  cdsTEs <- readTable("cdsTeFiltered", with.IDs = T)
+  rowMeansCDS <- rowMeans(cdsTEs[,2:ncol(cdsTEs)])
+  
+  mappingTxUorfs <- readTable("linkORFsToTx")$txNames
+  cdsDis <- dists$distORFCDS[]
+  names(rowMeansCDS) <- cdsTEs$txNames
+  rowMeansCDS <- rowMeansCDS[mappingTxUorfs]
+  
+  which <- rowMeansCDS > 1
+  whichPos <- dists$distORFCDS > 0 
+  usedDists <- dists$distORFCDS[which]
+  group = (usedDists<=0) + (usedDists<=200) + (usedDists <= 400) +(usedDists <= 600)
+  groups = factor(group,levels=0:4,labels=c("<0","<200","<400","<600", ">600"))
+  boxplot(rowMeansCDS[which]~groups)
+  
+  boxplot(dists$distORFCDS[whichPos], rowMeansCDS[whichPos])
+  
+  plot(dists$distORFCDS[whichPos], rowMeansCDS[whichPos],
+       ylim = c(0.7,100), xlim = c(-1000,1000),
+       lines(x = c(-185,-185), y = c(1,100)))
+  
+  
+}
+
+teVariance <- function(){
+  if(tableNotExists("biggestTEVariance")){
+    
+
+    uorfTEs <- readTable("teFiltered", with.IDs = T)
+    dt <- teAtlasTissueNew(uorfTEs)
+    # take the different tissues, te, make ratio matrix
+    
+    ratioMatrix <- data.table(ratio = 1)
+    # total ratio
+    for( i in 2:ncol(dt)){
+      ratioMatrix <- data.table(ratioMatrix, sum(dt[,i, with = F] > 1.1)/nrow(dt))
+    }
+    colnames(ratioMatrix) <- c("ratio", uniques )
+    
+    # comparison matrices
+    
+    comparisonMatrix <- data.table(txNames = dt$txNames)
+    # total ratio
+    for( i in 2:(ncol(dt)-1)){
+      for(j in (i+1):(ncol(dt))){
+        comparisonMatrix <- data.table(comparisonMatrix, abs(log10(dt[,i, with = F] / dt[,j, with = F]))) 
+      }
+    }
+    
+    comparisonMeanMatrix <- rowMeans(comparisonMatrix[,2:ncol(comparisonMatrix)])
+    
+    q90 <- quantile(comparisonMeanMatrix, 0.90)
+    comparisonMeanMatrix <- data.table(uorfIDs = uorfTEs$uorfID,
+                                       txNames = dt$txNames,
+                                       comparisonMeanMatrix)
+    colnames(comparisonMeanMatrix)[3] <- c("meanDiffTE")
+    
+    
+    
+    biggestTEVariance <- comparisonMeanMatrix[ comparisonMeanMatrix$meanDiffTE > q90,]
+    biggestTEVariance$which <- which(comparisonMeanMatrix$meanDiffTE > q90)
+    insertTable(biggestTEVariance, "biggestTEVariance", rmOld = T)
+    
+    q10 <- quantile(comparisonMeanMatrix$meanDiffTE, 0.10)
+    smallestTEVariance <- comparisonMeanMatrix[ comparisonMeanMatrix$meanDiffTE < q10,]
+    smallestTEVariance$which <- which(comparisonMeanMatrix$meanDiffTE < q10)
+    insertTable(smallestTEVariance, "smallestTEVariance", rmOld = T)
+    # presence
+    # difference tissue
+    
+    library(ggplot2)
+    dtPlot <- dt[,2:ncol(dt)]
+    dtPlot$x <- as.factor(1:nrow(dtPlot))
+    
+    dt.m <- melt(dtPlot, id="x")
+    plotTitle <- "Translational efficiency variance in Tissues"
+    ggplot(dt.m) + geom_boxplot(aes(x = variable, log10(value))) +
+      xlab("Tissue") + ylab("Te") +  
+      ggtitle(plotTitle)
+    ggsave(plotTitle)
+  }
+  
+  # cds effect of top bottom uorf variance, remove duplicated top bottom
+  cdsTETissue <- readTable("cdsTETissueMean", with.IDs = T)
+
+  
+  cdsTETissueBig <- cdsTETissue[txNames %in% biggestTEVariance$txNames,]
+  
+  cdsTETissueSmall <- cdsTETissue[txNames %in% smallestTEVariance$txNames,]
+  # filter out equal tx
+  cdsTETissueBig <- cdsTETissueBig[!(txNames %in% cdsTETissueSmall$txNames),]
+  cdsTETissueSmall <- cdsTETissueSmall[!(txNames %in% cdsTETissueBig$txNames),]
+  
+  
+  colnames(cdsTETissueBig) <- paste0(colnames(cdsTETissueBig), "_high")
+  cdsTETissueBig$high <- rep(T,nrow(cdsTETissueBig))
+  cdsTETissueSmall$high <- rep(F,nrow(cdsTETissueSmall))
+  merged <- rbindlist(list(cdsTETissueBig, cdsTETissueSmall))
+  merged$x <- as.factor(1:nrow(merged))
+  
+  merged.m <- melt(merged[,2:ncol(merged)], id.vars=c("x", "high"))
+  ggplot(merged.m) + geom_boxplot(aes(x = variable, log10(value), fill = high)) +
+    xlab("Tissue") + ylab("Te") +  
+    ggtitle(plotTitle)
+  # how many overlap the cds of its tx
+  # check with row selection per tissue not mean, is this important ?
+  
+  # te cds vs te uorf, color the extremes
+  
+  
+  plot(cdsTETissueBig[,2:(ncol(cdsTETissueBig)-1)], cdsTETissueSmall[,2:(ncol(cdsTETissueSmall)-1)])
+  ggplot(merged.m, aes(x = variable, log10(value), fill = high)) + 
+    geom_dotplot()
+  
+  
+  
+}
+
+clusterCDSTEs <- function(){
+  inputDT <- readTable("cdsTeFiltered", with.IDs = T)
+  pattern <- "result."
+  inputDTNon <- removeIDColumns(inputDT)
+  indices <- as.integer(gsub(pattern = pattern, replacement = "", x = colnames(inputDTNon)))
+  if(length(indices) == 0) stop("could not find te indices from colExclusion")
+  tissues <- info$Tissue.Cell_line[indices] 
+  
+  colnames(inputDTNon) <- tissues
+  clusterUorfFeature(inputDTNon,
+                     saveLocation = paste0(getwd(),"/clustering/cdsTEsCluster.pdf"))
+  
+  #jaccard index
 }

@@ -13,22 +13,21 @@
 
 #set working dir correctly to ./RCode1/ location
 setwd("/export/valenfs/projects/uORFome/RCode1/")
-source("./uorfomeGeneratorHelperFunctions.R")
+source("./DataBaseSetup.R")
+setwd("/export/valenfs/projects/uORFome/RCode1/")
 
 
 # set up multithreading options
-pipelineCluster()
+pipelineCluster(20)
 
 
 ##### Second Find new cage leaders
 
 
-cageList = list.files(cageFolder) # make sure this folder is correct
+cageList =  grep(pattern = ".bed", list.files(cageFolder), value = TRUE)# make sure this folder is correct
 nCageList = length(cageList)
 
 getLeadersFromCage(nCageList)
-
-
 
 ##### Third Find uORFs
 
@@ -38,13 +37,17 @@ nLeadersList = length(leadersList)
 
 getUorfsFromLeaders(nLeadersList)
 
+#### Fourth make uorf IDs
 
-### Fourth Create feature database
-#4. 
 
-setwd("/export/valenfs/projects/uORFome/RCode1/")
-source("./DataBaseCreator.R")
 
+uorfsList = list.files(uorfFolder)
+nuorfsList = length(uorfsList)
+getIDsFromUorfs(nuorfsList)
+
+### Fifth Create feature database
+#5. 
+source("./DataBaseSetup.R")
 createCatalogueDB() # fix this to work
 
 # stop cluster
@@ -52,7 +55,13 @@ stopCluster(cl)
 rm(cl)
 
 
-
+# foreach(i=1:20) %dopar% {
+#   setwd("/export/valenfs/projects/uORFome/RCode1/")
+#   source("./uorfomeGeneratorHelperFunctions.R")
+#   leadersList = list.files(leadersFolder)
+#   load(p(leadersFolder,leadersList[i]))
+#   print(mean(ORFik:::widthPerGroup(fiveUTRs)))
+# }
 
 
 # library(Rcpp)

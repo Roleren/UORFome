@@ -14,10 +14,8 @@ nuorfsList = length(uorfsList)
 foreach(i=1:nuorfsList) %dopar% {
   source("./uorfomeGeneratorHelperFunctions.R")
   load(p(uorfFolder, list.files(uorfFolder)[i]))
-  # grORFs = unlist(rangesOfuORFs, use.names = F)
-  # grlByORF = GroupGRangesByOther(grORFs, grORFs$names)
-  #transcriptNames =gsub("_[0-9]*","", names(grlByORF))
-  uorfID <- toUniqueIDFromGR(rangesOfuORFs)
+
+  uorfID <- ORFik:::orfID(rangesOfuORFs)
   saveName = paste0(resultsFolder,"/uorfIDs/",gsub("uorf.rdata","",list.files(uorfFolder)[i]),"uorfID.rdata")
   save(uorfID,file = saveName)
 }

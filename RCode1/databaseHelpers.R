@@ -6,9 +6,6 @@ deleteDataBase = function(name){
   dbDisconnect(uorfDB)
   unlink(name)
 }
-deleteTable = function(tableName){
-  dbRemoveTable(uorfDB,tableName)
-}
 
 insertTable= function(Matrix, tableName, appends = F, rmOld = F){
   if (rmOld){
@@ -41,4 +38,52 @@ listTables = function(){
 
 tableNotExists <- function(name){
   sum(grep(pattern = name, x = listTables())) == 0
+}
+
+deleteTable = function(tableName){
+  dbRemoveTable(uorfDB,tableName)
+}
+
+#' Delete uorf tables
+#' 
+#' For rerunning
+deleteUorfTables <- function() {
+  deleteTable("uorfsAsGRWithTx")
+  deleteTable("uniqueIDs")
+  deleteTable("SplittedByExonsuniqueUORFs")
+  
+  deleteTable("RSS")
+  deleteTable("RRS")
+  deleteTable("Ribofpkm")
+  deleteTable("ORFScores")
+  deleteTable("RiboByTissueMean")
+  deleteTable("RiboByTissueTF")
+  deleteTable("TEByTissueMeanWithInf")
+  deleteTable("TEByTissueMeanWithoutInf")
+  deleteTable("TEByTissueTF")
+  deleteTable("teFiltered")
+  deleteTable("teUnfiltered")
+  deleteTable("tissueAtlasByCage")
+  
+  deleteTable("numberOfUorfsPerTx")
+  deleteTable("rankInTx")
+  deleteTable("disengagementScores")
+  
+  deleteTable("entropyRFP")
+  deleteTable("fractionLengths")
+  deleteTable("ioScore")
+  deleteTable("kozak")
+  deleteTable("inFrameCDS")
+  deleteTable("isOverlappingCds")
+  
+  deleteTable("distORFCDS")
+  deleteTable("linkORFsToTx")
+  deleteTable("isOverlappingCds")
+  deleteTable("floss")
+  
+  
+  if(!tableNotExists("biggestTEVariance")) {
+    deleteTable("biggestTEVariance")
+    deleteTable("smallestTEVariance")
+  }
 }

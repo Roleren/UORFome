@@ -1,16 +1,16 @@
 
 getLeadersFromCage <- function(nCageList){
-  foreach(i=1:nCageList) %dopar% {
+  foreach(i=1:nCageList, .inorder = F) %dopar% {
     
     source("./uorfomeGeneratorHelperFunctions.R")
-    cageList = list.files(cageFolder)
+    cageList = grep(pattern = ".bed", list.files(cageFolder), value = TRUE)
     getLeaders(usingNewCage = T, cageName = p(cageFolder,cageList[i]) , assignLeader = F )
-    
+    print("ok")
   }
 }
 
 getUorfsFromLeaders <- function(nLeadersList){
-  foreach(i=1:nLeadersList) %dopar% {
+  foreach(i=1:nLeadersList, .inorder = F) %dopar% {
     source("./uorfomeGeneratorHelperFunctions.R")
     leadersList = list.files(leadersFolder)
     
@@ -18,7 +18,8 @@ getUorfsFromLeaders <- function(nLeadersList){
     
     if(UorfRangesNotExists(assignUorf =  F,givenCage = usedCage)){
       load(p(leadersFolder,leadersList[i]))
-      scanUORFs(fiveUTRs, outputName = usedCage, assignUorf = F)
+      scanUORFs(fiveUTRs, outputName = usedCage, assignUorf = F,
+                outputFastaAndBed = F,  startCodons = "ATG|CTG|TTG|GTG|AAG|AGG|ACG|ATC|ATA|ATT")
       print("ok")
     }else{
       i
@@ -26,26 +27,37 @@ getUorfsFromLeaders <- function(nLeadersList){
   }
 }
 
+getIDsFromUorfs <- function(nuorfsList){
+  foreach(i=1:nuorfsList, .inorder = F) %dopar% {
+    setwd("/export/valenfs/projects/uORFome/RCode1/")
+    source("./uorfomeGeneratorHelperFunctions.R")
+    load(p(uorfFolder, list.files(uorfFolder)[i]))
+    
+    uorfID <- unique(ORFik:::orfID(rangesOfuORFs))
+    saveName = paste0(resultsFolder,"/uorfIDs/",gsub("uorf.rdata","",list.files(uorfFolder)[i]),"uorfID.rdata")
+    save(uorfID, file = saveName)
+    print("ok")
+  }
+}
+
 getAllFeaturesFromUorfs <- function(){
   rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
   nrfpList <- length(rfpList)
   # all rfp features
-  foreach(i=1:nrfpList) %dopar% {
+  foreach(i=1:nrfpList, .inorder = F) %dopar% {
     setwd("/export/valenfs/projects/uORFome/RCode1/")
-    source("./DataBaseCreator.R")
-    setwd("/export/valenfs/projects/uORFome/dataBase/")
+    source("./DataBaseSetup.R")
+    
     rfpList <- grep(pattern = "merged",
                     x = list.files(rfpFolder), value = T)
     RFPPath <- p(rfpFolder, rfpList[i])
-    grl <- getUorfsInDb()
     
-    getAllFeatures(grl,RFPPath, i = i)
+    getAllFeatures(grl = NULL, RFPPath, i = i)
     print(i)
   }
   
   setwd("/export/valenfs/projects/uORFome/RCode1/")
-  source("./DataBaseCreator.R")
-  setwd("/export/valenfs/projects/uORFome/dataBase/")
+  source("./DataBaseSetup.R")
   
   uorfID <- getORFNamesDB(T, F, F)
   floss <- uorfID
@@ -56,7 +68,7 @@ getAllFeaturesFromUorfs <- function(){
   fpkmRFP <- uorfID           
   ORFScores <- uorfID
   ioScore <- uorfID
-  #rm(list = c("floss","entropyRFP","disengagementScores", "RRS", "RSS", "fpkmRFP", "ORFScores", "ioScore" ))
+  
   
   # all dt features, split them, save them seperatly
   foreach(i=1:nrfpList) %do% {
@@ -66,14 +78,14 @@ getAllFeaturesFromUorfs <- function(){
     
     load(dtPath)
     if(ncol(dt) != 8) stop(paste("not correct ncol of", i))
-    floss[, p("floss_",i)] <- dt$floss
-    entropyRFP[, p("entropyRFP_",i)] <- dt$entropyRFP
-    disengagementScores[, p("disengagementScores_",i)] <- dt$disengagementScores 
-    RRS[, p("RRS_",i)] <- dt$RRS
-    RSS[, p("RSS_",i)] <- dt$RSS
-    fpkmRFP[, p("fpkmRFP_",i)] <- dt$fpkmRFP
-    ORFScores[, p("ORFScores_",i)] <- dt$ORFScores
-    ioScore[, p("ioScore_",i)] <- dt$ioScore
+    floss[, p("floss_",i) := dt$floss]
+    entropyRFP[, p("entropyRFP_",i) := dt$entropyRFP]
+    disengagementScores[, p("disengagementScores_",i) := dt$disengagementScores ]
+    RRS[, p("RRS_",i) := dt$RRS]
+    RSS[, p("RSS_",i) := dt$RSS]
+    fpkmRFP[, p("fpkmRFP_",i) := dt$fpkmRFP] 
+    ORFScores[, p("ORFScores_",i) := dt$ORFScores]
+    ioScore[, p("ioScore_",i) := dt$ioScore]
     print(i)
   }
   # insert all the ribo features tables
@@ -88,6 +100,8 @@ getAllFeaturesFromUorfs <- function(){
   
   # insert info
   getRiboInfoTable(rfpList = rfpList)
+  #rm(list = c("floss","entropyRFP","disengagementScores", "RRS",
+  #"RSS", "fpkmRFP", "ORFScores", "ioScore" ))
 }
 
 #' Make RNA-seq fpkm values for database
@@ -96,6 +110,10 @@ getAllFeaturesFromUorfs <- function(){
 #' tabke might be different than the ribo-seq. i.g. there can be several
 #' uORFs per transcript.
 getRNAFpkms <- function(){
+  if (!tableNotExists("RNAfpkm")) {
+    print("RNAfpkm table exists, remove it if you want to rerun with new values")
+    return(NULL)
+  }
   load("/export/valenfs/projects/uORFome/test_results/Old_Tests/test_data/unfilteredSpeciesGroup.rdata")
   rnaList <- SpeciesGroup[SpeciesGroup$Sample_Type == "RNA",]$RnaRfpFolders
   rnaList <- grep(pattern = ".bam",x = rnaList, value = T)
@@ -203,7 +221,7 @@ getCDSFeatures <- function(){
       rfpList <- grep(pattern = "merged",
                       x = list.files(rfpFolder), value = T)
       RFPPath <- p(rfpFolder, rfpList[i])
-      RFP <- ORFik:::cageFromFile(RFPPath)
+      RFP <- ORFik:::fread.bed(RFPPath)
       getCDS()
       
       rfps <- fpkm(cds, RFP)
@@ -226,7 +244,87 @@ getCDSFeatures <- function(){
   if(tableNotExists("cdsTeFiltered")) {
     getTeFeatures(riboDbName = "cdsRfpFPKMs",
                   dbOutputNames = c("cdsTeUnfiltered", "cdsTeFiltered"))
+    cdsTEs <- readTable("cdsTeFiltered", with.IDs = T)
+    cdsTETissue <- teAtlasTissueNew(cdsTEs, colExclusion = "result.")
+    insertTable(cdsTETissue, "cdsTETissueMean")
+  }
+  
+  if(tableNotExists("cdsORFScore")) {
+    rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
+    nrfpList <- length(rfpList)
+    # get orf scores
+    cdsOrfScores <- foreach(i=1:nrfpList, .combine = 'cbind') %dopar% {
+      setwd("/export/valenfs/projects/uORFome/RCode1/")
+      source("./DataBaseCreator.R")
+      setwd("/export/valenfs/projects/uORFome/dataBase/")
+      rfpList <- grep(pattern = "merged",
+                      x = list.files(rfpFolder), value = T)
+      RFPPath <- p(rfpFolder, rfpList[i])
+      RFP <- ORFik:::fread.bed(RFPPath)
+      getCDS()
+      cds <- groupGRangesBy(unlist(cds, use.names = T))
+      ORFScores <- ORFik:::ORFScores(cds, RFP)$ORFscore
+    }
+    getCDS()
+    txNames <- names(cds)
+    orfScoresDT <- data.table(txNames, cdsOrfScores)
+    
+    setwd("/export/valenfs/projects/uORFome/RCode1/")
+    source("./DataBaseCreator.R")
+    insertTable(orfScoresDT, "cdsORFScore")
+  }
+  
+  if(tableNotExists("cdsKozak")) {
+    getCDS()
+    cdsKozak <- ORFik:::kozakSequenceScore(cds, fa)
+    
+    txNames <- names(cds)
+    
+    cdsKozak <- data.table(txNames, cdsKozak)
+    
+    setwd("/export/valenfs/projects/uORFome/RCode1/")
+    source("./DataBaseCreator.R")
+    insertTable(cdsKozak, "cdsKozak")
+  }
+  
+  if(tableNotExists("cdsIos")) {
+    
+    rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
+    nrfpList <- length(rfpList)
+    allRiboFeatures <- foreach(i=1, .combine = 'cbind') %dopar% {
+      setwd("/export/valenfs/projects/uORFome/RCode1/")
+      source("./DataBaseCreator.R")
+      setwd("/export/valenfs/projects/uORFome/dataBase/")
+      rfpList <- grep(pattern = "merged",
+                      x = list.files(rfpFolder), value = T)
+      RFPPath <- p(rfpFolder, rfpList[i])
+      RFP <- ORFik:::fread.bed(RFPPath)
+      getCDS()
+      gr <- unlist(cds, use.names = T)
+      cds <- groupGRangesBy(gr)
+      getTx(assignIt = T)
+      getThreeUTRs()
+      gr <- unlist(threeUTRs, use.names = T)
+      threeUTRs <- groupGRangesBy(gr)
+      
+      cdsIos <- ORFik:::insideOutsideORF(cds, RFP, tx)
+      cdsRRS <- ORFik:::ribosomeReleaseScore(cds, RFP, threeUTRs)
+      cdsRSS <- ORFik:::ribosomeStallingScore(cds, RFP)
+      
+      data.table(cdsIos, cdsRRS, cdsRSS)
+    }
+    
+    
+    
+    txNames <- names(cds)
+    
+    cdsIos <- data.table(txNames, cdsIos)
+    
+    setwd("/export/valenfs/projects/uORFome/RCode1/")
+    source("./DataBaseCreator.R")
+    insertTable(cdsIos, "cdsIos")
   }
   
   
 }
+

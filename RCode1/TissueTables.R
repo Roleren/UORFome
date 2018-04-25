@@ -142,3 +142,38 @@ teAtlasTissue <- function(TFDbName = c("RiboByTissueTF", "RNAByTissueTF"),
   DTtemp[, (nIDColumns+1):ncol(DTtemp)] <- DT
   insertTable(Matrix = DTtemp, tableName = dbOutputNames[3])
 }
+
+teAtlasTissueNew <- function(inputDT, colExclusion = "fpkmRFP_", dbOutputNames = 
+                                c("TEByTissueMean")){
+  info <- readTable("RiboSeqInfo")
+  
+  pattern <- colExclusion
+  inputDTNon <- removeIDColumns(inputDT)
+  indices <- as.integer(gsub(pattern = pattern, replacement = "", x = colnames(inputDTNon)))
+  if(length(indices) == 0) stop("could not find te indices from colExclusion")
+  tissues <- info$Tissue.Cell_line[indices] 
+  
+  # cdsTEsNon <- readTable("cdsTeFiltered", with.IDs = F)
+  
+  uniques <- unique(tissues)
+  
+  if(!is.null(inputDT$uorfIDs)){
+    dt <- data.table(uorfIDs = inputDT$uorfIDs,
+                     txNames = inputDT$txNames)
+  } else {
+    dt <- data.table(txNames = inputDT$txNames)
+  }
+  
+  for(tissue in uniques) {
+    which <- tissues == tissue
+    dt <- data.table(dt, rowMeans(inputDTNon[,which, with = F]))
+  }
+  
+  if(!is.null(inputDT$uorfIDs)){
+    colnames(dt) <- c("uorfIDs", "txNames", uniques )
+  } else {
+    colnames(dt) <- c("txNames", uniques )
+  }
+  
+  return(dt)
+}

@@ -67,16 +67,6 @@ createPassFilter = function(){
   fratioOfValidTEs =  uorfsWithValidTE/nrow(doubleFiltered)
 }
 
-
-createPassFilter = function(){
-  l = data.table(1:nrow(doubleFiltered))
-  for(i in 1:nrow(doubleFiltered)){
-    l[i,]= min(doubleFiltered[i,2:ncol(doubleFiltered),with=F])
-    
-  }
-  insertTable(Matrix = l,tableName = "teRowSums")
-}
-
 createExperimentsTable = function(){
   experiments = listAllExperiments()
   

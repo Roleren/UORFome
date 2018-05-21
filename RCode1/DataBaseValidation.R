@@ -633,21 +633,39 @@ teVariance <- function(){
   ggplot(merged.m, aes(x = variable, log10(value), fill = high)) + 
     geom_dotplot()
   
-  
-  
 }
 
-clusterCDSTEs <- function(){
-  inputDT <- readTable("cdsTeFiltered", with.IDs = T)
-  pattern <- "result."
-  inputDTNon <- removeIDColumns(inputDT)
-  indices <- as.integer(gsub(pattern = pattern, replacement = "", x = colnames(inputDTNon)))
-  if(length(indices) == 0) stop("could not find te indices from colExclusion")
-  tissues <- info$Tissue.Cell_line[indices] 
+#1. Check cds te of predicted vs not predicted
+validatePredictionPlot <- function(){
+  grl <- getUorfsInDb()
+  getCDS()
+  cdsTE <- readTable("cdsTETissueMean", with.IDs = T)
+  link <- readTable("linkORFsToTx")
+  order <- ORFik:::uniqueOrder(grl)
+  finalCagePred <- readTable("allUorfsByCageAndPred")
+  f <- finalCagePred[order]
+  positiveCDS <- link$txNames[f]
+  negCDS <- link$txNames[!f]
   
-  colnames(inputDTNon) <- tissues
-  clusterUorfFeature(inputDTNon,
-                     saveLocation = paste0(getwd(),"/clustering/cdsTEsCluster.pdf"))
+  positiveCDS <- positiveCDS[!(positiveCDS %in% unique(negCDS))]
+  negCDS <- negCDS[!(negCDS %in% unique(positiveCDS))]
   
-  #jaccard index
+  posTE <- cdsTE[cdsTE$txNames %in% positiveCDS, ]
+  negTE <- cdsTE[cdsTE$txNames %in% negCDS, ]
+  
+  
+  
+  
+  
+  t <- data.frame(counts = c(mean(rowMeans(posTE[,2:ncol(posTE)])),
+                   mean(rowMeans(cdsTE[,2:ncol(cdsTE)])),
+                   mean(rowMeans(negTE[,2:ncol(negTE)]))), 
+                  variable = c("posMean", "mean", "negMean"))
+  values <- 1:length(t$variable)
+  hp <- ggplot(t) +
+    geom_bar(aes(y = counts, x = variable, fill=values), width = 0.2, stat = "identity") +
+    theme(axis.text.x=element_text(angle=45)) + 
+    labs(title="Te of CDS by uORF prediction", 
+         subtitle="")
+  plot(hp)
 }

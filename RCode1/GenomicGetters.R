@@ -104,11 +104,15 @@ getCDS = function(assignIt = T){
 #Get the 3' sequences from the gtf file
 getThreeUTRs = function(){
   if (!exists("threeUTRs")) {
-    if (exists("Gtf") == F) {
-      getGTF()
+    if (!exists(p(dataFolder, "/threeUTRs.rdata"))) {
+      if (!exists("Gtf")) {
+        getGTF()
+      }
+      threeUTRs = threeUTRsByTranscript(Gtf, use.names = TRUE)
+      assign("threeUTRs", threeUTRs, envir = .GlobalEnv)
+    } else {
+      load(p(dataFolder, "/threeUTRs.rdata"), envir = .GlobalEnv)
     }
-    threeUTRs = threeUTRsByTranscript(Gtf, use.names = TRUE)
-    assign("threeUTRs", threeUTRs, envir = .GlobalEnv)
   }
 }
 
@@ -286,4 +290,29 @@ getUOrfOverlaps = function(){
   numberOfOverlaps = sum(overlapCount >= 1)
   overlapHitsIndex = overlapCount[overlapCount == 1]
   return(numberOfOverlaps)
+}
+
+getCageTx <- function(all = F){
+  if (all) {
+    load(p(dataBaseFolder, "/cageTxAll.rdata"), envir = .GlobalEnv)
+  } else {
+    load(p(dataBaseFolder, "/cageTx.rdata"), envir = .GlobalEnv)
+  }
+}
+#' get ribo seq and gtf parts
+getRiboTest <- function(onlyGRL = FALSE, rfpIndex = 7) {
+  if (!onlyGRL) {
+    getAll()  
+    assign(x = "RNA", NULL, envir = .GlobalEnv)
+    #or with extension
+    fiveUTRs <- leaderCage(F)
+    tx <- extendLeaders(tx, fiveUTRs)
+    assign("fiveUTRs", fiveUTRs, envir = .GlobalEnv)
+    assign("tx", tx, envir = .GlobalEnv)
+  }
+  rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
+  RFPPath <- p(rfpFolder, rfpList[rfpIndex])
+  assign(x = "grl", getUorfsInDb(), envir = .GlobalEnv)
+  assign(x = "RFP", fread.bed(RFPPath), envir = .GlobalEnv)
+  
 }

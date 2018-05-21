@@ -17,6 +17,8 @@ source("./GRangesHelpers.R")
 source("./DataBaseMatchExperiments.R")
 source("./DataBaseAtlasFunctions.R")
 source("./DataBaseCreator.R")
+source("./Classifier.R")
+source("./ClassifierHelpers.R")
 
 #goals:
 #1. get some way to load matrices, they are big and many!
@@ -35,7 +37,7 @@ cageFiles = list.files(cageFolder)
 dataBaseFolder <- "/export/valenfs/projects/uORFome/dataBase"
 setwd(dataBaseFolder)
 databaseName = "uorfCatalogue"
-databaseName = paste0(databaseName,".sqlite")
+databaseName = p(databaseName,".sqlite")
 name = databaseName
 
 uorfDB <- createDataBase(databaseName)

@@ -121,65 +121,47 @@ createUORFAtlas <- function(){
 
 #' Create tissueTable for cage, 1 row per unique uorf 
 getTissueTable <- function(){
+  if (!tableNotExists("tissueAtlasByCage")) {
+    cageTable <- getCageInfoTable()
+    uniqueTissues <- unique(cageTable$Characteristics.Tissue.)  
+    
+    cageWeHave <- getAllUsableCage(cageTable)
+    
+    # load needed tables, and make tissue atlas of cage
+    load("UORFAtlas.rdata")
+    uorfIDs <- readTable("uniqueIDs")
+    colnames(uorfIDs) = "uorfID"
+    uorfAtlasRows0 <- which(rowSums(uorfAtlas[,2:ncol(uorfAtlas)]) == 0)
+    if(length(uorfAtlasRows0) > 0) 
+      stop("uorfAtlas and unique uorf IDs does not match!")
+    
+    finalMatrix <- as.data.table(matrix(nrow =
+      nrow(uorfIDs), ncol = length(uniqueTissues)+1))
   
-  cageTable <- getCageInfoTable()
-  uniqueTissues <- unique(cageTable$Characteristics.Tissue.)  
+    finalMatrix[, 1 := uorfIDs$uorfID]
+    colnames(finalMatrix)[1] <- "uorfID"
+    uniqueTissues <- as.character(uniqueTissues)
+    colnames(finalMatrix)[2:ncol(finalMatrix)] <- uniqueTissues
+    
+    for(i in 2:(length(uniqueTissues)+1)){
+      cageFilestoCheck <- cageWeHave[Characteristics.Tissue. == uniqueTissues[i-1]]$cage_index
+      cageFilestoCheck <- cageFilestoCheck + 1
+      makeGroupingForColumn <- rowSums(uorfAtlas[,cageFilestoCheck, with = F])
   
-  cageWeHave <- getAllUsableCage(cageTable)
-  
-  # load needed tables, and make tissue atlas of cage
-  load("UORFAtlas.rdata")
-  uorfIDs <- readTable("uniqueIDs")
-  colnames(uorfIDs) = "uorfID"
-  uorfAtlasRows0 <- which(rowSums(uorfAtlas[,2:ncol(uorfAtlas)]) == 0)
-  if(length(uorfAtlasRows0) > 0) stop("uorfAtlas and unique uorf IDs does not match!")
-  
-  finalMatrix <- as.data.table(matrix(nrow = nrow(uorfIDs), ncol = length(uniqueTissues)+1))
-  finalMatrix[,1] <- uorfIDs$uorfID
-  colnames(finalMatrix)[1] <- "uorfID"
-  uniqueTissues <- as.character(uniqueTissues)
-  colnames(finalMatrix)[2:ncol(finalMatrix)] <- uniqueTissues
-  
-  for(i in 2:(length(uniqueTissues)+1)){
-    cageFilestoCheck <- cageWeHave[Characteristics.Tissue. == uniqueTissues[i-1]]$cage_index
-    cageFilestoCheck <- cageFilestoCheck + 1
-    makeGroupingForColumn <- rowSums(uorfAtlas[,cageFilestoCheck, with = F])
-
-    finalMatrix[,i] <- makeGroupingForColumn > 1
+      finalMatrix[, uniqueTissues[i-1] := makeGroupingForColumn > 1]
+    }
+    tissueAtlas <- finalMatrix
+    
+    save(tissueAtlas,file = "tissueAtlas.rdata")
+    insertTable(Matrix = tissueAtlas,tableName = "tissueAtlasByCage")
+    return("ok tissueAtlassCage")
   }
-  tissueAtlas <- finalMatrix
-  
-  save(tissueAtlas,file = "tissueAtlas.rdata")
-  insertTable(Matrix = tissueAtlas,tableName = "tissueAtlasByCage")
+  return("tissueAtlasCage already exists, stop if you want new")
 }
 
-# rfpTables <- function(){
-#   setwd("/export/valenfs/projects/uORFome/RCode1/")
-#   source("./MatchExperimentsHeader.R")
-#   setwd("/export/valenfs/projects/uORFome/dataBase/")
-#   
-#   grl <- uniqueIdsAsGR()
-#   validateExperiments(grl)
-#   # now make ribo and rna seq tables
-#   SpeciesGroup <- getUnfilteredSpeciesGroups()
-#   rpfFilePaths <- getFilteredRFPPaths(SpeciesGroup)
-#   insertTable(rpfFilePaths, "RiboSeqInfo")
-#   riboTable <- riboAtlasFPKMAll(grl, rpfFilePaths)
-#   
-#   riboAtlasFPKMTissue(grl,rpfFilesPaths,riboTable,SpeciesGroup)
-#   
-# }
+
 
 # fix the presentation
 # Take all uorfs, and cluster the tissue based on uorfs
 # can you recover the cell type based on uorf usage
 # hclust
-clusterByCageTissue <- function(){
-  tissueAtlas <- readTable("tissueAtlasByCage")
-  binDist <- dist(x = t(tissueAtlas[1:1000, 2:4]), method = "binary")
-  setwd("/export/valenfs/projects/uORFome/dataBase/")
-  save(binDist,file = "binDist.rdata")
-  hclustResult <-  hclust(binDist)
-  save(hclustResult,file = "hclustResult.rdata")
-}
-#clusterByCageTissue()

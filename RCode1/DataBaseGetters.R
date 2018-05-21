@@ -80,7 +80,7 @@ getIDColumns <- function(dt, allowNull = F){
   }
   return(dt[, nIDs, with = FALSE])
 }
-
+#' fix this to work on string tables
 removeIDColumns <- function(dt){
   if (!is.numeric(dt[1,1][[1]])) {
     dt <- dt[, -1]

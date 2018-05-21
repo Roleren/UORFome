@@ -1,81 +1,4 @@
 
-getTissue <- function(){
-  name = NA
-  if (exists("tissue")){
-    name = tissue
-  } else if (exists("cageName")){
-    
-  }
-  cbind(rep(1:length(transcriptName),name))
-}
-
-getPassFilter <- function(FPKMRFP,RPKMRNA, passFilter = 0.1){
-  pass_filter <- RPKMRNA > passFilter & FPKMRFP > passFilter
-  pass_filter[is.na(pass_filter)] <- F
-  pass_filter
-}
-
-getORFnames <- function(unfilteredNames){
-  gsub(".*\\.","", unfilteredNames)
-}
-
-clusterUorfFeature <- function(uorfFeature, indices = NULL, saveLocation, folder = "/export/valenfs/projects/uORFome/dataBase/clustering/"){
-  # cluster
-  if (is.null(indices)) {
-    dists <- dist(t(uorfFeature)) # transpose for tissue
-  } else {
-    dists <- dist(t(uorfFeature[indices])) # transpose for tissue
-  }
-  pdfPath <- paste0(folder, saveLocation)
-  library(fastcluster)
-  clustering <- hclust(dists)
-  if (ncol(uorfFeature) > 50) {
-    pdf(pdfPath, width = 20, height = 12)
-  } else {
-    pdf(pdfPath)
-  }
-  
-  plot(clustering)
-  dev.off()
-}
-
-clusterAllUorfFeatures <- function(){
-  # first filter out non-feature tables
-  list <- listTables()
-  list <- list[-grep(x = list, pattern = "cds", ignore.case = F)]
-  list <- list[-grep(x = list, pattern = "uorf", ignore.case = T)]
-  list <- list[-grep(x = list, pattern = "information", ignore.case = T)]
-  list <- list[-grep(x = list, pattern = "Variance", ignore.case = F)]
-  list <- list[-grep(x = list, pattern = "link", ignore.case = F)]
-  list <- list[-grep(x = list, pattern = "unique", ignore.case = F)]
-  list <- list[-grep(x = list, pattern = "Info", ignore.case = F)]
-  list <- list[-grep(x = list, pattern = "Tissue", ignore.case = T)]
-  list <- list[-grep(x = list, pattern = "teUnfiltered", ignore.case = T)]
-  
-  riboInfo <- readTable("RiboSeqInfo")
-  rnaInfo <- readTable("RNASeqInfo")
-  for (feature in list) {
-    tab <- readTable(feature, with.IDs = F)
-    if(ncol(tab) == 103) { #rfp seq
-      colnames(tab) <- riboInfo$Tissue.Cell_line
-    } else if (ncol(tab) == 43) {
-      colnames(tab) <- rnaInfo$Tissue.Cell_line
-    } else if(ncol(tab) == 35) {
-      indices <- as.integer(gsub(pattern = "fpkmRFP_", replacement = "", x = colnames(tab)))
-      colnames(tab) <- riboInfo$Tissue.Cell_line[indices]
-    } else {
-      if (ncol(tab) != 1) {
-        stop(paste("could not find ncol for feature: ", feature))
-      } 
-    }
-    
-    if (ncol(tab) != 1) {
-      clusterUorfFeature(uorfFeature = tab, saveLocation = paste0(feature, ".pdf"))
-    } 
-    
-  }
-}
-
 #' How good are the features
 #' 
 #' Te will be used as translation
@@ -184,6 +107,11 @@ getSequenceFeatures <- function(){
   stops <- stopCodons(grl)
   getSequencesFromFasta(stops, isSorted = T)
   insertTable( data.table(uorfID = orfID, stopCodon = as.character(seqs)), "StopCodons")
+  
+  # exon-exon junctions
+  eej <- numExonsPerGroup(grl, F)
+  insertTable(data.table(uorfID = orfID, eej = eej), "exon-exonJunctionsLeader")
+  
 }
 
 #' Get all features from grl
@@ -205,13 +133,13 @@ getAllFeatures <- function(grl = NULL, RFPPath, RNAPath = NULL, i){
   }
   
   if (is.null(grl)) {
-    dt <- ORFik:::computeFeaturesCage(grl = getUorfsInDb(), RFP = ORFik:::fread.bed(RFPPath), RNA = RNA,
+    dt <- ORFik:::computeFeaturesCage(grl = getUorfsInDb(), RFP = fread.bed(RFPPath), RNA = RNA,
                                       fiveUTRs = fiveUTRs, cds = cds, tx = tx,
                                       threeUTRs = threeUTRs, riboStart = 26, riboStop = 34,
                                       orfFeatures = T, includeNonVarying = F, extension = 0,
                                       grl.is.sorted = T)
   } else {
-    dt <- ORFik:::computeFeaturesCage(grl = grl, RFP = ORFik:::fread.bed(RFPPath), RNA = RNA,
+    dt <- ORFik:::computeFeaturesCage(grl = grl, RFP = fread.bed(RFPPath), RNA = RNA,
                                       fiveUTRs = fiveUTRs, cds = cds, tx = tx,
                                       threeUTRs = threeUTRs, riboStart = 26, riboStop = 34,
                                       orfFeatures = T, includeNonVarying = F, extension = 0,

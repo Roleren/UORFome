@@ -6,12 +6,15 @@
 setwd("/export/valenfs/projects/uORFome/RCode1/")
 source("./DataBaseSetup.R")
 
-pipelineCluster(20) # number of cores
+pipelineCluster(10) # number of cores
 
 rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
 nrfpList <- length(rfpList)
 # all rfp features
 foreach(i=1:nrfpList, .inorder = F) %dopar% {
+  dataBaseFolder <- "/export/valenfs/projects/uORFome/dataBase"
+  if (file.exists(paste0( dataBaseFolder, "/featureTablesTemp/dt_",i,".rdata")))
+    return(print(i))
   setwd("/export/valenfs/projects/uORFome/RCode1/")
   source("./DataBaseSetup.R")
   
@@ -20,9 +23,17 @@ foreach(i=1:nrfpList, .inorder = F) %dopar% {
   RFPPath <- p(rfpFolder, rfpList[i])
   
   getAllFeatures(grl = NULL, RFPPath, i = i)
-  print(i)
+  return(print(i))
 }
 
+# list <- foreach(i=1:nrfpList, .inorder = F) %do% {
+#   dataBaseFolder <- "/export/valenfs/projects/uORFome/dataBase"
+#   if (!file.exists(paste0( dataBaseFolder, "/featureTablesTemp/dt_",i,".rdata")))
+#     return(i)
+# 
+#   return(0)
+# }
+# list <- unlist(list)
 # setwd("/export/valenfs/projects/uORFome/RCode1/")
 # source("./DataBaseCreator.R")
 # setwd("/export/valenfs/projects/uORFome/dataBase/")

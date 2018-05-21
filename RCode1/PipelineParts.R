@@ -60,14 +60,14 @@ getAllFeaturesFromUorfs <- function(){
   source("./DataBaseSetup.R")
   
   uorfID <- getORFNamesDB(T, F, F)
-  floss <- uorfID
-  entropyRFP <- uorfID        
-  disengagementScores <- uorfID
-  RRS <- uorfID                
-  RSS <- uorfID           
-  fpkmRFP <- uorfID           
-  ORFScores <- uorfID
-  ioScore <- uorfID
+  floss <- copy(uorfID)
+  entropyRFP <- copy(uorfID)   
+  disengagementScores <- copy(uorfID)
+  RRS <- copy(uorfID)               
+  RSS <- copy(uorfID)        
+  fpkmRFP <- copy(uorfID)     
+  ORFScores <- copy(uorfID)
+  ioScore <- copy(uorfID)
   
   
   # all dt features, split them, save them seperatly
@@ -123,7 +123,7 @@ getRNAFpkms <- function(){
   
   rnaFPKMs <- foreach(i=1:nrnaList, .combine = 'cbind') %dopar% {
     setwd("/export/valenfs/projects/uORFome/RCode1/")
-    source("./DataBaseCreator.R")
+    source("./DataBaseSetup.R")
     setwd("/export/valenfs/projects/uORFome/dataBase/")
     load("/export/valenfs/projects/uORFome/test_results/Old_Tests/test_data/unfilteredSpeciesGroup.rdata")
     rnaList <- SpeciesGroup[SpeciesGroup$Sample_Type == "RNA",]$RnaRfpFolders
@@ -142,7 +142,7 @@ getRNAFpkms <- function(){
   rnaFPKMs <- data.table(txNames, rnaFPKMs)
   
   setwd("/export/valenfs/projects/uORFome/RCode1/")
-  source("./DataBaseCreator.R")
+  source("./DataBaseSetup.R")
   insertTable(rnaFPKMs, "RNAfpkm")
   getRNASeqInfoTable(rnaList = rnaList)
 }
@@ -216,7 +216,7 @@ getCDSFeatures <- function(){
     # all rfp features
     cdsRfpFPKMs <- foreach(i=1:nrfpList, .combine = 'cbind') %dopar% {
       setwd("/export/valenfs/projects/uORFome/RCode1/")
-      source("./DataBaseCreator.R")
+      source("./DataBaseSetup.R")
       setwd("/export/valenfs/projects/uORFome/dataBase/")
       rfpList <- grep(pattern = "merged",
                       x = list.files(rfpFolder), value = T)
@@ -233,7 +233,7 @@ getCDSFeatures <- function(){
     cdsRfpFPKMs <- data.table(txNames, cdsRfpFPKMs)
     
     setwd("/export/valenfs/projects/uORFome/RCode1/")
-    source("./DataBaseCreator.R")
+    source("./DataBaseSetup.R")
     insertTable(cdsRfpFPKMs, "cdsRfpFPKMs")
     
     riboAtlasFPKMTissue(riboDbName = "cdsRfpFPKMs",
@@ -249,31 +249,6 @@ getCDSFeatures <- function(){
     insertTable(cdsTETissue, "cdsTETissueMean")
   }
   
-  if(tableNotExists("cdsORFScore")) {
-    rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
-    nrfpList <- length(rfpList)
-    # get orf scores
-    cdsOrfScores <- foreach(i=1:nrfpList, .combine = 'cbind') %dopar% {
-      setwd("/export/valenfs/projects/uORFome/RCode1/")
-      source("./DataBaseCreator.R")
-      setwd("/export/valenfs/projects/uORFome/dataBase/")
-      rfpList <- grep(pattern = "merged",
-                      x = list.files(rfpFolder), value = T)
-      RFPPath <- p(rfpFolder, rfpList[i])
-      RFP <- ORFik:::fread.bed(RFPPath)
-      getCDS()
-      cds <- groupGRangesBy(unlist(cds, use.names = T))
-      ORFScores <- ORFik:::ORFScores(cds, RFP)$ORFscore
-    }
-    getCDS()
-    txNames <- names(cds)
-    orfScoresDT <- data.table(txNames, cdsOrfScores)
-    
-    setwd("/export/valenfs/projects/uORFome/RCode1/")
-    source("./DataBaseCreator.R")
-    insertTable(orfScoresDT, "cdsORFScore")
-  }
-  
   if(tableNotExists("cdsKozak")) {
     getCDS()
     cdsKozak <- ORFik:::kozakSequenceScore(cds, fa)
@@ -283,7 +258,7 @@ getCDSFeatures <- function(){
     cdsKozak <- data.table(txNames, cdsKozak)
     
     setwd("/export/valenfs/projects/uORFome/RCode1/")
-    source("./DataBaseCreator.R")
+    source("./DataBaseSetup.R")
     insertTable(cdsKozak, "cdsKozak")
   }
   
@@ -291,40 +266,126 @@ getCDSFeatures <- function(){
     
     rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
     nrfpList <- length(rfpList)
-    allRiboFeatures <- foreach(i=1, .combine = 'cbind') %dopar% {
+    allRiboFeatures <- foreach(i=1:nrfpList, .combine = 'cbind') %dopar% {
       setwd("/export/valenfs/projects/uORFome/RCode1/")
-      source("./DataBaseCreator.R")
-      setwd("/export/valenfs/projects/uORFome/dataBase/")
+      source("./DataBaseSetup.R")
+      
       rfpList <- grep(pattern = "merged",
                       x = list.files(rfpFolder), value = T)
       RFPPath <- p(rfpFolder, rfpList[i])
-      RFP <- ORFik:::fread.bed(RFPPath)
+      RFP <- fread.bed(RFPPath)
       getCDS()
       gr <- unlist(cds, use.names = T)
       cds <- groupGRangesBy(gr)
-      getTx(assignIt = T)
+      getCageTx(T)
       getThreeUTRs()
       gr <- unlist(threeUTRs, use.names = T)
       threeUTRs <- groupGRangesBy(gr)
-      
-      cdsIos <- ORFik:::insideOutsideORF(cds, RFP, tx)
-      cdsRRS <- ORFik:::ribosomeReleaseScore(cds, RFP, threeUTRs)
-      cdsRSS <- ORFik:::ribosomeStallingScore(cds, RFP)
-      
-      data.table(cdsIos, cdsRRS, cdsRSS)
+
+      cdsDiseng <- disengagementScore(cds, RFP, tx)
+      cdsIos <- insideOutsideORF(cds, RFP, tx, ds = cdsDiseng)
+      cdsRRS <- ribosomeReleaseScore(cds, RFP, threeUTRs)
+      cdsRSS <- ribosomeStallingScore(cds, RFP)
+      floss <- floss(cds, RFP, cds)
+      entropy <- entropy(cds, RFP)
+      cdsORFScores <- orfScore(cds, RFP, T)$ORFScores
+      data.table(cdsDiseng,cdsIos, cdsRRS, cdsRSS, cdsORFScores, floss, entropy)
+    }
+    colnames(allRiboFeatures)[colnames(allRiboFeatures) == "floss"] <- "cdsFloss"
+    colnames(allRiboFeatures)[colnames(allRiboFeatures) == "entropy"] <- "cdsEntropy"
+    txNames <- names(cds)
+    
+    for(f in unique(colnames(allRiboFeatures))[5:6]) {
+      featu <-  allRiboFeatures[, which(colnames(allRiboFeatures) == f), with = F]
+      colnames(featu) <- paste0(f,"_", 1:ncol(featu))
+      featu <- data.table(txNames, featu)
+      insertTable(featu, f)
     }
     
-    
+  }
+  
+  if(tableNotExists("cdsFractionLengths")) {
+    getCDS()
+    getCageTx()
+    cdsFrac <- fractionLength(cds, widthPerGroup(tx))
     
     txNames <- names(cds)
     
-    cdsIos <- data.table(txNames, cdsIos)
+    cdsFrac <- data.table(txNames, cdsFrac)
     
     setwd("/export/valenfs/projects/uORFome/RCode1/")
-    source("./DataBaseCreator.R")
-    insertTable(cdsIos, "cdsIos")
+    source("./DataBaseSetup.R")
+    insertTable(cdsFrac, "cdsFractionLengths")
   }
-  
-  
 }
 
+#' downstream of three utrs is used as new 3'utre
+getFeaturesThreeUTRs <- function(){
+  if(tableNotExists("threeIos")) {
+    
+    rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
+    nrfpList <- length(rfpList)
+    allRiboFeatures <- foreach(i=1:nrfpList, .combine = 'cbind') %dopar% {
+      setwd("/export/valenfs/projects/uORFome/RCode1/")
+      source("./DataBaseSetup.R")
+      
+      rfpList <- grep(pattern = "merged",
+                      x = list.files(rfpFolder), value = T)
+      RFPPath <- p(rfpFolder, rfpList[i])
+      RFP <- fread.bed(RFPPath)
+      getCDS()
+      gr <- unlistGrl(cds)
+      cds <- groupGRangesBy(gr)
+      getCageTx(T)
+      getThreeUTRs()
+      gr <- unlistGrl(threeUTRs)
+      threeUTRs <- groupGRangesBy(gr)
+      threeUTRs <- threeUTRs[widthPerGroup(threeUTRs) > 5]
+      threeWidth <- median(widthPerGroup(threeUTRs))
+      
+      fakeThree <- GRanges(seqnamesPerGroup(threeUTRs, F), IRanges(stopSites(threeUTRs, is.sorted = T) + 1, width = threeWidth), strand = strandPerGroup(threeUTRs, F))
+      names(fakeThree) <- names(threeUTRs)
+      fakeThree <- groupGRangesBy(fakeThree)
+      
+      
+      Diseng <- disengagementScore(threeUTRs, RFP, tx)
+      Ios <- insideOutsideORF(threeUTRs, RFP, tx, ds = Diseng)
+      RRS <- ribosomeReleaseScore(threeUTRs, RFP, fakeThree)
+      RSS <- ribosomeStallingScore(threeUTRs, RFP)
+      floss <- floss(threeUTRs, RFP, cds)
+      Entropy <- entropy(threeUTRs, RFP)
+      ORFScores <- orfScore(threeUTRs, RFP, T)$ORFScores
+      RfpFPKMs <- fpkm(threeUTRs, RFP)
+      data.table(Diseng, Ios, RRS, RSS, ORFScores, floss, Entropy, RfpFPKMs)
+    }
+    colnames(allRiboFeatures) <- paste0("three", colnames(allRiboFeatures))
+    getThreeUTRs()
+    gr <- unlistGrl(threeUTRs)
+    threeUTRs <- groupGRangesBy(gr)
+    threeUTRs <- threeUTRs[widthPerGroup(threeUTRs) > 5]
+    txNames <- names(threeUTRs)
+    
+    for(f in unique(colnames(allRiboFeatures))) {
+      featu <-  allRiboFeatures[, which(colnames(allRiboFeatures) == f), with = F]
+      colnames(featu) <- paste0(f,"_", 1:ncol(featu))
+      featu <- data.table(txNames, featu)
+      insertTable(featu, f)
+    }
+    
+  }
+  
+  if (tableNotExists("threeTeFiltered")) {
+    getTeFeatures(riboDbName = "threeFpkm", dbOutputNames =  c("threeTeUnfiltered", "threeTeFiltered"))
+  }
+  
+  # sequence features
+  if (tableNotExists("threeKozak")) {
+    getThreeUTRs()
+    gr <- unlistGrl(threeUTRs)
+    threeUTRs <- groupGRangesBy(gr)
+    threeUTRs <- threeUTRs[widthPerGroup(threeUTRs) > 5]
+    getFasta()
+    Kozak <- kozakSequenceScore(threeUTRs, fa)
+  }
+  
+}

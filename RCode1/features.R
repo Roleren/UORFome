@@ -109,8 +109,10 @@ getSequenceFeatures <- function(){
   insertTable( data.table(uorfID = orfID, stopCodon = as.character(seqs)), "StopCodons")
   
   # exon-exon junctions
-  eej <- numExonsPerGroup(grl, F)
-  insertTable(data.table(uorfID = orfID, eej = eej), "exon-exonJunctionsLeader")
+  eej <- numExonsPerGroup(fiveUTRs, T)
+  link <- readTable("linkORFsToTx")
+  eej <- as.integer(eej[link$txNames])
+  insertTable(data.table(txNames = link$txNames, eej = eej), "exon-exonJunctionsLeader")
   
 }
 

@@ -31,7 +31,7 @@ clusterHelper <- function(table, saveLocation, method = NULL, threads = 25,
   } else {
     pdf(pdfPath)
   }
-  if (!is.null(mainTex)) {
+  if (!is.null(mainText)) {
     plot(hclustResult, main = "Clustering of cage experiments")
   } else {
     plot(hclustResult)

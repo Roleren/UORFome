@@ -635,37 +635,16 @@ teVariance <- function(){
   
 }
 
-#1. Check cds te of predicted vs not predicted
-validatePredictionPlot <- function(){
-  grl <- getUorfsInDb()
-  getCDS()
-  cdsTE <- readTable("cdsTETissueMean", with.IDs = T)
-  link <- readTable("linkORFsToTx")
-  order <- ORFik:::uniqueOrder(grl)
-  finalCagePred <- readTable("allUorfsByCageAndPred")
-  f <- finalCagePred[order]
-  positiveCDS <- link$txNames[f]
-  negCDS <- link$txNames[!f]
+#ATF4 gene, transcript isoform ENST00000396680
+ATF4Check <- function(){
   
-  positiveCDS <- positiveCDS[!(positiveCDS %in% unique(negCDS))]
-  negCDS <- negCDS[!(negCDS %in% unique(positiveCDS))]
+  link$uorfID[finalCagePred[order]][which(link$txNames[finalCagePred[order]] == "ENST00000396680")]
+  widthPerGroup(fiveUTRs["ENST00000396680"])
+  fiveUTRs["ENST00000396680"]
+  39520648 - 39520564 # 2nd uORF
+  39520747- 39520564 # third uORF
   
-  posTE <- cdsTE[cdsTE$txNames %in% positiveCDS, ]
-  negTE <- cdsTE[cdsTE$txNames %in% negCDS, ]
+  # also ENST00000626055 (ADH5)
+  # also ENST00000370449 (ABCC2)
   
-  
-  
-  
-  
-  t <- data.frame(counts = c(mean(rowMeans(posTE[,2:ncol(posTE)])),
-                   mean(rowMeans(cdsTE[,2:ncol(cdsTE)])),
-                   mean(rowMeans(negTE[,2:ncol(negTE)]))), 
-                  variable = c("posMean", "mean", "negMean"))
-  values <- 1:length(t$variable)
-  hp <- ggplot(t) +
-    geom_bar(aes(y = counts, x = variable, fill=values), width = 0.2, stat = "identity") +
-    theme(axis.text.x=element_text(angle=45)) + 
-    labs(title="Te of CDS by uORF prediction", 
-         subtitle="")
-  plot(hp)
 }

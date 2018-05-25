@@ -134,10 +134,10 @@ makeCombinedPrediction <- function(tissues, cutOff = 0.7) {
   grid.newpage()
   draw.pairwise.venn(sum(uniqueUorfPred$Ovary & cageTissues$ovary),
                      sum(uniqueUorfPred$brain & cageTissues$brain),
-                     tab[2,2], category = c("Overy", "Brain"),
-                     lty = rep("blank", 2), fill = c("light blue", "yellow"),
+                     tab[2,2], category = c("Ovary", "Brain"),
+                     lty = rep("blank", 2), fill = c("light blue", "purple"),
                      alpha = rep(0.5, 2), cat.pos = c(0, 0),
-                     cat.dist = rep(0.025, 2), title = "abc")
+                     cat.dist = rep(0.025, 2), title = "Overlap of predicted uORFs and uORFs defined by CAGE.")
   
   
   
@@ -160,6 +160,13 @@ makeCombinedPrediction <- function(tissues, cutOff = 0.7) {
   
   finalCagePred <- rowSums(cageTissuesPrediction) > 1
   insertTable(finalCagePred, "allUorfsByCageAndPred")
+  
+  grid.newpage()
+  draw.triple.venn(area1 = 22, area2 = 20, area3 = 13, n12 = 11, n23 = 4, n13 = 5, 
+                   n123 = 1, category = c("Ovary", "Brain"),
+                   lty = rep("blank", 2), fill = c("light blue", "purple"),
+                   alpha = rep(0.5, 2), cat.pos = c(0, 0),
+                   cat.dist = rep(0.025, 2), title = "Overlap of predicted uORFs and uORFs defined by CAGE.")
 }
 
 #' random forrest classification:

@@ -120,7 +120,7 @@ getThreeUTRs = function(){
 #' the transcription start site(TSS), or load from existing data
 #' either as .rdata or .bed (bed6)
 getLeaders = function(leaderBed = NULL, usingNewCage = F, cageName = NULL,
-                      leader = NULL, assignLeader = T, exportAsBed = F){
+                      leader = NULL, assignLeader = T, exportAsBed = F, exportUorfRegions = T){
   
   if(!is.null(cageName)){#check if leader is already made, either as rdata or bed
     if(file.exists(paste0(leadersFolder,getRelativePathName(cageName),".leader.rdata"))){
@@ -162,7 +162,7 @@ getLeaders = function(leaderBed = NULL, usingNewCage = F, cageName = NULL,
       } else {
         cat("loading Leader from gtf\n")
         fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
-        save(fiveUTRs, p(dataFolder,"/leader.rdata"))
+        save(fiveUTRs, file = p(dataFolder,"/leader.rdata"))
       }
       
       if (usingNewCage) {
@@ -172,9 +172,19 @@ getLeaders = function(leaderBed = NULL, usingNewCage = F, cageName = NULL,
           assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)
           return
         }
-        getCDS()
-        fiveUTRs = ORFik::reassignTSSbyCage(fiveUTRs,cageName, cds = cds)
-        fiveUTRs <- ORFik:::sortPerGroup(fiveUTRs)
+        
+        fiveUTRs = ORFik::reassignTSSbyCage(fiveUTRs,cageName)
+        if (exportUorfRegions) {
+          getCDS()
+          uORFSeachRegion <- ORFik:::addCdsOnLeaderEnds(fiveUTRs, cds, onlyFirstExon = F)
+          uORFSeachRegion <- sortPerGroup(uORFSeachRegion)
+          print("exporting new uorf regions")
+          exportNamerdata = paste0(regionUORFs,
+                                   getRelativePathName(p(cageName,
+                                                         ".regionUORF.rdata")))
+          save(uORFSeachRegion, file = exportNamerdata)
+        }
+        
         print("exporting new leaders")
         exportNamerdata = paste0(leadersFolder,
                                  getRelativePathName(p(cageName,
@@ -262,13 +272,15 @@ da <- function(){
 
 #' Convenience wrapper from findMapORFs
 #' Get the upstream open reading frames from the 5' leader sequences, given as GRangesList 
-getUnfilteredUORFs = function(fiveUTRs, assignRanges = T, isSorted = F,
-                              startCodons = "ATG"){
+getUnfilteredUORFs = function(uORFSeachRegion, assignRanges = T, isSorted = F,
+                              startCodons = "ATG", groupByTx = F){
   
-  getSequencesFromFasta(fiveUTRs, isSorted)
+  getSequencesFromFasta(uORFSeachRegion, isSorted)
   
   
-  rangesOfuORFs = ORFik::findMapORFs(grl = fiveUTRs,seqs = seqs,minimumLength = 2, startCodon = startCodons)
+  rangesOfuORFs = ORFik::findMapORFs(grl = uORFSeachRegion,seqs = seqs,
+                                     minimumLength = 2, startCodon = startCodons,
+                                     groupByTx = groupByTx)
   
   if(assignRanges)
     assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)

@@ -19,6 +19,7 @@ filterORFs <- function(rangesOfuORFs, loadPath = NULL, saveToFile = F,outputFast
   rangesOfuORFs = removeORFsWithinCDS(rangesOfuORFs)
   
   rangesOfuORFs <- ORFik:::sortPerGroup(rangesOfuORFs)
+  rangesOfuORFs <- removeORFsWithinSameStop(rangesOfuORFs)
   print("finished filtering ourfs")
   
   ################SAVING###############
@@ -39,6 +40,17 @@ removeORFsWithinCDS <- function(grl){
   getCDS()
 
   overlaps <- findOverlaps(query = grl, cds, type = "within")
+  grl <- grl[-unique(from(overlaps))]
+  
+  print("Removed uorfs that were within cds'")
+  return(grl)
+}
+
+
+removeORFsWithinSameStop <- function(grl){
+  getCDS()
+  
+  overlaps <- findOverlaps(query =  stopSites(grl, asGR = TRUE), stopSites(cds, asGR = TRUE), type = "within")
   grl <- grl[-unique(from(overlaps))]
   
   print("Removed uorfs that were within cds'")

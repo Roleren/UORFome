@@ -18,7 +18,7 @@ setwd("/export/valenfs/projects/uORFome/RCode1/") #!! set this path
 
 
 # set up multithreading options
-pipelineCluster(10) #!! set number of cores, I use 75 usually on furu.
+pipelineCluster(75) #!! set number of cores, I use 75 usually on furu.
 
 
 ##### Second Find new cage leaders
@@ -31,7 +31,7 @@ getLeadersFromCage(nCageList)
 
 ##### Third Find uORFs
 
-leadersList = list.files(leadersFolder)
+leadersList = list.files(regionUORFs)
 nLeadersList = length(leadersList)
 #clusterCall(cl, function(x) .libPaths(x), .libPaths())
 

@@ -1,4 +1,94 @@
-
+teVariance <- function(){
+  if(tableNotExists("biggestTEVariance")){
+    
+    
+    uorfTEs <- readTable("teFiltered", with.IDs = T)
+    dt <- teAtlasTissueNew(uorfTEs)
+    # take the different tissues, te, make ratio matrix
+    
+    ratioMatrix <- data.table(ratio = 1)
+    # total ratio
+    for( i in 2:ncol(dt)){
+      ratioMatrix <- data.table(ratioMatrix, sum(dt[,i, with = F] > 1.1)/nrow(dt))
+    }
+    colnames(ratioMatrix) <- c("ratio", uniques )
+    
+    # comparison matrices
+    
+    comparisonMatrix <- data.table(txNames = dt$txNames)
+    # total ratio
+    for( i in 2:(ncol(dt)-1)){
+      for(j in (i+1):(ncol(dt))){
+        comparisonMatrix <- data.table(comparisonMatrix, abs(log10(dt[,i, with = F] / dt[,j, with = F]))) 
+      }
+    }
+    
+    comparisonMeanMatrix <- rowMeans(comparisonMatrix[,2:ncol(comparisonMatrix)])
+    
+    q90 <- quantile(comparisonMeanMatrix, 0.90)
+    comparisonMeanMatrix <- data.table(uorfIDs = uorfTEs$uorfID,
+                                       txNames = dt$txNames,
+                                       comparisonMeanMatrix)
+    colnames(comparisonMeanMatrix)[3] <- c("meanDiffTE")
+    
+    
+    
+    biggestTEVariance <- comparisonMeanMatrix[ comparisonMeanMatrix$meanDiffTE > q90,]
+    biggestTEVariance$which <- which(comparisonMeanMatrix$meanDiffTE > q90)
+    insertTable(biggestTEVariance, "biggestTEVariance", rmOld = T)
+    
+    q10 <- quantile(comparisonMeanMatrix$meanDiffTE, 0.10)
+    smallestTEVariance <- comparisonMeanMatrix[ comparisonMeanMatrix$meanDiffTE < q10,]
+    smallestTEVariance$which <- which(comparisonMeanMatrix$meanDiffTE < q10)
+    insertTable(smallestTEVariance, "smallestTEVariance", rmOld = T)
+    # presence
+    # difference tissue
+    
+    library(ggplot2)
+    dtPlot <- dt[,2:ncol(dt)]
+    dtPlot$x <- as.factor(1:nrow(dtPlot))
+    
+    dt.m <- melt(dtPlot, id="x")
+    plotTitle <- "Translational efficiency variance in Tissues"
+    ggplot(dt.m) + geom_boxplot(aes(x = variable, log10(value))) +
+      xlab("Tissue") + ylab("Te") +  
+      ggtitle(plotTitle)
+    ggsave(plotTitle)
+  }
+  
+  # cds effect of top bottom uorf variance, remove duplicated top bottom
+  cdsTETissue <- readTable("cdsTETissueMean", with.IDs = T)
+  
+  
+  cdsTETissueBig <- cdsTETissue[txNames %in% biggestTEVariance$txNames,]
+  
+  cdsTETissueSmall <- cdsTETissue[txNames %in% smallestTEVariance$txNames,]
+  # filter out equal tx
+  cdsTETissueBig <- cdsTETissueBig[!(txNames %in% cdsTETissueSmall$txNames),]
+  cdsTETissueSmall <- cdsTETissueSmall[!(txNames %in% cdsTETissueBig$txNames),]
+  
+  
+  colnames(cdsTETissueBig) <- paste0(colnames(cdsTETissueBig), "_high")
+  cdsTETissueBig$high <- rep(T,nrow(cdsTETissueBig))
+  cdsTETissueSmall$high <- rep(F,nrow(cdsTETissueSmall))
+  merged <- rbindlist(list(cdsTETissueBig, cdsTETissueSmall))
+  merged$x <- as.factor(1:nrow(merged))
+  
+  merged.m <- melt(merged[,2:ncol(merged)], id.vars=c("x", "high"))
+  ggplot(merged.m) + geom_boxplot(aes(x = variable, log10(value), fill = high)) +
+    xlab("Tissue") + ylab("Te") +  
+    ggtitle(plotTitle)
+  # how many overlap the cds of its tx
+  # check with row selection per tissue not mean, is this important ?
+  
+  # te cds vs te uorf, color the extremes
+  
+  
+  plot(cdsTETissueBig[,2:(ncol(cdsTETissueBig)-1)], cdsTETissueSmall[,2:(ncol(cdsTETissueSmall)-1)])
+  ggplot(merged.m, aes(x = variable, log10(value), fill = high)) + 
+    geom_dotplot()
+  
+}
 #' Validate uorfs of data-base
 #' 
 #' This is a check to see that pipeline have done everything correctly
@@ -14,7 +104,7 @@ validateExperiments <- function(grl){
     stop("Not all orfs where within the FiveUTRs used
          to make them, something is wrong!")
   } else { print("experiments look valid")}
-}
+  }
 
 #' check that all orfs acctually have a valid start codon
 #' A good check for minus strand errors.
@@ -47,12 +137,8 @@ getAllLeaderChanges <- function(){
     rm(fiveUTRs)
   }
   
-  library(doParallel)
   setwd("/export/valenfs/projects/uORFome/RCode1/")
-  maxCores = as.integer(detectCores()/2)
-  cl <- makeCluster(maxCores)
-  registerDoParallel(cl)
-  leadersList = list.files(leadersFolder)
+  pipelineCluster(75)
   nLeadersList = length(leadersList)
   rm(fiveUTRs)
   output <- foreach(i=1:nLeadersList, .combine = 'rbind') %dopar% {
@@ -76,6 +162,110 @@ getAllLeaderChanges <- function(){
   stopCluster(cl)
   setwd("/export/valenfs/projects/uORFome/dataBase/")
   save(dt,file = "leaderWidthChanges.rdata")
+  
+  # as box plot per tissue, 1 box per, width change
+  meanFiveWidth <- mean(widths)
+  
+  changes <- dt
+  changes$widthChange <- -((changes$same * meanFiveWidth) + (changes$bigger * changes$meanBigger) + (changes$smaller * changes$meanSmaller))
+  
+  cageTable <- getCageInfoTable()
+  cageWeHave <- getAllUsableCage(cageTable)
+  
+  
+  changes <- changes[cageWeHave$cage_index,]
+  changes$tissue <- cageWeHave$Characteristics.Tissue.
+  changes$widthChangePer <- changes$widthChange/length(fiveUTRs)
+  boxplot(changes$widthChange, fill = changes$tissue)
+  
+  ggplot(changes, aes(x=as.factor(tissue),y=widthChangePer-mean(widthChangePer)), fill = as.factor(tissue))+
+    geom_boxplot() +
+    coord_flip() +
+    geom_hline(aes(yintercept = 0, colour = "red")) +
+    theme(axis.text=element_text(size=5)) + 
+    xlab("Tissue") + ylab("change of widths leaders")
+  
+  # new test, check per leader change
+  setwd("/export/valenfs/projects/uORFome/RCode1/")
+  output <- foreach(i=1:length(list.files(leadersFolder)), .combine = 'cbind') %dopar% {
+    setwd("/export/valenfs/projects/uORFome/RCode1/")
+    source("./uorfomeGeneratorHelperFunctions.R")
+    leadersList = list.files(leadersFolder)
+    
+    load(p(dataFolder,"/leaderOriginalWidths.rdata"))
+    load(p(leadersFolder,leadersList[i]))
+    
+    return(ORFik:::widthPerGroup(fiveUTRs) - widths )
+  }
+  
+  
+  changes <- as.data.table(as.matrix(output))
+  
+  changes <- changes[, cageWeHave$cage_index, with = F]
+  
+  setwd("/export/valenfs/projects/uORFome/dataBase/")
+  save(changes, file = "leaderWidthChangesPerLeader.rdata")
+  
+  load("leaderWidthChangesPerLeader.rdata")
+  
+  
+  tissue <- gsub(" ", ".", cageWeHave$Characteristics.Tissue.)
+  uniqueTissues <- unique(tissue) 
+  library(ORFik)
+  getCDS()
+  cdsLength <- widthPerGroup(firstExonPerGroup(cds[names(fiveUTRs)]), keep.names = F)
+  c <- as.data.table(matrix(nrow = nrow(changes), ncol = 1))
+  for(i in 1:(length(uniqueTissues))){
+    cageFilestoCheck <- cageWeHave[which(tissue == uniqueTissues[i]),]$cage_index
+    c[, uniqueTissues[i] := rowMeans(changes[,paste0("result.",cageFilestoCheck), with = F]) - cdsLength]
+  }
+  c$V1 <- NULL
+  
+  cageTissues <- readTable("tissueAtlasByCage")
+  
+  whichColNames <- which(colSums(cageTissues) > 0)
+  c <- c[, whichColNames, with = F]
+  
+  uniqueTissues <- colnames(c)
+  cc <- matrix(unlist(c, use.names = F), ncol = 1, nrow = nrow(c)*ncol(c))
+  
+  
+  # test
+  tissueExpand <- unlist(lapply(uniqueTissues, function(x) rep(x, nrow(c))), use.names = F)
+  
+  df <- data.table(value = cc, variable = tissueExpand)
+  colnames(df) <- c("value", "variable")
+  df$value <- -df$value
+  
+  res <- ggplot(df, aes(x=variable,y=value))+
+    geom_boxplot(alpha = 0.7) +
+    coord_flip() +
+    geom_hline(aes(yintercept = 0), colour = "red") +
+    theme(axis.text.y = element_text(size=6)) + 
+    xlab("Tissue") + ylab("change in leader widths")
+  plot(res)
+  # for cds te variance number of uORFs in changed te value tx
+  # take brain adoult vs glioblastoma
+  # fold change categories ( 4 types (both, 1st or 2nd, none))
+  # type will geom_ecdf (4 distribution)
+  # data.frame with foldchange, id, type(4))
+  
+  c <- as.matrix(c)
+  # log10(new leader length / old leader length )
+  a <- rowMeans(c, na.rm = T)
+  df <- data.frame(var = a)
+  res <- ggplot(df, aes(x = var))+
+    geom_density(fill = "blue") + 
+    xlim(-500, 500) +
+    theme(axis.text.x = element_text(angle=0, size = 10), axis.text.y = element_text(size = 12), 
+          plot.title = element_text(size = 12), plot.subtitle = element_text(hjust = 0.5)) + 
+    labs(title="Mean change of leader lengths", 
+         subtitle="Over all tissues by CAGE", x = "Average change (bp length)", y = "proportion")
+  plot(res)
+  
+  
+  library(cowplot)
+  plot_grid(cageAll, res ,align='hv',nrow=1,labels=c('A','B'))
 }
 
 #' validate features using brain and hela to see that features
@@ -543,95 +733,52 @@ distanceVsUorfTE <- function(){
   
 }
 
-teVariance <- function(){
-  if(tableNotExists("biggestTEVariance")){
-    
 
-    uorfTEs <- readTable("teFiltered", with.IDs = T)
-    dt <- teAtlasTissueNew(uorfTEs)
-    # take the different tissues, te, make ratio matrix
-    
-    ratioMatrix <- data.table(ratio = 1)
-    # total ratio
-    for( i in 2:ncol(dt)){
-      ratioMatrix <- data.table(ratioMatrix, sum(dt[,i, with = F] > 1.1)/nrow(dt))
-    }
-    colnames(ratioMatrix) <- c("ratio", uniques )
-    
-    # comparison matrices
-    
-    comparisonMatrix <- data.table(txNames = dt$txNames)
-    # total ratio
-    for( i in 2:(ncol(dt)-1)){
-      for(j in (i+1):(ncol(dt))){
-        comparisonMatrix <- data.table(comparisonMatrix, abs(log10(dt[,i, with = F] / dt[,j, with = F]))) 
-      }
-    }
-    
-    comparisonMeanMatrix <- rowMeans(comparisonMatrix[,2:ncol(comparisonMatrix)])
-    
-    q90 <- quantile(comparisonMeanMatrix, 0.90)
-    comparisonMeanMatrix <- data.table(uorfIDs = uorfTEs$uorfID,
-                                       txNames = dt$txNames,
-                                       comparisonMeanMatrix)
-    colnames(comparisonMeanMatrix)[3] <- c("meanDiffTE")
-    
-    
-    
-    biggestTEVariance <- comparisonMeanMatrix[ comparisonMeanMatrix$meanDiffTE > q90,]
-    biggestTEVariance$which <- which(comparisonMeanMatrix$meanDiffTE > q90)
-    insertTable(biggestTEVariance, "biggestTEVariance", rmOld = T)
-    
-    q10 <- quantile(comparisonMeanMatrix$meanDiffTE, 0.10)
-    smallestTEVariance <- comparisonMeanMatrix[ comparisonMeanMatrix$meanDiffTE < q10,]
-    smallestTEVariance$which <- which(comparisonMeanMatrix$meanDiffTE < q10)
-    insertTable(smallestTEVariance, "smallestTEVariance", rmOld = T)
-    # presence
-    # difference tissue
-    
-    library(ggplot2)
-    dtPlot <- dt[,2:ncol(dt)]
-    dtPlot$x <- as.factor(1:nrow(dtPlot))
-    
-    dt.m <- melt(dtPlot, id="x")
-    plotTitle <- "Translational efficiency variance in Tissues"
-    ggplot(dt.m) + geom_boxplot(aes(x = variable, log10(value))) +
-      xlab("Tissue") + ylab("Te") +  
-      ggtitle(plotTitle)
-    ggsave(plotTitle)
-  }
-  
-  # cds effect of top bottom uorf variance, remove duplicated top bottom
-  cdsTETissue <- readTable("cdsTETissueMean", with.IDs = T)
 
+predictionVsCageHits <- function(){
+  cageTissuesPrediction <- readTable("tissueAtlasByCageAndPred")
   
-  cdsTETissueBig <- cdsTETissue[txNames %in% biggestTEVariance$txNames,]
+  cageTissues <- readTable("tissueAtlasByCage")
   
-  cdsTETissueSmall <- cdsTETissue[txNames %in% smallestTEVariance$txNames,]
-  # filter out equal tx
-  cdsTETissueBig <- cdsTETissueBig[!(txNames %in% cdsTETissueSmall$txNames),]
-  cdsTETissueSmall <- cdsTETissueSmall[!(txNames %in% cdsTETissueBig$txNames),]
+  cageRed <- cageTissues[, colSums(cageTissues) > 0, with = F]
+  inAll <- sum(rowSums(cageRed) == ncol(cageRed))
+  # finalCagePred from table
+  bestNames <- names(sort(-colSums(cageRed)))[1:20]
+  cageRed <- cageRed[,bestNames, with = F]
+ 
   
+  values <- c(colSums(cageRed) - inAll, rep(inAll, ncol(cageRed)))
+  variable <- c(rep(colnames(cageRed), 2))
+  type <- c(rep("Unique uORFs tissue", ncol(cageRed)), rep("uORFs in all tissues", ncol(cageRed)))
+  df <- data.table(value = values, variable, type)
+  df <- df[order(value),]
+  df$variable <- factor(df$variable, levels = unique(df$variable), ordered = T)
+  cageAll <- ggplot(df, aes(x=variable,y=value,fill=type)) +
+    geom_bar(stat="identity", position="stack") +
+    xlab("Tissue")+ylab("Number of uORFs found by CAGE") +
+    theme(axis.text.y = element_text(size = 10)) + 
+    guides(fill=FALSE) + 
+    coord_flip() + 
+    labs(title="Number of uORFs per tissue")
   
-  colnames(cdsTETissueBig) <- paste0(colnames(cdsTETissueBig), "_high")
-  cdsTETissueBig$high <- rep(T,nrow(cdsTETissueBig))
-  cdsTETissueSmall$high <- rep(F,nrow(cdsTETissueSmall))
-  merged <- rbindlist(list(cdsTETissueBig, cdsTETissueSmall))
-  merged$x <- as.factor(1:nrow(merged))
+  # for prediction
+  inAll <- sum(rowSums(cageTissuesPrediction) == ncol(cageTissuesPrediction))
+  bestNames <- names(sort(-colSums(cageTissuesPrediction)))[1:20]
   
-  merged.m <- melt(merged[,2:ncol(merged)], id.vars=c("x", "high"))
-  ggplot(merged.m) + geom_boxplot(aes(x = variable, log10(value), fill = high)) +
-    xlab("Tissue") + ylab("Te") +  
-    ggtitle(plotTitle)
-  # how many overlap the cds of its tx
-  # check with row selection per tissue not mean, is this important ?
-  
-  # te cds vs te uorf, color the extremes
-  
-  
-  plot(cdsTETissueBig[,2:(ncol(cdsTETissueBig)-1)], cdsTETissueSmall[,2:(ncol(cdsTETissueSmall)-1)])
-  ggplot(merged.m, aes(x = variable, log10(value), fill = high)) + 
-    geom_dotplot()
+  cageRed <- cageTissuesPrediction[,bestNames, with = F]
+  values <- c(colSums(cageRed) - inAll, rep(inAll, ncol(cageRed)))
+  variable <- c(rep(colnames(cageRed), 2))
+  type <- c(rep("Unique uORFs tissue", ncol(cageRed)), rep("uORFs in all tissues", ncol(cageRed)))
+  df <- data.table(value = values, variable, type)
+  df <- df[order(value),]
+  df$variable <- factor(df$variable, levels = unique(df$variable), ordered = T)
+  predAll <- ggplot(df, aes(x=variable,y=value,fill=type)) +
+    geom_bar(stat="identity", position="stack") +
+    scale_fill_discrete(name="uORF counts in final prediction") +
+    xlab("Tissue")+ylab("Number of predicted active uORFs") +
+    guides(fill=FALSE) + 
+    theme(axis.text.y = element_text(size = 10)) + 
+    coord_flip()
   
 }
 
@@ -647,4 +794,133 @@ ATF4Check <- function(){
   # also ENST00000626055 (ADH5)
   # also ENST00000370449 (ABCC2)
   
+  # check cds TE
+  
+  cdsTET <- readTable("cdsRiboByTissueMean")
+  
+  ATFcds <- unlist(cdsTET[cdsTET$txNames == "ENST00000396680",2:length(cdsTET)], use.names = F)
+  
+  cageHits <- cageTissues[order,][which(link$txNames[finalCagePred[order]] == "ENST00000396680"),]
+  
+  uORFTE <- readTable("teUnfiltered", with.IDs = F)
+  uORFTEATF <- unlist(uORFTE[which(link$txNames[finalCagePred[order]] == "ENST00000396680"),], use.names = F)
+  plot(ATFcds)
+  plot(uORFTEATF)
+}
+
+verifyOthersWorks <- function(){
+  
+  library(openxlsx)
+  # old grch37 annotation
+  d <- read.xlsx("/export/valenfs/projects/uORFome/Supplemental_Data_Tables_.xlsx",
+                 sheet = 6, colNames = T, startRow = 3)
+  
+  strand <- d$strand
+  startSite <- as.integer(d$start_coordinate)
+  stopSite <- as.integer(d$end_coordinate)
+  transcript <- sub("\\..*","",d$uORF_ID)
+  chromosome <- d$chromosome
+  
+  sta <- startSite
+  sta[strand == "-"] <- stopSite[strand == "-"]
+  sto <- stopSite
+  sto[strand == "-"] <- startSite[strand == "-"]
+  
+  goodHits <- which(transcript %in% names(fiveUTRs))
+  bed <- GRanges(seqnames = chromosome, ranges = IRanges(sta, sto), strand = strand, name = transcript, score = rep(0, length(name)))
+  
+  rtracklayer::export.bed(object = bed, con = "hisLeaders.bed") # now do conversion
+  # @ NCBI Genome Remapping Service GrCH37 -> 38
+  g <- rtracklayer::import.bed(con = "remapped_hisLeaders.bed")
+  rm(g$score)
+  if( length(strand) != length(startSite) | length(strand) != length(transcript)){
+    stop("wrong input readings for others")
+  }
+  
+  startSitesOur <- startSites(grl[finalCagePred[order]], is.sorted = T)
+  # transcriptOur <- txNames(grl)
+  
+  
+  
+  #how many did we find ?
+  startsOur <- firstStartPerGroup(grl, keep.names = F)
+  stopsOur <- ORFik:::lastExonEndPerGroup(grl, keep.names = F)
+  strandOur <- strandPerGroup(grl, keep.names = F)
+  chromosomeOurs <- seqnamesPerGroup(grl, F)
+  
+  theirs <- paste(as.integer(start(g)), as.integer(end(g)), seqnames(g), as.character(strand(g)))
+  ours <- paste(startsOur, stopsOur, chromosomeOurs, strandOur)
+  hitsOurs <- which(ours %in% theirs)
+  hitsTheirs <- which(theirs %in% ours )
+  
+  gg <- ORFik:::uniqueGroups(grl)
+  #how many match our prediction
+  startsOur <- firstStartPerGroup(gg[finalCagePred], keep.names = F)
+  stopsOur <- ORFik:::lastExonEndPerGroup(gg[finalCagePred], keep.names = F)
+  strandOur <- strandPerGroup(gg[finalCagePred], keep.names = F)
+  chromosomeOurs <- seqnamesPerGroup(gg[finalCagePred], F)
+  # [finalCagePred[order]]
+  if( length(strandOur) != length(startSitesOur) | length(strandOur) != length(transcriptOur)){
+    stop("wrong input readings for ours")
+  }
+  
+  
+  ours <- paste(startsOur, stopsOur, chromosomeOurs, strandOur)
+  hitsOurs <- which(ours %in% theirs)
+  hitsTheirs <- which(theirs %in% ours )
+  
+  #ratio from ours to theirs
+  
+  ratio <- 1675/645 # ours by theirs to get real number of hits
+  
+  theirSearchSpace <- 13040
+  ourSearchSpace <- 19164
+  grid.newpage()
+  ggplot <- draw.pairwise.venn(ourSearchSpace,
+                               theirSearchSpace,
+                               1675, category = c("uORFome prediction", "McGillivray et al. prediction"),
+                               lty = rep("blank", 2), fill = c("cyan", "red"),
+                               alpha = rep(0.5, 2), cat.pos = c(0, 0),
+                               cat.dist = rep(0.025, 2), cat.cex = c(1,1), cex = c(1,1,1))
+  library(gridExtra)
+  vennPred <- grid.arrange(gTree(children=ggplot), top=textGrob("Overlap between prediction pipelines", gp=gpar(fontsize=20,font=8)),
+               bottom="")
+  
+  table(StartCodons$startCodon[hitsOurs])
+  table(StartCodons$startCodon[uniqueOrder][finalCagePred])
+  tab1 <- table(StartCodons$startCodon[hitsOurs])/sum(table(StartCodons$startCodon[hitsOurs]))
+  tab2 <- table(StartCodons$startCodon[uniqueOrder][finalCagePred])/sum(table(StartCodons$startCodon[uniqueOrder][finalCagePred]))
+  
+  df <- data.frame(value = c(tab1, tab2), variable =c(names(tab1), names(tab2)),
+                   pred  = c(rep("McGillivray et al. prediction", length(tab1)), rep("uORFome prediction", length(tab2))))
+  
+  cstarts <- ggplot(df, aes(x=variable,y=value,fill=factor(pred)))+
+    geom_bar(stat="identity",position="dodge")+
+    scale_fill_discrete(name="Prediction pipeline")+
+    xlab("Start codon")+ylab("percentage")
+  
+  library(cowplot)
+  plot_grid(vennPred,cstarts, align='hv',nrow=2,labels=c('A','B'))
+}
+
+varianceTissueUsage <- function(){
+  tab <- table(cageTissuesPrediction$ovary, cageTissuesPrediction$brain)
+  chi <- chisq.test(tab)
+  chi$residuals
+  # plan:
+  # do pairwise tests, see that things are ok.
+  # venn diagram:
+  
+  library(VennDiagram)
+  grid.newpage()
+  boOver <- draw.pairwise.venn(15021, 14213,
+                               11523, category = c("Ovary", "Brain"),
+                               lty = rep("blank", 2), fill = c("light blue", "yellow"),
+                               alpha = rep(0.5, 2), cat.pos = c(0, 0),
+                               cat.dist = rep(0.025, 2), title = "abc")
+  boOver <- grid.arrange(gTree(children=boOver), top=textGrob("uORF overlaps", gp=gpar(fontsize=20,font=8)),
+                           bottom="")
+  
+  library(cowplot)
+  plot_grid(predAll,boOver, align='hv',nrow=1,labels=c('A','B'))
 }

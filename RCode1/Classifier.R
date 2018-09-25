@@ -101,7 +101,7 @@ makeCombinedPrediction <- function(tissues, cutOff = 0.7) {
   
   library(VennDiagram)
   grid.newpage()
-  draw.pairwise.venn(sum(uorfPred$Ovary), sum(uorfPred$brain),
+  boOver <- draw.pairwise.venn(sum(uorfPred$Ovary), sum(uorfPred$brain),
                      tab[2,2], category = c("Ovary", "Brain"),
                      lty = rep("blank", 2), fill = c("light blue", "yellow"),
                      alpha = rep(0.5, 2), cat.pos = c(0, 0),

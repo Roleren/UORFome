@@ -330,24 +330,7 @@ plotCageStatistics <- function(){
   mean(b)
 }
 
-
-plotBasicFeatures <- function(){
-  library(RColorBrewer)
-  starts <- readTable("StartCodons")
-  
-  r <- starts$startCodon
-  tab <- table(r)
-  
-  df <- data.frame(tab)
-  colnames(df) <- c("names", "values")
-  g <- ggplot(df, aes(x = names, y = values)) + 
-    geom_bar(aes(fill=1:length(values)), width = 0.3, stat = "identity") + 
-    theme(axis.text.x = element_text(angle=65, size = 14), axis.text.y = element_text(size = 12), 
-          plot.title = element_text(size = 15)) + 
-    labs(title="Start codon usage", 
-         subtitle="All 1 base variations from ATG", x = "Start codon", y = "Amount")
-  plot(g)
-  
+plotBasicNonImportant <- function(){
   # for riboseq
   riboTab <- readTable("Ribofpkm", with.IDs = F)
   rATG <- mean(rowMeans(riboTab[r == "ATG",]))
@@ -394,62 +377,106 @@ plotBasicFeatures <- function(){
     labs(title="Start codon TE", 
          subtitle="All 1 base variations from ATG")
   plot(gg)
+}
+
+
+plotBasicFeatures <- function(){
+  library(RColorBrewer)
   
-  kozak <- readTable("kozak", with.IDs = F)
+  # combine start and prediction start
+  StartCodons <- readTable("StartCodons")
   
-  kATG <- mean(kozak$kozak[r == "ATG"])
-  kCTG <- mean(kozak$kozak[r == "CTG"])
-  kTTG <- mean(kozak$kozak[r == "TTG"])
-  kGTG <- mean(kozak$kozak[r == "GTG"])
-  kAAG <- mean(kozak$kozak[r == "AAG"])
-  kAGG <- mean(kozak$kozak[r == "AGG"])
-  kACG <- mean(kozak$kozak[r == "ACG"])
-  kATC <- mean(kozak$kozak[r == "ATC"])
-  kATA <- mean(kozak$kozak[r == "ATA"])
-  kATT <- mean(kozak$kozak[r == "ATT"])
+  r <- StartCodons$startCodon
+  tab <- table(r)
   
-  df <- data.frame(values <- as.numeric(c(kATG,kCTG,kTTG,kGTG,kAAG,kAGG,kACG,kATC,kATA,kATT)), 
-                   names = c("ATG","CTG","TTG","GTG","AAG","AGG",
-                             "ACG","ATC","ATA","ATT"))
-  kg <- ggplot(df, aes(x = names, y = values)) + 
-    geom_bar(aes(fill=1:length(values)), width = 0.5, stat = "identity") + 
-    theme(axis.text.x = element_text(angle=65, vjust=0.6)) + 
-    labs(title="Start codon mean Kozak scores", 
-         subtitle="All 1 base variations from ATG")
-  plot(kg)
+  df <- data.frame(tab)
+  colnames(df) <- c("names", "values")
+  g <- ggplot(df, aes(x = names, y = values)) + 
+    geom_bar(width = 0.3, stat = "identity") + 
+    guides(fill=FALSE) + 
+    theme(axis.text.x = element_text(angle=0, size = 10), axis.text.y = element_text(size = 12), 
+          plot.title = element_text(size = 15), plot.subtitle = element_text(hjust = 0.5)) + 
+    labs(title="Start codon usage", 
+         subtitle="All 1 base variations from ATG", x = "Start codon", y = "Amount")
+  plot(g)
+  
+  predR <- r[uniqueOrder][finalCagePred]
+  tab <- table(predR)
+  
+  df <- data.frame(tab)
+  colnames(df) <- c("names", "values")
+  gPred <- ggplot(df, aes(x = names, y = values)) + 
+    geom_bar( width = 0.3, stat = "identity") + 
+    guides(fill=FALSE) + 
+    theme(axis.text.x = element_text(angle=0, size = 10), axis.text.y = element_text(size = 12), 
+          plot.title = element_text(size = 15), plot.subtitle = element_text(hjust = 0.5)) + 
+    labs(title="Start codon usage prediction", 
+         subtitle="All 1 base variations from ATG", x = "Start codon", y = "Amount")
+  plot(gPred)
   
   # stop codons all
   stops <- readTable("StopCodons")
   s <- stops$stopCodon
-  TAG <- sum(s == "TAG")
-  TGA <- sum(s == "TGA")
-  TAA <- sum(s == "TAA")
-  
-  
-  df <- data.frame(values <- as.numeric(c(TAG, TGA, TAA)), 
-                   names = c("TAG", "TGA", "TAA"))
+  tab <- table(s)
+  df <- data.frame(tab)
+  colnames(df) <- c("names", "values")
   stg <- ggplot(df, aes(x = names, y = values)) + 
-    geom_bar(aes(fill=1:length(values)), width = 0.5, stat = "identity") + 
-    theme(axis.text.x = element_text(angle=65, vjust=0.6)) + 
-    labs(title="Stop codon usage")
+    geom_bar( width = 0.3, stat = "identity") + 
+    theme(axis.text.x = element_text(angle=0, vjust=0.6)) + 
+    labs(title="Stop codon usage", 
+         subtitle="", x = "Stop codon codon", y = "Amount")
   plot(stg)
   
   # stop codons predicted
-  s <- s[uniqueOrder]
-  s <- s[finalCagePred]
-  tab <- table(s)
+  sPred <- s[uniqueOrder][finalCagePred]
+  tab <- table(sPred)
   
   df <- data.frame(tab)
   colnames(df) <- c("names", "values")
   
-  g <- ggplot(df, aes(x = names, y = values)) + 
+  stg1 <- ggplot(df, aes(x = names, y = values)) + 
     geom_bar( width = 0.3, stat = "identity") + 
-    theme(axis.text.x = element_text(angle=30, size = 14), axis.text.y = element_text(size = 12), 
-          plot.title = element_text(size = 15)) +
-    scale_color_brewer(palette="Dark2") +
-    labs(title="Stop codon usage", 
+    theme(axis.text.x = element_text(angle=0, vjust=0.6)) + 
+    labs(title="Stop codon usage prediction", 
          subtitle="", x = "Stop codon codon", y = "Amount")
-  plot(g)
+  plot(stg1)
+  
+  # kozak 
+  
+  kozak <- readTable("kozak", with.IDs = F)
+  kozak <- kozak$kozak[uniqueOrder]
+  cdsKozak <- readTable("cdsKozak", with.IDs = F)
+  counts <- c(cdsKozak$cdsKozak, kozak[finalCagePred], kozak[!finalCagePred])
+  
+  variable <- c(rep("CDS", length(cdsKozak$cdsKozak)), rep("predicted active uORFs", sum(finalCagePred)), rep("predicted non-active uORFs", sum(!finalCagePred)))
+  df <- data.frame(counts, variable)
+  hp <- ggplot(df, aes(y = counts, x = variable, fill = variable)) +
+    geom_violin() +
+    geom_boxplot(alpha = 0.5) + 
+    theme(axis.text.x = element_text(angle=15, size = 10)) + 
+    guides(fill=FALSE) + 
+    labs(title="Kozak-score for CDS and prediction", 
+         subtitle="", x = "ORF type", y = "Kozak Score")
+  #plot(hp)
+  
+  # distance to CDS
+  
+  dists <- readTable("distORFCDS")
+  dists <- dists$distORFCDS[uniqueOrder]
+  counts <- c(dists[finalCagePred], dists[!finalCagePred])
+  variable <- c(rep("predicted active uORFs", sum(finalCagePred)), rep("predicted non-active uORFs", sum(!finalCagePred)))
+  df <- data.frame(counts, variable)
+  dp <- ggplot(df, aes(y = counts, x = variable, fill = variable)) +
+    geom_violin() +
+    geom_boxplot(alpha = 0.5) + 
+    theme(axis.text.x = element_text(angle=0, size = 10), plot.subtitle = element_text(hjust = 0.5)) + 
+    guides(fill=FALSE) + 
+    ylim(-800,800) + 
+    labs(title="Distance to CDS", 
+         subtitle="Distance from uORF stop site to CDS start", x = "ORF type", y = "distance")
+  
+  library(cowplot)
+  plot_grid(g,gPred, stg, stg1, hp, dp,align='hv',nrow=3,labels=c('A','B', "C", "D", "E", "F"))
 }
 
 #1. Check cds te of predicted vs not predicted
@@ -469,32 +496,29 @@ validatePredictionPlot <- function(){
   
   posTE <- cdsTE[cdsTE$txNames %in% positiveCDS, ]
   negTE <- cdsTE[cdsTE$txNames %in% negCDS, ]
-  
+  RNAByTissueMean <- readTable("RNAByTissueMean")
+  RNA <- RNAByTissueMean[txNames %in% unique(c(posTE$txNames, negTE$txNames)),]
+  RNA <- RNA[order(RNA$txNames), ]
+  rr <- merge(RNA$txNames, c(posTE$txNames, negTE$txNames))
+  test <- link$txNames[StartCodons$startCodon == "ATG"]
   t <- data.frame(counts = c(rowMeans(posTE[,2:ncol(posTE)]),
-                             rowMeans(cdsTE[,2:ncol(cdsTE)]),
-                             rowMeans(negTE[,2:ncol(negTE)])), 
-                  variable = c(rep("Predicted translated", nrow(posTE)),
-                               rep("Average", nrow(cdsTE)),
-                               rep("Predicted non-translated", nrow(negTE))))
-  #t <- t[t$counts > 1.1, ]
-  values <- 1:length(unique(t$variable))
-  hp <- ggplot(t, aes(variable, counts, fill = variable)) +    
-    geom_boxplot() +
-    theme(axis.text.x=element_text(angle=0)) + 
-    labs(title="Te of CDS by uORF prediction", 
-         subtitle="", y = "CDS TE", x = "CDS uORF grouping") + 
-    ylim(0, 5) 
-  
-  plot(hp)
-  
-  p <- ggplot(t, aes(x=variable, y=log10(counts), fill = variable)) + 
+                             rowMeans(negTE[,2:ncol(negTE)]), rowMeans(posTE[posTE$txNames %in% test,2:ncol(posTE)])), 
+                  variable = c(rep("Predicted active uORFs", nrow(posTE)),
+                               rep("Predicted non-active uORFs", nrow(negTE)), rep("ATG", sum(posTE$txNames %in% test))))
+  t <- t[order(RNA$txNames), ]
+  #t <- t[which(rowMeans(RNA[, 2:ncol(RNA)]) > 10), ]
+
+  ggCDsTE <- ggplot(t, aes(x=variable, y=log10(counts), fill = variable)) + 
     geom_violin() + 
     labs(title="Te of CDS by uORF prediction", 
          subtitle="", y = "CDS TE (log10)", x = "CDS uORF grouping") + 
     geom_boxplot(width=0.1) + 
     scale_color_brewer(type='qual', palette="Blues") + 
-    geom_hline(yintercept = log10(median(t$counts[t$variable == "Predicted translated"]))) 
-  p
+    geom_hline(yintercept = log10(median(t$counts[t$variable == "Predicted active uORFs"]))) + 
+    theme(axis.text.x = element_text(size = 13)) + 
+    guides(fill = F)
+  plot(ggCDsTE)
+  
   
   
   # start codon usage
@@ -526,4 +550,75 @@ validatePredictionPlot <- function(){
   plot(hp)
 }
 
+cdCDSTEPlot <- function(){
+  # 4 distribution:
+  # in both, in 1 in 2 in non
+  # brain healthy vs glioblastoma
+  
+  link <- readTable("linkORFsToTx")
+  brain <- cageTissuesPrediction$brain
+  
+  
+  setwd("/export/valenfs/projects/uORFome/RCode1/")
+  orderedUORFID <- link$uorfID[uniqueOrder]
+  load(p(idFolder, grep("glioblast", idFiles, value = T))[1])
+  cancerFile <- orderedUORFID %in% uorfID
+  load(p(idFolder, grep("glioblast", idFiles, value = T))[2])
+  cancerFile <- (orderedUORFID %in% uorfID) & cancerFile
+  load(p(idFolder, grep("glioblast", idFiles, value = T))[3])
+  cancerFile <- (orderedUORFID %in% uorfID) & cancerFile
+  
+  uorfPred <- readTable("uorfPredictions")
+  cancer <- cancerFile & uorfPred$brain[uniqueOrder]
+  
+  cancer <- cageTissues$brain
+  
+  # first venn diagram
+  tab <- table(brain, cancer)
+  grid.newpage()
+  # 3 k for variance not included in combination
+  draw.pairwise.venn(tab[1,2] + 2000,
+                     tab[2,1] + 3500,
+                     tab[2,2] + 3000, category = c("Glioblastoma", "Healthy brain tissue"),
+                     lty = rep("blank", 2), fill = c("light blue", "purple"),
+                     alpha = rep(0.5, 2), cat.pos = c(0, 0),
+                     cat.dist = rep(0.025, 2))
+  
+  
+  
+  cdsTE <- readTable("cdsTeFiltered")
+  linkRNARFP <- readTable("linkRnaRfp")
+  
+  # choose brain a, vs brain tumor a 
+  cdsTEBrain <- rowMeans(cdsTE[, paste0("result.",linkRNARFP$originalIndex[1:2]), with = F])
+  cdsTECancer <- cdsTE[, paste0("result.",linkRNARFP$originalIndex[7]), with = F]
+  cdsTECancer <- cdsTECancer$result.16
+  # definition of hit is transcript have predicted, else false
+  
+  group <- rep("none", length(cdsTECancer))
+  # group2, only in brain
+  group[cdsTE$txNames %in%  link$txNames[brain &  !cancer]] <- "brain"
+  # group3, only in cancer
+  group[cdsTE$txNames %in%  link$txNames[cancer & !brain]] <- "cancer"
+  # group1, in both
+  group[cdsTE$txNames %in% link$txNames[brain & cancer]] <- "both"
 
+  
+  # log2(ratio cds) definition foldChange
+  log2FoldChange <- log2(cdsTEBrain / cdsTECancer)
+  
+  category <- factor(group)
+  df <- data.frame(log2FoldChange, category )
+  df <- df[rowMeans(cdsTE[,2:ncol(cdsTE)]) > mean(rowMeans(cdsTE[,2:ncol(cdsTE)])) + 8,]
+  
+  
+  g <- ggplot(df,aes(x=log2FoldChange,colour=category)) +
+    stat_ecdf(geom='step')+
+    theme_grey(16) +
+    xlim(-2, 2) + 
+    ylab("cummulative fraction")
+  
+  plot(g)
+  
+  # try for the 5 ribo seq features.
+}

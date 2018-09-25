@@ -4,26 +4,25 @@ getLeadersFromCage <- function(nCageList){
     
     source("./uorfomeGeneratorHelperFunctions.R")
     cageList = grep(pattern = ".bed", list.files(cageFolder), value = TRUE)
-    getLeaders(usingNewCage = T, cageName = p(cageFolder,cageList[i]) , assignLeader = F )
+    getLeaders(usingNewCage = T, cageName = p(cageFolder,cageList[i]) ,
+               assignLeader = F , exportUorfRegions = T)
     print("ok")
   }
 }
 
 getUorfsFromLeaders <- function(nLeadersList){
-  foreach(i=1:nLeadersList, .inorder = F) %dopar% {
-    source("./uorfomeGeneratorHelperFunctions.R")
-    leadersList = list.files(leadersFolder)
-    
-    usedCage = gsub(pattern = ".leader.rdata",replacement = "",x = leadersList[i]) 
-    
-    if(UorfRangesNotExists(assignUorf =  F,givenCage = usedCage)){
-      load(p(leadersFolder,leadersList[i]))
-      scanUORFs(fiveUTRs, outputName = usedCage, assignUorf = F,
-                outputFastaAndBed = F,  startCodons = "ATG|CTG|TTG|GTG|AAG|AGG|ACG|ATC|ATA|ATT")
-      print("ok")
-    }else{
-      i
+  foreach(i=1:nLeadersList, .inorder = F, .verbose = T, .export = c("FaFile", "extractTranscriptSeqs", "stopSites", "groupGRangesBy")) %dopar% {
+    usedCage = gsub(pattern = ".regionUORF.rdata",replacement = "",x = searchRegionList[i])
+    saveName <- getUORFRDataName(usedCage)
+    if(!file.exists(saveName)){
+      load(p(regionUORFs,searchRegionList[i]))
+      rangesOfuORFs <- getUnfilteredUORFs(uORFSeachRegion,assignRanges = F, isSorted = T,
+                                          startCodons = "ATG|CTG|TTG|GTG|AAG|AGG|ACG|ATC|ATA|ATT")
+      rangesOfuORFs <- filterORFs(rangesOfuORFs)
+      save(rangesOfuORFs, file = saveName)
+      return(i)
     }
+    return(0)
   }
 }
 
@@ -41,16 +40,16 @@ getIDsFromUorfs <- function(nuorfsList){
 }
 
 getAllFeaturesFromUorfs <- function(){
-  rfpList <- grep(pattern = "merged",x = list.files(rfpFolder), value = T)
-  nrfpList <- length(rfpList)
+  load(file = "/export/valenfs/projects/uORFome/matching_rna_ribo.Rsave")
+  nrfpList <- nrow(matching_rna_ribo)
   # all rfp features
   foreach(i=1:nrfpList, .inorder = F) %dopar% {
     setwd("/export/valenfs/projects/uORFome/RCode1/")
     source("./DataBaseSetup.R")
     
-    rfpList <- grep(pattern = "merged",
-                    x = list.files(rfpFolder), value = T)
-    RFPPath <- p(rfpFolder, rfpList[i])
+    load(file = "/export/valenfs/projects/uORFome/matching_rna_ribo.Rsave")
+    
+    RFPPath <- p(rfpFolder, grep(pattern = matching_rna_ribo$ribo[i] ,x = list.files(rfpFolder), value = T))
     
     getAllFeatures(grl = NULL, RFPPath, i = i)
     print(i)
@@ -99,7 +98,7 @@ getAllFeaturesFromUorfs <- function(){
   insertTable(ioScore, "ioScore")
   
   # insert info
-  getRiboInfoTable(rfpList = rfpList)
+  #getRiboInfoTable(rfpList = rfpList)
   #rm(list = c("floss","entropyRFP","disengagementScores", "RRS",
   #"RSS", "fpkmRFP", "ORFScores", "ioScore" ))
 }

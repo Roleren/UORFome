@@ -29,8 +29,11 @@ toGRFromUniqueID <- function(uniqueIDs){
   
   library(splitstackshape)
   library(stringr)
-  splitList <- splitstackshape::cSplit_f(indt = uniqueIDs,
-                          stripWhite = F, sep = ",", splitCols = "uorfID")
+  # not working anymore, update to cSplit
+  # splitList <- splitstackshape::cSplit_f(indt = uniqueIDs,
+  #                         stripWhite = F, sep = ",", splitCols = "uorfID")
+  splitList <- splitstackshape::cSplit(indt = uniqueIDs,
+                                         stripWhite = F, sep = ",", splitCols = "uorfID")
   
   if (ncol(splitList) == 3){
     a <- splitstackshape::cSplit(splitList,splitCols = "uorfID_3", 
@@ -58,8 +61,8 @@ toGRFromUniqueID <- function(uniqueIDs){
     rm(a)
     counts <- rowSums(!is.na(starts))
     #counts <-  unlist(lapply(1:nrow(starts), function(x) sum(!is.na(starts[x]))))
-    t <- unlist(lapply(1:length(counts), function(x) {
-      rep(x, counts[x])
+    t <- unlist(lapply(seq.int(length(counts)), function(x) {
+      rep.int(x, counts[x])
     }))
     
     #IntegerLists

@@ -150,7 +150,7 @@ orfikDirs <- function(mainPath, makeDatabase = F){
 #' 
 #' Cluster object saved as cl
 #' @param maxCores what is max cores, if Null set to half of available cores
-pipelineCluster <- function(maxCores = NULL){
+pipelineCluster <- function(maxCores = NULL, outfile = NULL){
   if(exists("cl") && any(class(cl) == "cluster")){
     message("cluster already exists, abort if not correct")
   } else {
@@ -158,7 +158,12 @@ pipelineCluster <- function(maxCores = NULL){
     if(is.null(maxCores)){
       maxCores = as.integer(detectCores()-(detectCores()/2)) # using half
     }
-    cl <- makeCluster(maxCores)
+    if (is.null(outfile)) {
+      cl <- makeCluster(maxCores)
+    } else {
+      cl <- makeCluster(maxCores, outfile = outfile)
+    }
+    
     registerDoParallel(cl)
     assign("cl",cl,envir = .GlobalEnv)
   }
@@ -189,79 +194,4 @@ loadRData = function(rdataname,toGlobalEnv = T){
 
 loadUorfID = function(rdataname){
   load(paste0(resultsFolder,"/uorfIDs/",rdataname), envir = .GlobalEnv)
-}
-
-#' From a gtf, make a new txdb with reassigned leaders from cage
-#' 
-#' 
-makeTxDbFromGrangesLists <- function(oldGtfPath, fiveUTRs = NULL, cds = NULL, threeUTRs = NULL, tx = NULL){
-  # import gtf as GRanges
-  gr <- import(oldGtfPath)
-  
-  if (!is.null(fiveUTRs)) {
-    # first find first exons of five UTRs, they have changed by cage
-    firstExons <- ORFik:::firstExonPerGroup(fiveUTRs)
-    posIndices <-  strandBool(firstExons)
-    
-    firstExons <- unlist(firstExons, use.names = FALSE)
-    if (is.null(names(firstExons))) {
-      firstExons <- unlist(firstExons, use.names = TRUE)
-    }
-    
-    exonNames <- firstExons$exon_name
-    
-    posExonNames <- exonNames[posIndices]
-    negExonNames <- exonNames[!posIndices]
-    ########### For exons ##############
-    # update leader starts for pos strand in gtf exons
-    dt1 <- data.table(exon_names = gr2$exon_id, index = 1:length(gr))
-    dt2 <- data.table(exon_names = posExonNames, indexPart = 1:length(posExonNames))
-    merged <- merge(dt1, dt2, by = "exon_names", all.x = F, all.y = T)
-    colnames(merged) <- c("exon_names", "index", "indexPart")
-    # you will have duplicated of exon_names, but they all have same cage peak
-    firstExonsPos <- firstExons[posIndices][merged$indexPart]
-    
-   
-    start(ranges( gr[merged$index])) <-
-      start(firstExonsPos)
-    
-    #update leaders start for neg strand in gtf exons
-    dt2 <- data.table(exon_names = negExonNames, indexPart = 1:length(negExonNames))
-    merged <- merge(dt1, dt2, by = "exon_names", all.x = F, all.y = T)
-    colnames(merged) <- c("exon_names", "index", "indexPart")
-    # you will have duplicated of exon_names, but they all have same cage peak
-    firstExonsNeg <- firstExons[!posIndices][merged$indexPart]
-    end(ranges( gr[merged$index])) <-
-      end(firstExonsNeg)
-    
-    ########### For transcripts ##############
-    # now update transcript starts to the biggest / lowest new start from cage
-    txNames <- names(firstExons)
-    
-    posTxNames <- txNames[posIndices]
-    negTxNames <- txNames[!posIndices]
-    
-    dt1 <- data.table(transcript_id = gr$transcript_id, type = gr$type, index = 1:length(gr))
-    dt1 <- dt1[type == "transcript",]
-    # for pos
-    
-    dt2 <- data.table(transcript_id = posTxNames, indexPart = 1:length(posTxNames))
-    merged <- merge(dt1, dt2, by = "transcript_id", all.x = F, all.y = T)
-    firstExonsPos <- firstExons[posIndices][merged$indexPart]
-    start(ranges( gr[merged$index])) <-
-      start(firstExonsPos)
-    
-    # for neg
-    
-    dt2 <- data.table(transcript_id = negTxNames, indexPart = 1:length(negTxNames))
-    merged <- merge(dt1, dt2, by = "transcript_id", all.x = F, all.y = T)
-    firstExonsNeg <- firstExons[!posIndices][merged$indexPart]
-    end(ranges( gr[merged$index])) <-
-      end(firstExonsNeg)
-    
-    ########### For genes ##############
-    
-    
-    txdb <- makeTxDbFromGRanges(gr)
-  }
 }

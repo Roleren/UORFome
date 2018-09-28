@@ -20,8 +20,8 @@ bed6 <- function(grl,bedName = NULL){
 #' bedName is bed name
 #' uscs bed 12 format
 bed12 <- function(grl,bedName, fixChromoNaming = F){
-  if(class(grl) != "GRangesList") stop("grl, must be of class GRangesList")
-  if (fixChromoNaming) grl <- ORFik:::fixSeqnames(grl)
+  if(!ORFik:::is.grl(class(grl))) stop("grl, must be of class GRangesList")
+  if (fixChromoNaming) print(seqlevels(grl))
   grl <- sortPerGroup(grl,ignore.strand = T) # <- sort bed way!
   
   dt.grl <- data.table(seqnames = ORFik:::seqnamesPerGroup(grl, F))
@@ -46,7 +46,5 @@ bed12 <- function(grl,bedName, fixChromoNaming = F){
   #must equal chromEnd. 
   data.table::fwrite(x = dt.grl, file = bedName,
                      sep = "\t", col.names = F, row.names = F, quote = F)
-  # write.table(x = dt.grl,file = bedName,
-  #             sep = "\t",col.names = F,row.names = F, quote = F)
   return(NULL)
 }

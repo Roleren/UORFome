@@ -13,6 +13,8 @@
 
 #set working dir correctly to ./RCode1/ location
 setwd("/export/valenfs/projects/uORFome/RCode1/") #!! set this path
+# source("./HelperFunctions.R")
+# updateORFik("makeItMoreLogical") # update if needed
 source("./DataBaseSetup.R")
 setwd("/export/valenfs/projects/uORFome/RCode1/") #!! set this path
 

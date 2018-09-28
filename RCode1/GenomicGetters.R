@@ -66,15 +66,15 @@ getGTF = function(assignIt = T){
     Gtf = loadDb(gtfdb)
     if(assignIt)
       assign("Gtf",Gtf,envir = .GlobalEnv)
+  } else if(!dbIsValid(Gtf$conn)) {
+    Gtf = loadDb(gtfdb)
   }
 }
 
 #' Get transcripts from gtf
 getTx <- function(assignIt = F){
   if (exists("tx",mode = "S4") == F) {
-    if (exists("Gtf") == F) {
-      getGTF()
-    }
+    getGTF()
     tx <- exonsBy(Gtf, by = "tx", use.names = TRUE)
     if (assignIt) {
       assign("tx",tx, envir = .GlobalEnv)
@@ -88,9 +88,7 @@ getTx <- function(assignIt = F){
 #Get the coding sequences from the gtf file
 getCDS = function(assignIt = T){
   if (exists("cds",mode = "S4") == F) {
-    if (exists("Gtf") == F) {
-      getGTF()
-    }
+    getGTF()
     cds = cdsBy(Gtf,"tx", use.names = TRUE)
     if (assignIt) {
       assign("cds", cds, envir = .GlobalEnv)
@@ -105,9 +103,7 @@ getCDS = function(assignIt = T){
 getThreeUTRs = function(){
   if (!exists("threeUTRs")) {
     if (!exists(p(dataFolder, "/threeUTRs.rdata"))) {
-      if (!exists("Gtf")) {
-        getGTF()
-      }
+      getGTF()
       threeUTRs = threeUTRsByTranscript(Gtf, use.names = TRUE)
       assign("threeUTRs", threeUTRs, envir = .GlobalEnv)
     } else {
@@ -233,8 +229,9 @@ leaderCage <- function(width.cds = TRUE){
   return(CageFiveUTRs)
 }
 
-getAll <- function(include.cage = T, extendTx = F){
+getAll <- function(include.cage = T){
   getFasta()
+  
   getCDS()
   getThreeUTRs()
   getLeaders()
@@ -245,12 +242,9 @@ getAll <- function(include.cage = T, extendTx = F){
   if (include.cage) {
     cageFiveUTRs <- leaderCage()
     assign("cageFiveUTRs", cageFiveUTRs,  envir = .GlobalEnv)
-  }
-  if (extendTx){
     tx <- ORFik:::extendLeaders(tx, cageFiveUTRs)
+    assign("tx", tx,  envir = .GlobalEnv)
   }
-  assign("tx", tx,  envir = .GlobalEnv)
-  
   return(NULL)
 }
 

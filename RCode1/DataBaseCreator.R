@@ -67,7 +67,7 @@ createUniqueIDs <- function(){
 
 #' convert to gr from string and filter NB!!! put this  in pipeline!!
 createGRObjects <- function(makeBed = T){
-  if (!file.exists(paste0(getwd(),"/uniqueUorfsAsGR.rdata"))) {
+  if (tableNotExists("uorfsAsGRWithTx")) {
     uniqueIDs <- readTable("uniqueIDs")
     grl <- toGRFromUniqueID(uniqueIDs$Matrix)
     getCDS()
@@ -91,7 +91,10 @@ createGRObjects <- function(makeBed = T){
     allLeadersSpanningLeader()
     # find tx matching
     linkORFsToTx()
+  } else {
+    message("GRObjects already exist, skipping remake of them")
   }
+  return(NULL)
 }
 
 #' Create a data.table of true Fase
@@ -100,17 +103,19 @@ createUORFAtlas <- function(){
     uorfIDsAllUnique <- readTable("uniqueIDs")
     colnames(uorfIDsAllUnique) = "uorfID"
     uorfAtlas <- as.data.table(matrix(F, nrow = nrow(uorfIDsAllUnique), ncol = length(idFiles)+1))
-    uorfAtlas[,1] <- uorfIDsAllUnique
+    uorfAtlas[,"V1" := uorfIDsAllUnique]
     colnames(uorfAtlas) = c("uorfID", as.character(1:(length(idFiles))))
     j = 1
+    print(paste("creating uorfAtlas at index of max:", length(idFiles)))
     for(i in idFiles){
       load(p(idFolder, i))
       
       uorfs <- uorfID[!duplicated(uorfID)]
       
-      uorfAtlas[,(j+1)] <- data.table::`%chin%`(uorfIDsAllUnique$uorfID, uorfs)
+      uorfAtlas[, as.character(j) :=  data.table::`%chin%`(uorfIDsAllUnique$uorfID, uorfs)]
         
       j = j+1
+      print(j)
     }
     
     save(uorfAtlas,file = "UORFAtlas.rdata")

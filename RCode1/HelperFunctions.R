@@ -195,3 +195,7 @@ loadRData = function(rdataname,toGlobalEnv = T){
 loadUorfID = function(rdataname){
   load(paste0(resultsFolder,"/uorfIDs/",rdataname), envir = .GlobalEnv)
 }
+
+updateORFik <- function(branch = "master") {
+  devtools::install_github("JokingHero/ORFik", ref = branch)
+}

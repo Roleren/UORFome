@@ -40,16 +40,17 @@ getIDsFromUorfs <- function(nuorfsList){
 }
 
 getAllFeaturesFromUorfs <- function(){
-  load(file = "/export/valenfs/projects/uORFome/matching_rna_ribo.Rsave")
+  load(file = "/export/valenfs/projects/uORFome/matching_rna_ribo.rdata")
   nrfpList <- nrow(matching_rna_ribo)
   # all rfp features
   foreach(i=1:nrfpList, .inorder = F) %dopar% {
     setwd("/export/valenfs/projects/uORFome/RCode1/")
     source("./DataBaseSetup.R")
     
-    load(file = "/export/valenfs/projects/uORFome/matching_rna_ribo.Rsave")
+    load(file = "/export/valenfs/projects/uORFome/matching_rna_ribo.rdata")
     
     RFPPath <- p(rfpFolder, grep(pattern = matching_rna_ribo$ribo[i] ,x = list.files(rfpFolder), value = T))
+    if(length(RFPPath) != 1) stop(paste("did not find unique RFP file for:", matching_rna_ribo$study[i],matching_rna_ribo$ribo[i]))
     
     getAllFeatures(grl = NULL, RFPPath, i = i)
     print(i)

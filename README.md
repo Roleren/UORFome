@@ -15,7 +15,7 @@ https://bioconductor.org/packages/release/bioc/html/ORFik.html
 1. First download UORFome to your R library:
 
 devtools::install_github("UORFome")
-Note: If you want our sqllite data-base with uORFs (25GB) you need to send an email.
+Note: If you want our sqllite data-base with uORFs in human (25GB) you need to send an email.
 
 To use the database put it relative to the RCODE1 folder as following.
 Create a folder called database in same folder as RCODE1,
@@ -106,4 +106,13 @@ Cage-data (bed files)
 RiboSeq-data (as bed files shifted to p-site)
 RNASeq-data (bam files)
 
-Then run the script
+Then you need to make a matching table for riboseq and rnaseq, which experiments match each other.
+Of syntax :
+name of file: matching_rna_ribo.rdata
+4 columns:
+study rna ribo tissue
+
+Each line shows a pairing that must exist in the RiboSeq-data and RNASeq-data folders.
+Put this file in ./UORFome
+
+Then run the script runPipeline.R, you most likely must fix things you forgot along the way.

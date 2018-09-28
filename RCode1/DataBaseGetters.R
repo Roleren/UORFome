@@ -96,8 +96,14 @@ removeIDColumns <- function(dt){
 #' @param withTranscripts should the uorfs have transcript information, 
 #' warning, this will duplicate some uorfs.
 #' @return a GRangesList or data.table, if(F, F)
-getUorfsInDb <- function(withExons = T, withTranscripts = T){
+getUorfsInDb <- function(withExons = T, withTranscripts = T, uniqueORFs = F){
   if (withExons && withTranscripts) {
+    if(uniqueORFs) {
+      if (file.exists(p(dataBaseFolder, "/uniqueUorfsAsGRWithTx.rdata"))) {
+        load(p(dataBaseFolder, "/uniqueUorfsAsGRWithTx.rdata"))
+        return(grl)
+      } else stop("unique uorfs with tx does not exists")
+    }
     if(file.exists(p(dataBaseFolder, "/uORFsAsGR.rdata"))) {
       load(p(dataBaseFolder, "/uORFsAsGR.rdata"))
       return(grl)
@@ -105,13 +111,19 @@ getUorfsInDb <- function(withExons = T, withTranscripts = T){
       grl <- readTable("uorfsAsGRWithTx", asGR = T)
       gr <- unlist(grl, use.names = F)
       names(gr) <- gsub("_[0-9]*", "", names(gr))
-    } else {
-      stop("uORFs could not be found, check that they exist")
-    }
-    return(groupGRangesBy(gr, gr$names))
+      return(groupGRangesBy(gr, gr$names))
+    } 
+    stop("uORFs could not be found, check that they exist")
+    
   } else if (!withExons) {
     return(readTable("uniqueIDs"))
   } else if (withExons && !withTranscripts) {
+    if(uniqueORFs) {
+      if (file.exists(p(dataBaseFolder, "/uniqueUorfsAsGR.rdata"))) {
+        load(p(dataBaseFolder, "/uniqueUorfsAsGR.rdata"))
+        return(grl)
+      }
+    }
     return(readTable("SplittedByExonsuniqueUORFs", asGR = T))
   } else {
     stop("not supported way of getting uorfs")

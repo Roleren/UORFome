@@ -1,3 +1,24 @@
+validateRiboRNAPairs <- function(){
+  load(file = p(mainFolder,"/matching_rna_ribo.rdata"))
+  
+  validate <- c()
+  for(SRR in matching_rna_ribo$ribo){
+    validate <- c(validate, grep(pattern = SRR ,x = list.files(rfpFolder), value = T))
+  }
+  if(nrow(matching_rna_ribo) != length(validate)) stop(paste0("did not find all paths for riboseq, only found ", length(validate)," of ", nrow(matching_rna_ribo)))
+  
+  validate <- c()
+  for(SRR in matching_rna_ribo$rna){
+    RNAPath <- grep(SRR,list.files(path = rnaFolder, all.files = TRUE, full.names = TRUE, recursive = TRUE), value=TRUE) 
+    if (length(RNAPath) != 1) stop(p("did not find unique RNA path for SRR: ", SRR))
+    validate <- c(validate, RNAPath)
+  }
+  if(nrow(matching_rna_ribo) != length(validate)) stop(paste0("did not find all paths for rnaseq, only found ", length(validate)," of ", nrow(matching_rna_ribo)))
+  
+  print("Experiments validated, found all pairs of ribo-seq and rna-seq, you can continue!")
+  return(NULL)
+}
+
 teVariance <- function(){
   if(tableNotExists("biggestTEVariance")){
     
@@ -923,4 +944,44 @@ varianceTissueUsage <- function(){
   
   library(cowplot)
   plot_grid(predAll,boOver, align='hv',nrow=1,labels=c('A','B'))
+}
+
+
+#' How good are the features
+#' 
+#' Te will be used as translation
+#' Use cds as positive set and randomized columns of 
+#' cds as negative.
+#' 
+#' Can a random forrest seperate these two sets ?
+correlateFeatures <- function(){
+  cdsTEs <- readTable("cdsTeFiltered", with.IDs = F)
+  cdsKozak <- readTable("cdsKozak", with.IDs = F)
+  cdsORFScore <- readTable("cdsORFScore", with.IDs = F)
+  cdsRfpFPKMs <- readTable("cdsRfpFPKMs", with.IDs = F)
+  
+  dt <- data.table(cdsTEs[,1], cdsKozak[,1], cdsORFScore[,1], cdsRfpFPKMs[,1])
+  
+  # add these to cds
+  # ribosomeReleaseScore
+  # insideOutsideORF
+  # ribosomeStalingScore
+  
+  dtRandom <- dt
+  for (i in 1:ncol(dt)) {
+    ran <- sample(nrow(dtRandom))
+    dtRandom[, i] <- dtRandom[ran, i, with = F]
+  }
+  
+  merged <- rbindlist(list(dt,dtRandom))
+  l <- nrow(dtRandom)
+  y <- c(rep(1,l),rep(0,l))
+  
+  max <- nrow(merged)
+  testMerged <- rbindlist(list(dt[1:max,],dtRandom[1:max,]))
+  testY <- as.factor(c(rep(1,max),rep(0,max)))
+  
+  
+  rf <- randomForest(x = merged, y = y)
+  
 }

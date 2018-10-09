@@ -1,0 +1,14 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.xlsx
+src/*.o
+src/*.so
+src/*.dll
+database/
+test_results/
+LOGS/
+BashScripts/
+PlansIdeas&Presentations/
+LOGSUORFS/

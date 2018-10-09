@@ -17,15 +17,16 @@ resultsFolder = p(mainFolder,"/test_results") #output folder
 dataFolder = p(resultsFolder,"/Old_Tests/test_data") #location of gtf, fasta and .fai
 faiName = p(dataFolder,"/Homo_sapiens.GRCh38.dna.primary_assembly.chr.fa")
 gtfName = p(dataFolder,"/Homo_sapiens.GRCh38.79.chr.NO_PATCH.gtf")
+gtfdb = p(dataFolder,"/Gtf.db")  ### a speed up for Gtf, remove if not used
 
 # now validate all that directories exist
 if(!all(dir.exists(c(codeFolder, resultsFolder, dataFolder)))){
-  stop("not all directories exists")
+  stop(p("Could not find directory: ", c(codeFolder, resultsFolder, dataFolder)[!file.exists(c(codeFolder, resultsFolder, dataFolder))]))
 }
 
 # now validate all files exist
-if(!all(file.exists(c(faiName, gtfName)))){
-  stop("not all files needed exists")
+if(!all(file.exists(c(faiName, gtfName, gtfdb)))){
+  stop(p("Could not find file: ", c(faiName, gtfName, gtfdb)[!file.exists(c(faiName, gtfName, gtfdb))]))
 }
 
 # input folders (cage, ribo and rna) Optional (set to NULL if not needed)

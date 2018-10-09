@@ -1,5 +1,6 @@
 
 
+
 #' Ribo-seq table grouped by tissue
 #' 1st table is filtered on fpkm > 1 per tissue
 #' 2nd table is row-mean fpkm per tissue
@@ -10,17 +11,16 @@ riboAtlasFPKMTissue <- function(riboDbName = "Ribofpkm",
   if(length(dbOutputNames) != 2) stop("dbOutputNames must have 2 character elements")
   
   # now do per tissue true/false
-  link <- readTable("linkRnaRfp")
-  rpfSamples <- link[link$Sample_Type == "RPF",]
+  rpfSamples <- getRiboRNAInfoTable()
   #1. we have tissues in link
   
-  uniqueTissues <- as.character(unique(rpfSamples$Tissue_or_CellLine))
+  uniqueTissues <- as.character(unique(rpfSamples$tissue))
   #2. we have all the tables in riboTables
   #3. So for each tissue, find the group, then for each group ->
   riboTable <- readTable(riboDbName)
   idColumns <- getIDColumns(riboTable)
   riboTable <- removeIDColumns(riboTable)
-   # number of id columns used
+  # number of id columns used
   riboByTissue <- as.data.table(matrix(nrow = nrow(riboTable),
                                        ncol = length(uniqueTissues)))
   colnames(riboByTissue) <- uniqueTissues
@@ -29,13 +29,12 @@ riboAtlasFPKMTissue <- function(riboDbName = "Ribofpkm",
   #5. So if at least 2 samples in that tissue have
   # .. fpkm of > 1 on that uorf, it will be true
   for(i in uniqueTissues){
-    indices <- rpfSamples[(rpfSamples$Tissue_or_CellLine == i),originalIndex]
-    riboColumns <- riboTable[,indices, with=F]
+    print(i)
+    riboColumns <- riboTable[,rpfSamples$tissue == i, with = F]
     riboByTissue[,i] <- rowSums(riboColumns > 1) > 1
-    
   }
   riboByTissue <- data.table(idColumns, riboByTissue)
-  insertTable(Matrix = riboByTissue, tableName = dbOutputNames[1])
+  insertTable(Matrix = riboByTissue, tableName = dbOutputNames[1],  rmOld = T)
   
   #now get mean value instead of true/false
   riboByTissueMean <- riboByTissueTemp
@@ -43,57 +42,59 @@ riboAtlasFPKMTissue <- function(riboDbName = "Ribofpkm",
   rm(riboByTissueTemp)
   # rowMeans(riboColumns) mean per orf in tissue
   for(i in uniqueTissues){
-    indices <- rpfSamples[(rpfSamples$Tissue_or_CellLine == i),originalIndex]
-    riboColumns <- riboTable[,indices, with=F]
+    print(i)
+    riboColumns <- riboTable[,rpfSamples$tissue == i, with = F]
     riboByTissueMean[,i] <- rowMeans(riboColumns)
   }
   riboByTissueMean <- data.table(idColumns, riboByTissueMean)
-  insertTable(Matrix = riboByTissueMean, tableName = dbOutputNames[2])
+  insertTable(Matrix = riboByTissueMean, tableName = dbOutputNames[2], rmOld = T)
 }
 
 #' RNA-seq table grouped by tissue
 #' 1st table is filtered on fpkm > 1 per tissue
 #' 2nd table is row-mean fpkm per tissue
 #' @param nIDColumns 1L transcript names
-rnaAtlasFPKMTissue <- function(nIDColumns = 1L){
+rnaAtlasFPKMTissue <- function(){
   # now do per tissue true/false
-  link <- readTable("linkRnaRfp")
-  rnaSamples <- link[link$Sample_Type == "RNA",]
+  rnaSamples <- getRiboRNAInfoTable()
   #1. we have tissues in link
   
-  uniqueTissues <- as.character(unique(rnaSamples$Tissue_or_CellLine))
+  uniqueTissues <- as.character(unique(rnaSamples$tissue))
   #2. we have all the tables in riboTables
   #3. So for each tissue, find the group, then for each group ->
   rnaTable <- readTable("RNAfpkm")
+  idColumns <- getIDColumns(rnaTable)
+  rnaTable <- removeIDColumns(rnaTable)
+  
   rnaByTissue <- as.data.table(matrix(nrow = nrow(rnaTable),
-                                      ncol = (length(uniqueTissues)+nIDColumns)))
-  rnaByTissue[,1:nIDColumns] <- rnaTable[,1:nIDColumns]
-  colnames(rnaByTissue)[1:nIDColumns] <- colnames(rnaTable)[1:nIDColumns]
-  colnames(rnaByTissue)[(nIDColumns+1):ncol(rnaByTissue)] <- uniqueTissues
+                                      ncol = length(uniqueTissues)))
+  colnames(rnaByTissue) <- uniqueTissues
+  rnaByTissueTemp <- rnaByTissue
   
   #4. rowSum(riboColumns > 1) > 1
   #5. So if at least 2 samples in that tissue have
   # .. fpkm of > 1 on that uorf, it will be true
   for(i in uniqueTissues){
-    indices <- rnaSamples[(rnaSamples$Tissue_or_CellLine == i),originalIndex]
-    indices <- indices + nIDColumns
-    rnaColumns <- rnaTable[,indices, with=F]
+    print(i)
+    rnaColumns <- rnaTable[,rnaSamples$tissue == i, with = F]
     rnaByTissue[,i] <- rowSums(rnaColumns > 1) > 1
-    
   }
+  rnaByTissue <- data.table(idColumns, rnaByTissue)
   insertTable(Matrix = rnaByTissue, tableName = "RNAByTissueTF", rmOld = T)
   
   #now get mean value instead of true/false
-  rnaByTissueMean <- rnaByTissue
+  rnaByTissueMean <- rnaByTissueTemp
   rm(rnaByTissue)
+  rm(rnaByTissueTemp)
   # rowMeans(riboColumns) mean per orf in tissue
   for(i in uniqueTissues){
-    indices <- rnaSamples[(rnaSamples$Tissue_or_CellLine == i),originalIndex]
-    indices <- indices + nIDColumns
-    rnaColumns <- rnaTable[,indices, with=F]
+    print(i)
+    rnaColumns <- rnaTable[,rnaSamples$tissue == i, with = F]
     rnaByTissueMean[,i] <- rowMeans(rnaColumns)
   }
+  rnaByTissueMean <- data.table(idColumns, rnaByTissueMean)
   insertTable(Matrix = rnaByTissueMean, tableName = "RNAByTissueMean", rmOld = T)
+  return(NULL)
 }
 
 #' In tf and
@@ -102,20 +103,23 @@ teAtlasTissue <- function(TFDbName = c("RiboByTissueTF", "RNAByTissueTF"),
                           dbOutputNames = c("TEByTissueTF", "TEByTissueMeanWithInf", "TEByTissueMeanWithoutInf")){
   
   riboTF <- readTable(TFDbName[1])
-  rnaTF <- readTable(TFDbName[1]) # check that amount match
-  if(nrow(rnaTF) != nrow(ribTF)) stop("not equal nrow in ribo and rna TF")
+  rnaTF <- readTable(TFDbName[2]) # check that amount match
+  rnaTF <- matchByTranscript(rnaTF, riboTF)
+  if(nrow(rnaTF) != nrow(riboTF)) stop("not equal nrow in ribo and rna TF")
+
+  teTF <- copy(riboTF)
   
-  teTF <- riboTF
-  nIDColumns <- 2L # number of id columns used
-  uniqueTissues <- colnames(teTF)[(nIDColumns+1):ncol(teTF)]
+  uniqueTissues <- colnames(teTF)
+  uniqueTissues <- uniqueTissues[-1] # 1 col only, FIX IF NEEDED!!!
   
   #5. So if at least 2 samples in that tissue have
   # .. fpkm of > 1 on that uorf,
   # #for both ribo and rna-seq, it will be true
   for(i in uniqueTissues){
-    
+    print(i)
     teTF[, i] <- rnaTF[, i, with = F] & riboTF[, i, with = F]
   }
+  
   insertTable(Matrix = teTF, tableName = dbOutputNames[1], rmOld = T)
   
   teMean <- teTF
@@ -123,37 +127,36 @@ teAtlasTissue <- function(TFDbName = c("RiboByTissueTF", "RNAByTissueTF"),
   rm(rnaTF)
   rm(riboTF)
   
-  
   riboMean <- readTable(MeanDbName[1])
   rnaMean <- readTable(MeanDbName[2])
+  rnaMean <- matchByTranscript(rnaMean, riboMean)
+  if(nrow(rnaMean) != nrow(riboMean)) stop("not equal nrow in ribo and rna Mean")
   
   # with non-finite values
   for(i in uniqueTissues){
-    
-    teMean[, i] <- rnaMean[, i, with = F]/riboMean[, i, with = F]
+    teMean[, i] <- rnaMean[, i, with = F] / riboMean[, i, with = F]
   }
   
   insertTable(Matrix = teMean, tableName = dbOutputNames[2])
   
   # now do without non-finite
   DTtemp <- teMean
-  DT <- DTtemp[, (nIDColumns+1):ncol(DTtemp)]
+  DT <- DTtemp[, (2):ncol(DTtemp)] # dangerous id remover here! change if needed!
   DT <- removeNonFinite(DT)
-  DTtemp[, (nIDColumns+1):ncol(DTtemp)] <- DT
+  DTtemp[, (2):ncol(DTtemp)] <- DT
   insertTable(Matrix = DTtemp, tableName = dbOutputNames[3])
+  return(NULL)
 }
 
 teAtlasTissueNew <- function(inputDT, colExclusion = "fpkmRFP_", dbOutputNames = 
-                                c("TEByTissueMean")){
-  info <- readTable("RiboSeqInfo")
+                               c("TEByTissueMean")){
+  info <- getRiboRNAInfoTable()
   
   pattern <- colExclusion
   inputDTNon <- removeIDColumns(inputDT)
   indices <- as.integer(gsub(pattern = pattern, replacement = "", x = colnames(inputDTNon)))
   if(length(indices) == 0) stop("could not find te indices from colExclusion")
-  tissues <- info$Tissue.Cell_line[indices] 
-  
-  # cdsTEsNon <- readTable("cdsTeFiltered", with.IDs = F)
+  tissues <- info$tissue[indices] 
   
   uniques <- unique(tissues)
   

@@ -1,174 +1,3 @@
-findClassificationBoundary <- function(tissues){
-  x <- seq(0, 1, 0.1)[2:11]
-  # for riboseq prediction
-  for(tissue in tissues) {
-    load(paste0("forests/prediction_",tissue, ".rdata"))
-    hits <- unlist(lapply(x, function(y) sum(as.logical(uorfPrediction > y))),
-                   use.names = F)
-    plot(x, hits, main = tissue)
-  }
-  # we pick 0.5 from here
-  # for sequence prediction
-  for(tissue in tissues) {
-    load(paste0("forests/finalPrediction_",tissue, ".rdata"))
-    hits <- unlist(lapply(x, function(y) sum(as.logical(uorfPrediction > y))),
-                   use.names = F)
-    plot(x, hits, main = tissue,
-         xlab = "prediction cutoff", ylab = "# of predicted uORFs")
-  }
-  # we pick 0.69 from here
-  
-  # validate boundaries
-  for(j in seq(0, 1, 0.1)[2:10]) {
-    print(paste("pred:", j))
-    for(i in 15:30) {
-      d <- getBestIsoformStartCodonCoverage()[readHits >= i & pred$predict >= j,]
-      d <- d[, .SD[which.max(readHits)], by = group]
-      print(i)
-      print(round((table(df$startCodon[d$index])[6]/table(df$startCodon[d$index])[1]), 2))
-    }
-  }
-  # validate read count
-  pred <- prediction[uniqueOrder, ]
-  start <- 10
-  stop <- 30
-  len <- vector("numeric",length = (stop-start + 1))
-  for(i in start:stop) {
-    d <- getBestIsoformStartCodonCoverage()[readHits >= i & pred$predict >= 0.7,]
-    d <- d[, .SD[which.max(readHits)], by = group]
-    print(i)
-    len[(i-start+1)] <- length(d$index)
-  }
-  plot(start:stop, len, main = paste("read count # change in", tissue),
-       xlab = "# of reads as cutoff", ylab = "# of predicted uORF groups")
-}
-
-
-getBestIsoformStartCodonCoverage <- function(grl = NULL) {
-  if(file.exists(paste0("forests/bestStartCodons.rdata"))) {
-    load(paste0("forests/bestStartCodons.rdata"))
-    return(d)
-  }
-  # reduce isoform overlaps by highest start codon reads per group
-  g <- uniqueGroups(grl)
-  
-  sg <- stopCodons(g, is.sorted = T)
-  usg <- uniqueGroups(sg)
-  uo <- uniqueOrder(sg) # <- grouping 
-  
-  # get start for each in group
-  # count overlaps
-  # return orf with highest per group
-  # which start codon does it have ?
-  usg <- startCodons(g)
-  RFP <- fread.bed(p(rfpFolder,list.files(rfpFolder)[97]))
-  RFP2 <- fread.bed(p(rfpFolder,list.files(rfpFolder)[7]))
-  RFP3 <- fread.bed(p(rfpFolder,list.files(rfpFolder)[14]))
-  counts <- countOverlaps(usg, RFP) + countOverlaps(usg, RFP2) + countOverlaps(usg, RFP3)
-  names(counts) <- NULL
-  
-  d <- data.table(readHits = counts, group = uo, index = seq.int(length(uo)))
-  save(d, file = paste0("forests/bestStartCodons.rdata"))
-  return(d)
-}
-
-makeCombinedPrediction <- function(tissues, cutOff = 0.7) {
-  
-  if (tableNotExists("uorfPredictions")) {
-    for(tissue in tissues) {
-      load(paste0("forests/finalPrediction_",tissue, ".rdata"))
-      
-      if(tissue == tissues[1]) {
-        uorfPred <- as.logical(uorfPrediction > cutOff)
-      } else {
-        uorfPred <- cbind(uorfPred, as.logical(uorfPrediction > cutOff))
-      }               
-    }
-    uorfPred <- as.data.table(uorfPred)
-    colnames(uorfPred) <- tissues
-    insertTable(uniqueUorfPred, "uorfPredictions")
-  } else {
-    readTable("uorfPredictions")
-  }
-  
-  # tests
-  tab <- table(uorfPred$Ovary, uorfPred$brain)
-  chi <- chisq.test(tab)
-  chi$residuals
-  # plan:
-  # do pairwise tests, see that things are ok.
-  # venn diagram:
-  
-  library(VennDiagram)
-  grid.newpage()
-  boOver <- draw.pairwise.venn(sum(uorfPred$Ovary), sum(uorfPred$brain),
-                     tab[2,2], category = c("Ovary", "Brain"),
-                     lty = rep("blank", 2), fill = c("light blue", "yellow"),
-                     alpha = rep(0.5, 2), cat.pos = c(0, 0),
-                     cat.dist = rep(0.025, 2), title = "abc")
-  # report feature difference on 0-1
-  
-  # with cage
-  uniqueOrder <- readTable("uniqueOrder")$Matrix
-  uniqueUorfPred <- uorfPred[uniqueOrder, ]
-  #1. 
-  cageTissues <- readTable("tissueAtlasByCage", with.IDs = F)
-  brainRes <- cageTissues$brain & uniqueUorfPred$brain
-  
-  tab <- table(cageTissues$brain, uniqueUorfPred$brain)
-  chi <- chisq.test(tab)
-  chi$residuals
-  
-  grid.newpage()
-  draw.pairwise.venn(sum(cageTissues$brain), sum(uniqueUorfPred$brain),
-                     tab[2,2], category = c("Brain", "Brain"),
-                     lty = rep("blank", 2), fill = c("light blue", "yellow"),
-                     alpha = rep(0.5, 2), cat.pos = c(0, 0),
-                     cat.dist = rep(0.025, 2), title = "abc")
-  
-  # filtering by cage
-  tab <- table(uniqueUorfPred$Ovary & cageTissues$ovary,
-               uniqueUorfPred$brain & cageTissues$brain)
-  chi <- chisq.test(tab)
-  chi$residuals
-  grid.newpage()
-  draw.pairwise.venn(sum(uniqueUorfPred$Ovary & cageTissues$ovary),
-                     sum(uniqueUorfPred$brain & cageTissues$brain),
-                     tab[2,2], category = c("Ovary", "Brain"),
-                     lty = rep("blank", 2), fill = c("light blue", "purple"),
-                     alpha = rep(0.5, 2), cat.pos = c(0, 0),
-                     cat.dist = rep(0.025, 2), title = "Overlap of predicted uORFs and uORFs defined by CAGE.")
-  
-  
-  
-  uniqueUorfPred$all <- rowSums(uniqueUorfPred) == 5
-  uniqueUorfPred$some <- rowSums(uniqueUorfPred) >= 2
-  
-  some <- rowSums(uniqueUorfPred) >= 2
-  
-  cageTissuesPrediction <- copy(cageTissues)
-  for(i in colnames(cageTissuesPrediction)) {
-    cageTissuesPrediction[, paste(i) := (cageTissues[,i, with=F] & some)]
-  }
-  
-  
-  insertTable(cageTissuesPrediction, "tissueAtlasByCageAndPred", rmOld = T)
-  
-  sums <- colSums(cageTissuesPrediction)
-  cageTissuesPrediction[, names(which(sums == 0)) := NULL]
-  sums <- colSums(cageTissuesPrediction)
-  
-  finalCagePred <- rowSums(cageTissuesPrediction) > 1
-  insertTable(finalCagePred, "allUorfsByCageAndPred")
-  
-  grid.newpage()
-  draw.triple.venn(area1 = 22, area2 = 20, area3 = 13, n12 = 11, n23 = 4, n13 = 5, 
-                   n123 = 1, category = c("Ovary", "Brain"),
-                   lty = rep("blank", 2), fill = c("light blue", "purple"),
-                   alpha = rep(0.5, 2), cat.pos = c(0, 0),
-                   cat.dist = rep(0.025, 2), title = "Overlap of predicted uORFs and uORFs defined by CAGE.")
-}
-
 #' random forrest classification:
 #' pos set is cds
 #' Neg seg is 3'utrs
@@ -203,11 +32,47 @@ predictUorfs <- function() {
     
     makeCombinedPrediction(tissues)
   }
-  
   # make some plots here on ribo seq prediction
   # Plot predictied sequences features from the ribo prediction mapped to uORFs
   # check some examples
 }
+
+
+trainClassifier <- function(tissue = NULL) {
+  
+  if(file.exists(paste0("forests/randomForrest_",tissue))) {
+    forest <- h2o.loadModel(path = paste0("forests/randomForrest_",tissue,"/",
+                                          list.files(paste0("forests/randomForrest_",tissue)[1])))
+    return(forest)
+  }
+  predicate <- makePredicateTable(tissue)
+  
+  # fix style of matrix
+  y <- predicate[,1]
+  predictors <- predicate[,-1]
+  isNA <- is.na(predictors[,6])[,1]
+  predictors <- as.matrix(predictors)
+  isINF <- is.infinite(predictors[,2 ])
+  predictors[isNA, 6 ] <- 0
+  predictors[isINF, 2] <- 0
+  predictors <- as.data.table(predictors)
+  predictors$y <- y
+  # define training control
+  indices <- sample(1:nrow(predictors), 0.6*nrow(predictors), replace = F)
+  validationIndices <- seq.int(nrow(predictors))[-indices]
+  trainingTable <- as.h2o(predictors[indices, ])
+  validationTable <- as.h2o(predictors[validationIndices, ])
+  
+  # train the model
+  forest <- h2o.randomForest(y = "y", training_frame = trainingTable,
+                             validation_frame = validationTable,
+                             nfolds = 10)
+  if(!is.null(tissue)) {
+    h2o.saveModel(forest, path = paste0("forests/randomForrest_",tissue))
+  }
+  return(forest)
+}
+
 
 sequenceClassifier <- function(prediction, tissue){
   print("predicting sequence classifier")

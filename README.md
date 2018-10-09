@@ -29,7 +29,7 @@ Path relative to RCODE1 is then:
 setwd("/export/valenfs/projects/uORFome/RCode1/") # your own location of the DataBaseCreator.R script
 source("./DataBaseSetup.R") # here you will get error if you do not have all packages needed, then install them
 
-# to see available tables in the data-base:
+# How see available tables in the data-base:
 
 listTables()
 
@@ -98,7 +98,7 @@ pred <- readTable("uorfPredictions")
 
 predictedUORFs <- grl[pred]
 
-3. Making a new database:
+# Making a new database:
 
 To make a new data-base, copy the RCode1 folder to your prefered location.
 In the script HelperVariables.R you need to set all the General paths, to these data:
@@ -116,3 +116,9 @@ Each line shows a pairing that must exist in the RiboSeq-data and RNASeq-data fo
 Put this file in ./UORFome
 
 Then run the script runPipeline.R, you most likely must fix things you forgot along the way.
+
+# Predicting ORFs
+
+Now you have the database, to run the prediction pipeline do:
+
+

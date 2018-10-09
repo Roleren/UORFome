@@ -27,44 +27,6 @@ createUniqueIDs <- function(){
   }
 }
 
-#' #' Create 1 column of all unique ids from uorfID folder
-#' createUniqueIDsFast <- function(){
-#'   if (length(idFiles) == 0) {
-#'     stop("idFiles can not have 0 length")
-#'   }
-#'   if (tableNotExists("uniqueIDs")) {
-#'     
-#'     j = 1
-#'     
-#'     for(i in idFiles[1:50]){
-#'       load(p(idFolder, i))
-#'       uorfID <- unique(uorfID)
-#'       if (j == 1) {
-#'         allUniqueIDs <- uorfID
-#'       }else{
-#'         
-#'         matching <- data.table::`%chin%`(uorfID,allUniqueIDs)
-#'         toAdd <- uorfID[which(matching == F)]
-#'         allUniqueIDs <- c(allUniqueIDs,toAdd)
-#'       }
-#'       j <- j+1
-#'     }
-#'     #data.table::`%chin%`(a,allUniqueIDs[1:100])
-#'     c <- foreach(i=seq_along(idFiles), .combine=function(x,y){unique(c(unique(x), unique(y)))}) %dopar% {
-#'       setwd("/export/valenfs/projects/uORFome/RCode1/")
-#'       source("./uorfomeGeneratorHelperFunctions.R")
-#'       load(p(idFolder, idFiles[i]))
-#'       return(uorfID)
-#'     }
-#'     
-#'     allUniqueIDs <- sort(allUniqueIDs)
-#'     #save(allUniqueIDs,file = "allUniqueIDs.rdata")
-#'     insertTable(Matrix = allUniqueIDs,tableName = "uniqueIDs")
-#'   } else {
-#'     message("uniqueIDs already exist, skipping remake of them")
-#'   }
-#' }
-
 #' convert to gr from string and filter NB!!! put this  in pipeline!!
 createGRObjects <- function(makeBed = T){
   if (tableNotExists("uorfsAsGRWithTx")) {
@@ -125,19 +87,20 @@ createUORFAtlas <- function(){
 }
 
 #' Create tissueTable for cage, 1 row per unique uorf 
+#' Tissue must have at least 2 CAGE libraries supporting the uORF 
+#' to declare a hit in that tissue. If only one sample, that sample
+#' must include uORF to be a hit. 
 getTissueTable <- function(){
   if (!tableNotExists("tissueAtlasByCage")) {
     cageTable <- getCageInfoTable()
-    uniqueTissues <- unique(cageTable$Characteristics.Tissue.)  
-    
-    cageWeHave <- getAllUsableCage(cageTable)
+    uniqueTissues <- unique(cageTable$tissue)  
     
     # load needed tables, and make tissue atlas of cage
     load("UORFAtlas.rdata")
     uorfIDs <- readTable("uniqueIDs")
     colnames(uorfIDs) = "uorfID"
-    uorfAtlasRows0 <- which(rowSums(uorfAtlas[,2:ncol(uorfAtlas)]) == 0)
-    if(length(uorfAtlasRows0) > 0) 
+  
+    if(any(rowSums(uorfAtlas[,2:ncol(uorfAtlas)]) == 0)) 
       stop("uorfAtlas and unique uorf IDs does not match!")
     
     finalMatrix <- as.data.table(matrix(nrow =
@@ -147,13 +110,21 @@ getTissueTable <- function(){
     colnames(finalMatrix)[1] <- "uorfID"
     uniqueTissues <- as.character(uniqueTissues)
     colnames(finalMatrix)[2:ncol(finalMatrix)] <- uniqueTissues
+    onlyOneCAGE <- c()
+    for(i in 2:(length(uniqueTissues)+1)){
+      cageFilestoCheck <- cageTable[tissue == uniqueTissues[i-1]]$cage_index
+      if(length(cageFilestoCheck) == 1) onlyOneCAGE <- c(onlyOneCAGE, i)
+    }
     
     for(i in 2:(length(uniqueTissues)+1)){
-      cageFilestoCheck <- cageWeHave[Characteristics.Tissue. == uniqueTissues[i-1]]$cage_index
+      cageFilestoCheck <- cageTable[tissue == uniqueTissues[i-1]]$cage_index
       cageFilestoCheck <- cageFilestoCheck + 1
       makeGroupingForColumn <- rowSums(uorfAtlas[,cageFilestoCheck, with = F])
-  
-      finalMatrix[, uniqueTissues[i-1] := makeGroupingForColumn > 1]
+      if (i %in% onlyOneCAGE) {
+        finalMatrix[, uniqueTissues[i-1] := makeGroupingForColumn > 0]
+      } else {
+        finalMatrix[, uniqueTissues[i-1] := makeGroupingForColumn > 1]
+      }
     }
     tissueAtlas <- finalMatrix
     
@@ -163,10 +134,3 @@ getTissueTable <- function(){
   }
   return("tissueAtlasCage already exists, stop if you want new")
 }
-
-
-
-# fix the presentation
-# Take all uorfs, and cluster the tissue based on uorfs
-# can you recover the cell type based on uorf usage
-# hclust

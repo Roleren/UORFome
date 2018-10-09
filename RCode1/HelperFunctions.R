@@ -1,14 +1,7 @@
 
-
-
 #as number coverter function
 an = function(fac){
   return(as.numeric(as.character(fac)))
-}
-
-#check that bamFile is paired or not, False = not paired
-testBAM = function(name){
-  testPairedEndBam(file = name,index = name)
 }
 
 #' remove non finite in data.table
@@ -22,72 +15,8 @@ removeNonFinite <- function(DT, replacement = 0){
   return(DT)
 }
 
-
-#Check if file format exists.
-#if boolreturn == F, find the file name
-#if boolreturn == T, return T.
-#bamType, RNA or RFP/RPF
-findFF = function(formatName, boolreturn = F, bamType = NULL){
-  
-  regEx = paste("\\.",formatName,"$",sep = "")
-  ffList = list.files(pattern = regEx, ignore.case=TRUE)
-  if(length(ffList) == 1){
-    if(boolreturn)return(T)
-    return(ffList)
-    
-  }else if((formatName == "bam") & (length(ffList) == 2) & (!is.null(bamType))){
-    #find all sequences with bamtype in string  
-    ffList1 = ffList[lapply(ffList,function(x) length(grep(bamType,x,value=F))) == 1]
-    
-    if(bamType == "RFP" & length(ffList1) == 0){
-      ffList1 = ffList[lapply(ffList,function(x) length(grep("RPF",x,value=F))) == 1]
-      if(length(ffList1) == 0){
-        print("Error: rename the RFP.bam file to RFP.bam")
-        stop()
-      }
-    }
-    cat("using as ",bamType, "the file: ", unlist(ffList),"\n")
-    if(length(ffList) > 0)
-      return (ffList[1])
-    else
-      return(ffList1[1])
-    
-  } else{
-    if(boolreturn)return(F)
-    
-    stop(cat("No ", formatName,"file in this folder or duplicates"))
-  }
-}
-
 getRelativePathName = function(name){
   return (gsub(".*/", "", name))
-}
-
-rfe = function(name){#Only works on .bam right now!!!!
-  return (gsub("*\\.bam", "", name))
-}
-
-loadBamFile <- function(fileLocation, typeOfBam, notPaired = T, destination = NULL){
-  sortedBam <- paste0(bamFolder, getRelativePathName(fileLocation))
-  if (!file.exists(p(sortedBam,".bai"))){
-    if (is.null(destination)){
-      sortBam(fileLocation,rfe(sortedBam)) #rfe - remove file extension
-      indexBam(sortedBam)
-    } else{
-      sortBam(fileLocation,rfe(sortedBam)) #rfe - remove file extension
-      indexBam(sortedBam)
-    }
-    cat("Created new ",typeOfBam,"-seq file, name:\n",sortedBam)
-  }
-  if (notPaired){
-    if (testBAM(sortedBam)){ ##Check if this is realy necesary
-      rseq <- readGAlignmentPairs(sortedBam)
-    } else 
-      rseq <- readGAlignments(sortedBam)
-  } else{
-    rseq <- readGAlignments(sortedBam)
-  } 
-  return(rseq)
 }
 
 #' fast import
@@ -146,6 +75,25 @@ orfikDirs <- function(mainPath, makeDatabase = F){
   print("directories created successfully")
 }
 
+#Check if uorfRanges exist already, or if must be created.
+###########Should make this more failsafe!!!!!!!!!! add possibility to give ranges!!!!!!!!
+UorfRangesNotExists <- function(assignUorf = F, givenCage = NULL){
+  if(exists("rangesOfuORFs") == F){
+    if(!assignUorf){ #if not loading or assigning to global, we need cage name
+      thisCage <- givenCage
+      assign("thisCage",thisCage,envir = .GlobalEnv)
+    }
+    if(file.exists(getUORFRDataName(givenCage))){#!!!Will not work for single run now!!!
+      if(assignUorf){
+        cat("loading rangesOfuorf from folder\n",uorfFolder,"\n")
+        load(getUORFRDataName(givenCage),envir = .GlobalEnv)
+      }
+      return(F)
+    }else{return(T)}
+  }
+  return(F)
+}
+
 #' set up cluster for pipeline
 #' 
 #' Cluster object saved as cl
@@ -185,7 +133,7 @@ saveRData <- function(){
   }
 }
 
-loadRData = function(rdataname,toGlobalEnv = T){
+loadRData = function(rdataname, toGlobalEnv = T){
   if(toGlobalEnv)
     load(p(RdataFolder,rdataname),envir = .GlobalEnv)
   else

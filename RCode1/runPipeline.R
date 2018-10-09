@@ -20,45 +20,35 @@ setwd("/export/valenfs/projects/uORFome/RCode1/") #!! set this path
 
 
 # set up multithreading options
-pipelineCluster(75) #!! set number of cores, I use 75 usually on furu.
+pipelineCluster(69) #!! set number of cores, I use 69 usually on furu.
 
 
 ##### Second Find new cage leaders
 
-
-cageList =  grep(pattern = ".bed", list.files(cageFolder), value = TRUE)# make sure this folder is correct
-nCageList = length(cageList)
-
-getLeadersFromCage(nCageList)
+getLeadersFromCage(length(cageFiles))
 
 ##### Third Find uORFs
 
 leadersList = list.files(regionUORFs)
 nLeadersList = length(leadersList)
-#clusterCall(cl, function(x) .libPaths(x), .libPaths())
 
 getUorfsFromLeaders(nLeadersList)
 
 #### Fourth make uorf IDs
 
-uorfsList = list.files(uorfFolder)
-nuorfsList = length(uorfsList)
-getIDsFromUorfs(nuorfsList)
+getIDsFromUorfs(length(uorfFiles))
 
 ### Fifth Create feature database
 #5. 
 source("./DataBaseSetup.R")
 createCatalogueDB()
 
-# stop cluster
+# stop cluster, not needed in prediction, it uses h2o package
 stopCluster(cl)
 rm(cl)
 
 
-# foreach(i=1:20) %dopar% {
-#   setwd("/export/valenfs/projects/uORFome/RCode1/")
-#   source("./uorfomeGeneratorHelperFunctions.R")
-#   leadersList = list.files(leadersFolder)
-#   load(p(leadersFolder,leadersList[i]))
-#   print(mean(ORFik:::widthPerGroup(fiveUTRs)))
-# }
+# Sixth Predict uORFs
+#6.
+predictUorfs()
+

@@ -14,7 +14,6 @@ source("./PipelineParts.R")
 source("./HelperFunctions.R")
 source("./HelperVariables.R")
 source("./GRangesHelpers.R")
-source("./DataBaseMatchExperiments.R")
 source("./DataBaseAtlasFunctions.R")
 source("./DataBaseCreator.R")
 source("./Classifier.R")
@@ -27,17 +26,19 @@ source("./ClassifierHelpers.R")
 #4. check for something interesting, what could it be ?
 #5. I have one idea, test te uorf healthy vs sick for each matrix
 
-
-matrixFiles = list.files(matrixFolder)
 uorfFiles = list.files(uorfFolder)
 idFiles = list.files(idFolder)
 cageFiles = list.files(cageFolder)
+cageFiles <- cageFiles[grep(cageFiles, pattern = "bed")]
 
 
 dataBaseFolder <- "/export/valenfs/projects/uORFome/dataBase"
+if(!dir.exists(dataBaseFolder)){
+  stop("ribo-seq folder not found")
+}
+
 setwd(dataBaseFolder)
 databaseName = "uorfCatalogue"
 databaseName = p(databaseName,".sqlite")
-name = databaseName
 
 uorfDB <- createDataBase(databaseName)

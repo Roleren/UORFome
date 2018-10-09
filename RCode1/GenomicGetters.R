@@ -1,56 +1,4 @@
 
-#' Get riboseq file and read it
-getRFP = function(rfpSeq){
-  library(tools)
-  if(!is.null(rfpSeq) && exists("RFP") == F){
-    if (file_ext(rfpSeq) == "bam") {
-      RFP <- loadBamFile(rfpSeq,"rfp")
-      assign("RFP",RFP,envir = .GlobalEnv)
-    }
-    if (file_ext(rfpSeq) == "bed") {
-      RFP <- ORFik:::cageFromFile(rfpSeq)
-      assign("RFP",RFP,envir = .GlobalEnv)
-    }
-  }
-}
-
-#' Get rna seq file and read it
-getRNAseq = function(rnaSeq){
-  
-  if(!is.null(rnaSeq) && exists("rna") == F){ #remember to fix this when bed files arrive!!!!
-    rna = loadBamFile(rnaSeq,"rna")
-    assign("rna",rna,envir = .GlobalEnv)
-  }
-}
-
-#' Get the fasta indexed file
-#' 
-#' if assignIt is TRUE, the object is not return to local scope
-#' Only assigned to globalenvir
-getFasta = function(filePath = NULL, assignIt = T){
-
-  if(exists("fa") == F){ #index files
-    if (is.null(filePath)){
-      fa = FaFile(faiName)
-    } else {
-      fa = FaFile(filePath)
-    }
-    if (assignIt){
-      assign("fa",fa,envir = .GlobalEnv)
-    } else {
-      return(fa)
-    }
-  }
-}
-
-#' get sequences from a GRangeslist
-getSequencesFromFasta = function(grl, isSorted = F){
-  getFasta() #get .fai
-  if(!isSorted) grl <- ORFik:::sortPerGroup(grl)
-  seqs = extractTranscriptSeqs(fa, transcripts = grl)
-  assign("seqs",seqs,envir = .GlobalEnv)
-}
-
 #' Get the Genomic transcript format, currently using GRch38 data
 getGTF = function(assignIt = T){
   if(exists("Gtf") == F){
@@ -68,6 +16,7 @@ getGTF = function(assignIt = T){
       assign("Gtf",Gtf,envir = .GlobalEnv)
   } else if(!dbIsValid(Gtf$conn)) {
     Gtf = loadDb(gtfdb)
+    assign("Gtf",Gtf,envir = .GlobalEnv)
   }
 }
 
@@ -115,91 +64,46 @@ getThreeUTRs = function(){
 #' Get the 5' leaders, either from gtf, cage data to reassign
 #' the transcription start site(TSS), or load from existing data
 #' either as .rdata or .bed (bed6)
-getLeaders = function(leaderBed = NULL, usingNewCage = F, cageName = NULL,
-                      leader = NULL, assignLeader = T, exportAsBed = F, exportUorfRegions = T){
-  
-  if(!is.null(cageName)){#check if leader is already made, either as rdata or bed
-    if(file.exists(paste0(leadersFolder,getRelativePathName(cageName),".leader.rdata"))){
-      leader = paste0(leadersFolder,getRelativePathName(cageName),".leader.rdata")
-    }else if(file.exists(paste0(leadersbedFolder,getRelativePathName(cageName),".leader.bed"))){
-      leaderBed = paste0(leadersbedFolder,getRelativePathName(cageName),".leader.bed")
-    }
-  }
-  
-  if(!is.null(leader)){ #load as rdata
-    print("loading leader from pre-existing rdata")
-    load(leader)
-    if(!assignLeader)
-      return(fiveUTRs)
-  }
-  else if(!is.null(leaderBed)){
-    cat("retrieving 5utrs from bed file: ", leaderBed,"\n")
-    fu = import.bed(leaderBed)
-    vec = vector(mode="list",length = length(unique(fu$name)))
-    names(vec) <- unique(fu$name)
-    #combine by name, to make transcripts by exons
-    for(i in unique(fu$name)){ 
-      vec[[i]] <- fu[fu$name == i]
-    }
-    fiveUTRs = GRangesList(vec)
+getLeaders = function(cageName = NULL, assignLeader = T, exportUorfRegions = T){
+  if(exists("fiveUTRs") == F){
+    cat("creating leader from scratch\n")
     
-    exportNamerdata = paste0(leadersFolder,getRelativePathName(
-      p(cageName,".leader.rdata")))
-    save(fiveUTRs,file = exportNamerdata)
-  }
-  else{ #create from scratch
-    
-    if(exists("fiveUTRs") == F){
-      cat("creating leader from scratch\n")
+    if (file.exists(p(dataFolder,"/leader.rdata"))) {
+      load(p(dataFolder,"/leader.rdata"))
+    } else {
       getGTF()
-      
-      if (file.exists(p(dataFolder,"/leader.rdata"))) {
-        load(p(dataFolder,"/leader.rdata"))
-      } else {
-        cat("loading Leader from gtf\n")
-        fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
-        save(fiveUTRs, file = p(dataFolder,"/leader.rdata"))
-      }
-      
-      if (usingNewCage) {
-        print("Using cage.. ")
-        if (is.null(cageName)) {
-          print("error no cageName, continueing without cage")
-          assign("fiveUTRs",fiveUTRs,envir = .GlobalEnv)
-          return
-        }
-        
-        fiveUTRs = ORFik::reassignTSSbyCage(fiveUTRs,cageName)
-        if (exportUorfRegions) {
-          getCDS()
-          uORFSeachRegion <- ORFik:::addCdsOnLeaderEnds(fiveUTRs, cds, onlyFirstExon = F)
-          uORFSeachRegion <- sortPerGroup(uORFSeachRegion)
-          print("exporting new uorf regions")
-          exportNamerdata = paste0(regionUORFs,
-                                   getRelativePathName(p(cageName,
-                                                         ".regionUORF.rdata")))
-          save(uORFSeachRegion, file = exportNamerdata)
-        }
-        
-        print("exporting new leaders")
-        exportNamerdata = paste0(leadersFolder,
-                                 getRelativePathName(p(cageName,
-                                                       ".leader.rdata")))
-        save(fiveUTRs,file = exportNamerdata)
-        if (exportAsBed) {
-          #TODO add possibility to not save utrs, now it always saves
-          exportNamebed = paste0(leadersbedFolder,
-                                 getRelativePathName(p(cageName,
-                                                       ".leader.bed")))
-          export.bed(unlist(fiveUTRs),exportNamebed)
-        }
-        print("finished new 5' UTRs")
-      }
+      cat("loading Leader from gtf\n")
+      fiveUTRs = fiveUTRsByTranscript(Gtf,use.names = T)
+      save(fiveUTRs, file = p(dataFolder,"/leader.rdata"))
     }
-    else{
-      print("fiveUTRs already exists! cancel if this is wrong!")
+    
+    if (!is.null(cageName)) {
+      print("Using cage.. ")
+      
+      fiveUTRs = ORFik::reassignTSSbyCage(fiveUTRs,cageName)
+      if (exportUorfRegions) {
+        getCDS()
+        uORFSeachRegion <- ORFik:::addCdsOnLeaderEnds(fiveUTRs, cds, onlyFirstExon = F)
+        uORFSeachRegion <- sortPerGroup(uORFSeachRegion)
+        print("exporting new uorf regions")
+        exportNamerdata = paste0(regionUORFs,
+                                 getRelativePathName(p(cageName,
+                                                       ".regionUORF.rdata")))
+        save(uORFSeachRegion, file = exportNamerdata)
+      }
+      
+      print("exporting new leaders")
+      exportNamerdata = paste0(leadersFolder,
+                               getRelativePathName(p(cageName,
+                                                     ".leader.rdata")))
+      save(fiveUTRs,file = exportNamerdata)
+      print("finished new 5' UTRs")
     }
   }
+  else{
+    print("fiveUTRs already exists! cancel if this is wrong!")
+  }
+  
   if(assignLeader)
     assign("fiveUTRs",fiveUTRs, envir = .GlobalEnv)
   
@@ -229,6 +133,35 @@ leaderCage <- function(width.cds = TRUE){
   return(CageFiveUTRs)
 }
 
+
+#' Get the fasta indexed file
+#' 
+#' if assignIt is TRUE, the object is not return to local scope
+#' Only assigned to globalenvir
+getFasta = function(filePath = NULL, assignIt = T){
+  
+  if(exists("fa") == F){ #index files
+    if (is.null(filePath)){
+      fa = FaFile(faiName)
+    } else {
+      fa = FaFile(filePath)
+    }
+    if (assignIt){
+      assign("fa",fa,envir = .GlobalEnv)
+    } else {
+      return(fa)
+    }
+  }
+}
+
+#' get sequences from a GRangeslist
+getSequencesFromFasta = function(grl, isSorted = F){
+  getFasta() #get .fai
+  if(!isSorted) grl <- ORFik:::sortPerGroup(grl)
+  seqs = extractTranscriptSeqs(fa, transcripts = grl)
+  assign("seqs",seqs,envir = .GlobalEnv)
+}
+
 getAll <- function(include.cage = T){
   getFasta()
   
@@ -242,8 +175,7 @@ getAll <- function(include.cage = T){
   if (include.cage) {
     cageFiveUTRs <- leaderCage()
     assign("cageFiveUTRs", cageFiveUTRs,  envir = .GlobalEnv)
-    tx <- ORFik:::extendLeaders(tx, cageFiveUTRs)
-    assign("tx", tx,  envir = .GlobalEnv)
+    getCageTx()
   }
   return(NULL)
 }
@@ -251,16 +183,16 @@ getAll <- function(include.cage = T){
 # delete all
 da <- function(){
   if (exists("threeUTRs")) {
-    rm(threeUTRs)
+    rm(threeUTRs, envir = .GlobalEnv)
   }
   if (exists("cds", mode = "S4")){
-    rm(cds)
+    rm(cds, envir = .GlobalEnv)
   }
   if (exists("tx", mode = "S4")) {
-    rm(tx)
+    rm(tx, envir = .GlobalEnv)
   }
   if (exists("fiveUTRs", mode = "S4")) {
-    rm(fiveUTRs)
+    rm(fiveUTRs, envir = .GlobalEnv)
   }
 }
 
@@ -272,7 +204,7 @@ getUnfilteredUORFs = function(uORFSeachRegion, assignRanges = T, isSorted = F,
   getSequencesFromFasta(uORFSeachRegion, isSorted)
   
   
-  rangesOfuORFs = ORFik::findMapORFs(grl = uORFSeachRegion,seqs = seqs,
+  rangesOfuORFs = ORFik::findMapORFs(grl = uORFSeachRegion,seqs = seqs, longestORF = F,
                                      minimumLength = 2, startCodon = startCodons,
                                      groupByTx = groupByTx)
   
@@ -298,13 +230,19 @@ getUOrfOverlaps = function(){
   return(numberOfOverlaps)
 }
 
-getCageTx <- function(all = F){
-  if (all) {
-    load(p(dataBaseFolder, "/cageTxAll.rdata"), envir = .GlobalEnv)
-  } else {
+getCageTx <- function() {
+  if (file.exists(p(dataBaseFolder, "/cageTx.rdata"))) {
     load(p(dataBaseFolder, "/cageTx.rdata"), envir = .GlobalEnv)
+  } else {
+    getTx()
+    cageFiveUTRs <- leaderCage()
+    tx <- ORFik:::extendLeaders(tx, cageFiveUTRs)
+    assign("tx", tx,  envir = .GlobalEnv)
+    save(tx, file = p(dataBaseFolder, "/cageTx.rdata"))
   }
+  return(NULL)
 }
+
 #' get ribo seq and gtf parts
 getRiboTest <- function(onlyGRL = FALSE, rfpIndex = 7) {
   if (!onlyGRL) {

@@ -6,9 +6,13 @@
 #'  list have duplicated orfs
 #' @param only.transcripts a logical(F), should only the transcript and not orfId be included
 #' @param asCharacter a logical(T), should it return as character or data.table(F)
-getORFNamesDB <- function(with.transcript = F, only.transcripts = F, asCharacter = T){
+getORFNamesDB <- function(with.transcript = F, only.transcripts = F, asCharacter = T, uniques = F){
   if (with.transcript) {
-    dt <- readTable("linkORFsToTx")
+    if(uniques) {
+      dt <- readTable("linkORFsToTxUnique")
+    } else {
+      dt <- readTable("linkORFsToTx")
+    }
     if(only.transcripts){
       if (asCharacter) {
         return(as.character(unlist(dt[, 2], use.names = F)))

@@ -14,6 +14,8 @@ uorfBedFolder = p(resultsFolder,"/bedUORFS/")
 uorfFolder = p(resultsFolder,"/rangesOfUORFs/")
 idFolder = p(resultsFolder,"/uorfIDs/")
 
+if (!dir.exists(leadersFolder)) stop("could not find results folders, run orfikDirs()")
+
 #debug/test variables
 # standardCage <- p(cageFolder,"brain%2c%20adult%2c%20donor1.CNhs11796.10084-102B3.hg38.nobarcode.ctss.bed.gz")
 # standardRFP <- "/export/valenfs/data/processed_data/Ribo-seq/fantom_human_bed/per_length/merged/Andreev_DE_2015.Human.HEK293.RPF.GRCh38.SRR1173914.reads_merged.bed"

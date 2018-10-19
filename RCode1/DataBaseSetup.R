@@ -3,19 +3,18 @@ library(data.table)
 
 
 setwd("/export/valenfs/projects/uORFome/RCode1/")
-source("./uorfomeGeneratorHelperFunctions.R")
+source("./HelperLibraries.R")
+
 source("./databaseHelpers.R")
 source("./DataBaseGetters.R")
 source("./DataBaseInfo.R")
 source("./DataBaseValidation.R")
 source("./TissueTables.R")
 source("./PipelineParts.R")
-
-source("./HelperFunctions.R")
-source("./HelperVariables.R")
-source("./GRangesHelpers.R")
+source("./dataBaseGroupers")
 source("./DataBaseAtlasFunctions.R")
 source("./DataBaseCreator.R")
+source("./features.R")
 source("./Classifier.R")
 source("./ClassifierHelpers.R")
 
@@ -29,12 +28,12 @@ source("./ClassifierHelpers.R")
 uorfFiles = list.files(uorfFolder)
 idFiles = list.files(idFolder)
 cageFiles = list.files(cageFolder)
-cageFiles <- cageFiles[grep(cageFiles, pattern = "bed")]
+cageFiles <- cageFiles[grep(cageFiles, pattern = ".bed")]
 
 
-dataBaseFolder <- "/export/valenfs/projects/uORFome/dataBase"
+dataBaseFolder <- p(mainFolder,"/dataBase")
 if(!dir.exists(dataBaseFolder)){
-  stop("ribo-seq folder not found")
+  stop("data base folder not found")
 }
 
 setwd(dataBaseFolder)

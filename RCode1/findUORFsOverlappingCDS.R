@@ -1,11 +1,3 @@
-#arcsRFU = commandArgs(trailingOnly = T)
-
-source("./createfasta.R")
-library(GenomicFeatures)
-library(GenomicAlignments)
-
-
-
 
 # If called without path, need rangesofUORFs in global scope!!
 #' Find all uorf into the cds,filter bad ones
@@ -20,19 +12,9 @@ filterORFs <- function(rangesOfuORFs, loadPath = NULL, saveToFile = F,outputFast
   
   rangesOfuORFs <- ORFik:::sortPerGroup(rangesOfuORFs)
   rangesOfuORFs <- removeORFsWithinSameStop(rangesOfuORFs)
+  rangesOfuORFs <- removeORFsWithinSameStart(rangesOfuORFs)
   print("finished filtering ourfs")
-  
-  ################SAVING###############
-  ####Save overlaps of cds and uorfs for plotting later
-  
-  if(saveToFile){ #Not working!
-    cat("Saving uorfs rdata to: ",loadPath)
-    save(rangesOfuORFs, file = loadPath)
-  }
-  if(outputFastaAndBed){
-    nameU = chooseUORFName(loadPath,nameSave)
-    createFastaAndBedFile(rangesOfuORFs,loadPath = NULL,nameUsed = nameU)
-  }
+
   return(rangesOfuORFs)
 }
 ### Use findOverlaps to find equal start sites, this work for - strand ?
@@ -50,9 +32,23 @@ removeORFsWithinCDS <- function(grl){
 removeORFsWithinSameStop <- function(grl){
   getCDS()
   
-  overlaps <- findOverlaps(query =  stopSites(grl, asGR = TRUE), stopSites(cds, asGR = TRUE), type = "within")
+  overlaps <- findOverlaps(query =  stopSites(grl, asGR = TRUE),
+                           stopSites(cds, asGR = TRUE), type = "within")
   grl <- grl[-unique(from(overlaps))]
   
-  print("Removed uorfs that were within cds'")
+  print("Removed uorfs that had same stop as cds'")
+  return(grl)
+}
+
+removeORFsWithinSameStart <- function(grl){
+  getCDS()
+  
+  # filter out uORFs with same start as cds
+  starts <- startSites(grl, asGR = T, is.sorted = T)
+  cdsstarts <- startSites(cds, asGR = T, is.sorted = T)
+  overlaps <- findOverlaps(starts, cdsstarts, type = "within")
+  grl <- grl[-unique(from(overlaps))]
+  
+  print("Removed uorfs that had same start as cds'")
   return(grl)
 }

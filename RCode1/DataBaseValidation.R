@@ -1,5 +1,5 @@
 validateRiboRNAPairs <- function(){
-  load(file = p(mainFolder,"/matching_rna_ribo.rdata"))
+  matching_rna_ribo <- getRiboRNAInfoTable()
   
   validate <- c()
   for(SRR in matching_rna_ribo$ribo){
@@ -181,7 +181,7 @@ getAllLeaderChanges <- function(){
   dt <- as.data.table(matrix(output, ncol = 5))
   colnames(dt) <- c("same", "bigger", "smaller", "meanBigger", "meanSmaller")
   stopCluster(cl)
-  setwd("/export/valenfs/projects/uORFome/dataBase/")
+  setwd(dataBaseFolder)
   save(dt,file = "leaderWidthChanges.rdata")
   
   # as box plot per tissue, 1 box per, width change
@@ -207,10 +207,9 @@ getAllLeaderChanges <- function(){
     xlab("Tissue") + ylab("change of widths leaders")
   
   # new test, check per leader change
-  setwd("/export/valenfs/projects/uORFome/RCode1/")
+  setwd(codeFolder)
   output <- foreach(i=1:length(list.files(leadersFolder)), .combine = 'cbind') %dopar% {
-    setwd("/export/valenfs/projects/uORFome/RCode1/")
-    source("./uorfomeGeneratorHelperFunctions.R")
+    source("./HelperVariables.R")
     leadersList = list.files(leadersFolder)
     
     load(p(dataFolder,"/leaderOriginalWidths.rdata"))
@@ -224,7 +223,7 @@ getAllLeaderChanges <- function(){
   
   changes <- changes[, cageWeHave$cage_index, with = F]
   
-  setwd("/export/valenfs/projects/uORFome/dataBase/")
+  setwd(dataBaseFolder)
   save(changes, file = "leaderWidthChangesPerLeader.rdata")
   
   load("leaderWidthChangesPerLeader.rdata")
@@ -287,6 +286,30 @@ getAllLeaderChanges <- function(){
   
   library(cowplot)
   plot_grid(cageAll, res ,align='hv',nrow=1,labels=c('A','B'))
+}
+
+uidFromCage <- function(cage = standardCage, asUID = TRUE,
+                        with.transcriptNames = TRUE){
+  
+  rm(cageFiveUTRs)
+  rm(fiveUTRs)
+  getCDS()
+  getThreeUTRs()
+  getLeaders()
+  cageFiveUTRs <- ORFik:::reassignTSSbyCage(fiveUTRs, standardCage, 1000, 1, cds)
+  originalUorfsByTx <- getUnfilteredUORFs(cageFiveUTRs, assignRanges = F)
+  gr <- unlist(originalUorfsByTx, use.names = F)
+  grl <- groupGRangesBy(gr, gr$names)
+  grl <- removeORFsWithinCDS(grl)
+  
+  if (!asUID) {
+    return(grl)
+  }
+  uids <- toUniqueIDFromGR(grl)
+  if (with.transcriptNames) {
+    return(paste(uids, ORFik:::OrfToTxNames(grl)))
+  }
+  return(uids)
 }
 
 #' validate features using brain and hela to see that features

@@ -1,10 +1,7 @@
 
 getLeadersFromCage <- function(nCageList){
-  foreach(i=1:nCageList, .inorder = F) %dopar% {
-    
-    source("./uorfomeGeneratorHelperFunctions.R")
-    cageList = grep(pattern = ".bed", list.files(cageFolder), value = TRUE)
-    getLeaders(cageName = p(cageFolder,cageList[i]),
+  foreach(i=1:nCageList, .inorder = F, .export = c("cageFiles", "getRelativePathName", "getLeaders"), .packages = c("ORFik")) %dopar% {
+    getLeaders(cageName = p(cageFolder,cageFiles[i]),
                assignLeader = F , exportUorfRegions = T)
     print("ok")
   }
@@ -27,10 +24,8 @@ getUorfsFromLeaders <- function(nLeadersList){
 }
 
 getIDsFromUorfs <- function(nuorfsList){
-  foreach(i=1:nuorfsList, .inorder = F) %dopar% {
-    setwd("/export/valenfs/projects/uORFome/RCode1/")
-    source("./uorfomeGeneratorHelperFunctions.R")
-    load(p(uorfFolder, list.files(uorfFolder)[i]))
+  foreach(i=1:nuorfsList, .inorder = F, .export = c("resultsFolder","uorfFolder"), .packages = c("ORFik")) %dopar% {
+    load(paste0(uorfFolder, list.files(uorfFolder)[i]))
     
     uorfID <- unique(ORFik:::orfID(rangesOfuORFs))
     saveName = paste0(resultsFolder,"/uorfIDs/",gsub("uorf.rdata","",list.files(uorfFolder)[i]),"uorfID.rdata")
@@ -44,7 +39,7 @@ getAllFeaturesFromUorfs <- function(){
     nrfpList <- nrow(getRiboRNAInfoTable())
     # all rfp features
     foreach(i=1:nrfpList, .inorder = F) %dopar% {
-      setwd("/export/valenfs/projects/uORFome/RCode1/")
+      setwd(codeFolder)
       source("./DataBaseSetup.R")
       
       matching_rna_ribo <- getRiboRNAInfoTable()
@@ -56,7 +51,7 @@ getAllFeaturesFromUorfs <- function(){
       print(i)
     }
     
-    setwd("/export/valenfs/projects/uORFome/RCode1/")
+    setwd(codeFolder)
     source("./DataBaseSetup.R")
     #linkORFsToTxUnique
     uorfID <- getORFNamesDB(T, F, F, T)
@@ -68,6 +63,7 @@ getAllFeaturesFromUorfs <- function(){
     fpkmRFP <- copy(uorfID)     
     ORFScores <- copy(uorfID)
     ioScore <- copy(uorfID)
+    startCodonCoverage <- copy(uorfID)
     
     
     # all dt features, split them, save them seperatly
@@ -86,6 +82,7 @@ getAllFeaturesFromUorfs <- function(){
       fpkmRFP[, p("fpkmRFP_",i) := dt$fpkmRFP] 
       ORFScores[, p("ORFScores_",i) := dt$ORFScores]
       ioScore[, p("ioScore_",i) := dt$ioScore]
+      startCodonCoverage[, p("startCodonCoverage",i) := dt$startCodonCoverage]
       print(i)
     }
     # insert all the ribo features tables
@@ -97,6 +94,7 @@ getAllFeaturesFromUorfs <- function(){
     insertTable(fpkmRFP, "Ribofpkm", rmOld = T)
     insertTable(ORFScores, "ORFScores", rmOld = T)
     insertTable(ioScore, "ioScore", rmOld = T)
+    insertTable(startCodonCoverage, "startCodonCoverage", rmOld = T)
   } else {
     print("AllFeaturesFromUorfs exists in DB (ioScore), delete and run again if you want new")
   }
@@ -136,7 +134,7 @@ getRNAFpkms <- function(){
   txNames <- names(tx)
   rnaFPKMs <- data.table(txNames, rnaFPKMs)
   
-  setwd("/export/valenfs/projects/uORFome/RCode1/")
+  setwd(codeFolder)
   source("./DataBaseSetup.R")
   insertTable(rnaFPKMs, "RNAfpkm")
   return(NULL)
@@ -145,7 +143,7 @@ getRNAFpkms <- function(){
 #' This function uses the fact that 1st col of ribo is connected to 1st col of RNA. 
 getTeFeatures <- function(riboDbName = "Ribofpkm",
                           dbOutputNames = c("teUnfiltered", "teFiltered")){
-  setwd("/export/valenfs/projects/uORFome/dataBase/")
+  setwd(dataBaseFolder)
   if(length(dbOutputNames) != 2) stop("dbOutputNames must have 2 character elements")
   
   # load linking and ribo / rna
@@ -192,7 +190,7 @@ getCDSFeatures <- function(){
     
     cdsKozak <- data.table(txNames, cdsKozak)
     
-    setwd("/export/valenfs/projects/uORFome/RCode1/")
+    setwd(codeFolder)
     source("./DataBaseSetup.R")
     insertTable(cdsKozak, "cdsKozak")
   }
@@ -214,7 +212,7 @@ getCDSFeatures <- function(){
     tx[names(cageFiveUTRs)] <- ORFik:::extendLeaders(tx[names(cageFiveUTRs)], cageFiveUTRs)
     
     allRiboFeatures <- foreach(i=1:nrfpList, .combine = 'cbind', .export = c("cds", "threeUTRs", "tx")) %dopar% {
-      setwd("/export/valenfs/projects/uORFome/RCode1/")
+      setwd(codeFolder)
       source("./DataBaseSetup.R")
       
       rfpList <- grep(pattern = "merged",
@@ -230,7 +228,9 @@ getCDSFeatures <- function(){
       cdsEntropy <- entropy(cds, RFP)
       cdsORFScores <- orfScore(cds, RFP, T)$ORFScores
       cdsRfpFPKMs <- fpkm(cds, RFP)
-      return(data.table(cdsDiseng,cdsIos, cdsRRS, cdsRSS, cdsORFScores, cdsFloss, cdsEntropy, cdsRfpFPKMs))
+      cdsstartCodonCoverage <- countOverlaps(startCodons(cds, T), RFP)
+      return(data.table(cdsDiseng,cdsIos, cdsRRS, cdsRSS, cdsORFScores,
+                        cdsFloss, cdsEntropy, cdsRfpFPKMs, cdsstartCodonCoverage))
     }
     txNames <- names(cds)
     
@@ -297,7 +297,7 @@ getFeaturesThreeUTRs <- function(){
     nrfpList <- length(rfpList)
     
     allRiboFeatures <- foreach(i=1:nrfpList, .combine = 'cbind', .export = c("cds", "threeUTRs", "tx", "fakeThree", "rfpList")) %dopar% {
-      setwd("/export/valenfs/projects/uORFome/RCode1/")
+      setwd(codeFolder)
       source("./DataBaseSetup.R")
       
       RFPPath <- p(rfpFolder, rfpList[i])
@@ -311,7 +311,8 @@ getFeaturesThreeUTRs <- function(){
       Entropy <- entropy(threeUTRs, RFP)
       ORFScores <- orfScore(threeUTRs, RFP, T)$ORFScores
       RfpFPKMs <- fpkm(threeUTRs, RFP)
-      data.table(Diseng, Ios, RRS, RSS, ORFScores, floss, Entropy, RfpFPKMs)
+      threestartCodonCoverage <- countOverlaps(startCodons(cds, T), RFP)
+      data.table(Diseng, Ios, RRS, RSS, ORFScores, floss, Entropy, RfpFPKMs, threestartCodonCoverage)
     }
     colnames(allRiboFeatures) <- paste0("three", colnames(allRiboFeatures))
     txNames <- names(threeUTRs)

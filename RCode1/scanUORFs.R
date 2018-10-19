@@ -1,7 +1,6 @@
 #5. Find uorfs from sequences in fastafile combined with positions from utrs
 ##this version will lose the unbound open reading frames
-library(ORFik)
-source("./HelperLibraries.R")
+
 source("./findUORFsOverlappingCDS.R")
 
 #' Find uorfs

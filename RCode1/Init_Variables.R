@@ -8,7 +8,7 @@ p = function(nameA,nameB){ # just for parsing relative paths together
 
 # set these 4 directories
  
-mainFolder = "./.." # main folder is one back from RCode1/ folder
+mainFolder = "/export/valenfs/projects/uORFome" # main folder is one back from RCode1/ folder
 
 codeFolder = p(mainFolder,"/RCode1") # the rcode location
 

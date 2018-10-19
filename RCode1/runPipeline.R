@@ -12,11 +12,11 @@
 # orfikDirs(mainPath = , makeDatabase = )
 
 #set working dir correctly to ./RCode1/ location
-setwd("/export/valenfs/projects/uORFome/RCode1/") #!! set this path
+setwd("/export/valenfs/projects/uORFome/RCode1/") #!! set this path as codeFolder
 # source("./HelperFunctions.R")
-# updateORFik("makeItMoreLogical") # update if needed
+# updateORFik("functionGeneralization") # update if needed
 source("./DataBaseSetup.R")
-setwd("/export/valenfs/projects/uORFome/RCode1/") #!! set this path
+setwd(codeFolder)
 
 
 # set up multithreading options
@@ -49,6 +49,7 @@ rm(cl)
 
 
 # Sixth Predict uORFs
+# Either split tissues, or use all for all in one go
 #6.
-predictUorfs()
+predictUorfs("all")
 

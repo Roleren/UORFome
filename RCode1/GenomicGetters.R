@@ -37,8 +37,14 @@ getTx <- function(assignIt = F){
 #Get the coding sequences from the gtf file
 getCDS = function(assignIt = T){
   if (exists("cds",mode = "S4") == F) {
-    getGTF()
-    cds = cdsBy(Gtf,"tx", use.names = TRUE)
+    if (!file.exists(p(dataFolder, "/cds.rdata"))) {
+      getGTF()
+      cds = cdsBy(Gtf,"tx", use.names = TRUE)
+      save(cds, file = p(dataFolder, "/cds.rdata"))
+      print("saving cds rdata file for quicker reload")
+    } else {
+      load(p(dataFolder, "/cds.rdata"), envir = .GlobalEnv)
+    }
     if (assignIt) {
       assign("cds", cds, envir = .GlobalEnv)
       return(cds)
@@ -51,10 +57,13 @@ getCDS = function(assignIt = T){
 #Get the 3' sequences from the gtf file
 getThreeUTRs = function(){
   if (!exists("threeUTRs")) {
-    if (!exists(p(dataFolder, "/threeUTRs.rdata"))) {
+    if (!file.exists(p(dataFolder, "/threeUTRs.rdata"))) {
       getGTF()
       threeUTRs = threeUTRsByTranscript(Gtf, use.names = TRUE)
       assign("threeUTRs", threeUTRs, envir = .GlobalEnv)
+      save(threeUTRs, file = p(dataFolder, "/threeUTRs.rdata"))
+      print("saving 3'UTRs rdata file for quicker reload")
+      return(NULL)
     } else {
       load(p(dataFolder, "/threeUTRs.rdata"), envir = .GlobalEnv)
     }
@@ -110,20 +119,7 @@ getLeaders = function(cageName = NULL, assignLeader = T, exportUorfRegions = T){
   print("finished loading leaders")
 }
 
-#' Get the leader that should span all uorfs
-leaderAllSpanning <- function(){
-  getGTF()
-  getLeaders()
-  getCDS()
-  
-  fiveUTRs <- ORFik:::addFirstCdsOnLeaderEnds(
-    ORFik:::assignFirstExons(ORFik:::extendsTSSexons(fiveUTRs),
-                             fiveUTRs), cds)
-  fiveUTRs <- sortPerGroup(fiveUTRs)
-  return(fiveUTRs)
-}
-
-leaderCage <- function(width.cds = TRUE){
+leaderCage <- function(with.cds = TRUE){
   if(width.cds) {
     load(p(dataBaseFolder,"/CageFiveUTRsWithCDS.rdata"))
     return(CageFiveWithCDS)
@@ -162,7 +158,7 @@ getSequencesFromFasta = function(grl, isSorted = F){
   assign("seqs",seqs,envir = .GlobalEnv)
 }
 
-getAll <- function(include.cage = T){
+getAll <- function(include.cage = T, cdsOnFiveEnd = F){
   getFasta()
   
   getCDS()
@@ -170,10 +166,9 @@ getAll <- function(include.cage = T){
   getLeaders()
   tx <- getTx()
   
-  
   #or with extension
   if (include.cage) {
-    cageFiveUTRs <- leaderCage()
+    cageFiveUTRs <- leaderCage(cdsOnFiveEnd)
     assign("cageFiveUTRs", cageFiveUTRs,  envir = .GlobalEnv)
     getCageTx()
   }

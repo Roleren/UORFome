@@ -1,6 +1,4 @@
 
-
-
 toUniqueIDFromGR <- function(grl, with.tx = FALSE){
   seqnames = as.character(seqnames(phead(grl,1L)))
   strands = ORFik:::strandPerGroup(grl,F)

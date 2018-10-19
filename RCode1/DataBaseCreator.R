@@ -30,20 +30,11 @@ createUniqueIDs <- function(){
 #' convert to gr from string and filter NB!!! put this  in pipeline!!
 createGRObjects <- function(makeBed = T){
   if (tableNotExists("uorfsAsGRWithTx")) {
-    uniqueIDs <- readTable("uniqueIDs")
-    grl <- toGRFromUniqueID(uniqueIDs$Matrix)
-    getCDS()
-    
-    # filter out uORFs with same start as cds
-    starts <- startSites(grl, asGR = T, is.sorted = T)
-    cdsstarts <- startSites(cds, asGR = T, is.sorted = T)
-    overlaps <- findOverlaps(starts, cdsstarts, type = "within")
-    
-    grl <- grl[-unique(from(overlaps))]
-    uniq <- uniqueIDs$Matrix
-    uniq <- uniq[-unique(from(overlaps))]
+    uniqueIDs <- readTable("uniqueIDs")$Matrix
+    grl <- toGRFromUniqueID(uniqueIDs)
+
     save(grl, file = "./uniqueUorfsAsGR.rdata")
-    insertTable(Matrix = uniq, tableName =  "uniqueIDs", rmOld = T)
+    insertTable(Matrix = uniqueIDs, tableName =  "uniqueIDs", rmOld = T)
     insertTable(Matrix = grl,tableName = "SplittedByExonsuniqueUORFs", rmOld = T)
     
     if (makeBed)

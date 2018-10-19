@@ -49,13 +49,26 @@ getSequenceFeatures <- function(){
   link <- readTable("linkORFsToTx")
   eej <- as.integer(eej[link$txNames])
   insertTable(data.table(txNames = link$txNames, eej = eej), "exon-exonJunctionsLeader")
+  eejuORF <- numExonsPerGroup(grl)
+  insertTable(data.table(uorfID = orfID, eejuORF = eejuORF), "exon-exonJunctionsuORFs")
+  
+  # gene transcript connections
+  genes <- GenomicFeatures::transcriptsBy(Gtf, by = "gene")
+  unlGenes <- unlist(genes, use.names = TRUE)
+  dt <- data.table(txNames = unlGenes$tx_name, geneNames = names(unlGenes))
+  matches <- data.table::chmatch(ORFik:::txNames(grl), dt$txNames)
+  dt <- dt[matches]
+  insertTable(dt[matches], "uORFTxToGene")
+  # go Terms
+  uorfGo <- getORFsGoTerms(dt$geneNames)
+  insertTable(data.table(go = uorfGo), "goTerms")
   
 }
 
 #' Get all features from grl
 #' @param grl the ORFs to find features on, if null imports from database
 getAllFeatures <- function(grl = NULL, RFPPath, RNAPath = NULL, i){  
-  saveName <- paste0("featureTablesTemp/dt_",i,".rdata")
+  saveName <- paste0(dataBaseFolder, "/featureTablesTemp/dt_",i,".rdata")
   if (file.exists(saveName))
     return(i)
 
@@ -76,30 +89,7 @@ getAllFeatures <- function(grl = NULL, RFPPath, RNAPath = NULL, i){
                                     fiveUTRs = GRangesList(), cds = cds, tx = tx,
                                     threeUTRs = threeUTRs, riboStart = 26, riboStop = 34,
                                     orfFeatures = T, includeNonVarying = F, grl.is.sorted = T)
+  dt[,startCodonCoverage := countOverlaps(startCodons(grl,T), RFP)]
   save(dt,file = saveName)
   return(i)
-}
-
-uidFromCage <- function(cage = standardCage, asUID = TRUE,
-                        with.transcriptNames = TRUE){
-  
-  rm(cageFiveUTRs)
-  rm(fiveUTRs)
-  getCDS()
-  getThreeUTRs()
-  getLeaders()
-  cageFiveUTRs <- ORFik:::reassignTSSbyCage(fiveUTRs, standardCage, 1000, 1, cds)
-  originalUorfsByTx <- getUnfilteredUORFs(cageFiveUTRs, assignRanges = F)
-  gr <- unlist(originalUorfsByTx, use.names = F)
-  grl <- groupGRangesBy(gr, gr$names)
-  grl <- removeORFsWithinCDS(grl)
-  
-  if (!asUID) {
-    return(grl)
-  }
-  uids <- toUniqueIDFromGR(grl)
-  if (with.transcriptNames) {
-    return(paste(uids, ORFik:::OrfToTxNames(grl)))
-  }
-  return(uids)
 }

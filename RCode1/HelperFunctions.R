@@ -19,39 +19,6 @@ getRelativePathName = function(name){
   return (gsub(".*/", "", name))
 }
 
-#' fast import
-#' 
-#' versatile loader function, supports many formats
-#' @param fileName the file path
-fimport <- function(fileName){
-  library(tools)
-  if(!file.exists(fileName)) stop(paste(fileName, "does not name a file"))
-  
-  format <- file_ext(fileName)
-  if(format == "") stop(paste("file", fileName,"have no format"))
-  
-  if (format == "csv") {
-    return(fread(fileName))
-  } else if (format == "tab") {
-    return(fread(fileName, sep = "\t"))
-  } else if (format == "bed") {
-      return(ORFik:::cageFromFile(fileName))
-  } else if (format == "bam") {
-      return(readGAlignments(fileName))
-  } else if (format == "rds") {
-      return(readRDS(fileName))
-  } else if (format == "rdata") {
-    rdataname <- load(fileName)
-    message(paste("file is loaded to global environment as:", rdataname))
-    return(NULL)
-  } else if (format == ".gtf") {
-    return(makeTxDbFromGFF(fileName))
-  } else {
-    stop(paste("loading function for", fileName,
-               "is not supported, do it manually."))
-  }
-}
-
 #' Make directoy structure for orf finding
 #' 
 #' The main Path is ./.. relative to RCode1/ location
@@ -66,10 +33,12 @@ orfikDirs <- function(mainPath, makeDatabase = F){
   dir.create(p(resultsLoc,"rangesOfUORFs"))
   dir.create(p(resultsLoc,"bedUORFS"))
   dir.create(p(resultsLoc,"fasta"))
+  dir.create(p(resultsLoc,"uorfIDs"))
   
   if (makeDatabase) {
-    dir.create(p(resultsLoc,"uorfIDs"))
     dir.create("dataBase")
+    dir.create("dataBase/forests/")
+    dir.create("dataBase/forests/predicateTables")
   }
   
   print("directories created successfully")
@@ -78,11 +47,7 @@ orfikDirs <- function(mainPath, makeDatabase = F){
 #Check if uorfRanges exist already, or if must be created.
 ###########Should make this more failsafe!!!!!!!!!! add possibility to give ranges!!!!!!!!
 UorfRangesNotExists <- function(assignUorf = F, givenCage = NULL){
-  if(exists("rangesOfuORFs") == F){
-    if(!assignUorf){ #if not loading or assigning to global, we need cage name
-      thisCage <- givenCage
-      assign("thisCage",thisCage,envir = .GlobalEnv)
-    }
+  if(!exists("rangesOfuORFs")){
     if(file.exists(getUORFRDataName(givenCage))){#!!!Will not work for single run now!!!
       if(assignUorf){
         cat("loading rangesOfuorf from folder\n",uorfFolder,"\n")
@@ -107,9 +72,9 @@ pipelineCluster <- function(maxCores = NULL, outfile = NULL){
       maxCores = as.integer(detectCores()-(detectCores()/2)) # using half
     }
     if (is.null(outfile)) {
-      cl <- makeCluster(maxCores)
+      cl <- makeCluster(maxCores, type = "PSOCK")
     } else {
-      cl <- makeCluster(maxCores, outfile = outfile)
+      cl <- makeCluster(maxCores, outfile = outfile, type = "PSOCK")
     }
     
     registerDoParallel(cl)
@@ -117,31 +82,6 @@ pipelineCluster <- function(maxCores = NULL, outfile = NULL){
   }
   
   message("running with number of threads: ", maxCores)
-}
-
-
-loadMatrix = function(mname,toGlobalEnv = T){
-  return(fread(input = p(matrixFolder,mname),header = T))
-}
-
-#' save image of current session, makes name automaticly
-saveRData <- function(){
-  if(exists("generalName") == F){
-    save.image(p(RdataFolder,"results.Rdata"))
-  }else{
-    save.image(paste0(RdataFolder,detailedFullName,".results.Rdata",sep=""))
-  }
-}
-
-loadRData = function(rdataname, toGlobalEnv = T){
-  if(toGlobalEnv)
-    load(p(RdataFolder,rdataname),envir = .GlobalEnv)
-  else
-    load(p(RdataFolder,rdataname))
-}
-
-loadUorfID = function(rdataname){
-  load(paste0(resultsFolder,"/uorfIDs/",rdataname), envir = .GlobalEnv)
 }
 
 updateORFik <- function(branch = "master") {

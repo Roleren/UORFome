@@ -29,32 +29,6 @@ getORFNamesDB <- function(with.transcript = F, only.transcripts = F, asCharacter
  return(dt)
 }
 
-#' get GrangesList from uniqueIDs as strings
-#' 
-uniqueIdsAsGR <- function(makeBed = T){
-  if(tableNotExists("SplittedByExonsuniqueUORFs")){
-    uniqueIDs <- readTable("uniqueIDs")
-    if (sum(duplicated(uniqueIDs)) > 0 ) stop("duplicated uorf names in uniqueIDs")
-    grl <- toGRFromUniqueID(uniqueIDs)
-    insertTable(Matrix = grl,tableName = "SplittedByExonsuniqueUORFs", rmOld = T)
-    #grl <- readTable("SplittedByExonsuniqueUORFs", asGR = T)
-    
-    #now make uscs bed 12 format
-    if (makeBed)
-      bed12(grl, "bedUniqueUorfs.bed", T)
-    
-  } else {
-    grl <- readTable("SplittedByExonsuniqueUORFs", asGR = T)
-  }
-  return(grl)
-}
-
-# get table matching ribo-seq and rna-seq
-getMatchingTable <- function(){
-  fimport("/export/valenfs/projects/uORFome/test_results/
-          Old_Tests/test_data/unfilteredSpeciesGroup.rdata")
-}
-
 #' Takes two tables from the database and extracts the rows of toBeMatched
 #' that matches the txNames in referenced.
 #' Both must have a column called txNames
@@ -100,7 +74,7 @@ removeIDColumns <- function(dt){
 #' @param withTranscripts should the uorfs have transcript information, 
 #' warning, this will duplicate some uorfs.
 #' @return a GRangesList or data.table, if(F, F)
-getUorfsInDb <- function(withExons = T, withTranscripts = T, uniqueORFs = F){
+getUorfsInDb <- function(withExons = T, withTranscripts = T, uniqueORFs = T){
   if (withExons && withTranscripts) {
     if(uniqueORFs) {
       if (file.exists(p(dataBaseFolder, "/uniqueUorfsAsGRWithTx.rdata"))) {

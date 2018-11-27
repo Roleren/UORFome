@@ -13,14 +13,12 @@ makePredicateTable <- function(tissue) {
   # make the predicate table
   
   posFeatureNames <- grep(pattern = "cds", x = listTables(), value = T)
-  # posFeatureNames <- posFeatureNames[-grep(pattern = "Unfiltered", x = posFeatureNames, value = F)]
   posFeatureNames <- posFeatureNames[-grep(pattern = "Tissue", x = posFeatureNames, value = F)]
   posFeatureNames <- posFeatureNames[-grep(pattern = "Kozak", x = posFeatureNames, value = F)]
   posFeatureNames <- posFeatureNames[-grep(pattern = "FractionLengths", x = posFeatureNames, value = F)]
   # posFeatureNames <- posFeatureNames[-grep(pattern = "FPKM", x = posFeatureNames, value = F)]
   
   negFeatureNames <- grep(pattern = "three", x = listTables(), value = T)
-  # negFeatureNames <- negFeatureNames[-grep(pattern = "Unfiltered", x = negFeatureNames, value = F)]
   # negFeatureNames <- negFeatureNames[-grep(pattern = "FPKM", x = negFeatureNames, value = F)]
   
   if ( length(posFeatureNames) != length(negFeatureNames)) stop("Not equal length of pos and neg feature names")
@@ -48,6 +46,13 @@ makePredicateTable <- function(tissue) {
   y <- as.factor(c(rep(1, nrow(pos)), rep(0, nrow(neg))))
   predicate <- data.table(y, predicate)
   
+  dCDSThree <- getBestIsoformStartCodonCoverage(cdsAndThree = T)
+  dCDSThree <- dCDSThree[readHits >= quantile(dCDS$readHits, 0.12),]
+  dCDSThree <- dCDSThree[, .SD[which.max(readHits)], by = group]
+  predicate$startCodonPerGroupBest <- seq.int(1, nrow(predictors)) %in% dCDSThree$index
+  #analysis
+  print(cor(data.matrix(predicate), use = "complete.obs"))
+
   save(predicate, file = paste0("forests/predicateTables/table_cds3utr_",tissue,".rdata"))
   return(predicate)
 }
@@ -55,20 +60,16 @@ makePredicateTable <- function(tissue) {
 #' Predict table for uORFs
 #' 
 #' Get ribo-seq features for uORFs
-makeUORFPredicateTable <- function(tissue) {
+makeUORFPredicateTable <- function(tissue = "all") {
   if(file.exists(paste0("forests/predicateTables/table_",tissue,".rdata"))) {
     load(paste0("forests/predicateTables/table_",tissue,".rdata"))
     return(predictors)
   }
-  
   # group all features by tissue
   # pick 1 tissue
   # make the predicate table
-  # featureNames <- c("disengagementScores", "entropyRFP", "floss", "ioScore",
-  #                   "ORFScores", "RRS", "RSS", "teFiltered")
   featureNames <- c("disengagementScores", "entropyRFP", "floss", "ioScore",
                     "ORFScores","Ribofpkm", "RRS", "RSS", "startCodonCoverage")
-  
   
   pos <- foreach(i = 1:length(featureNames), .combine = 'cbind', .noexport = "uorfDB", .export = "featureNames") %dopar% {
     setwd("/export/valenfs/projects/uORFome/RCode1/") #!! set this path
@@ -81,6 +82,14 @@ makeUORFPredicateTable <- function(tissue) {
   colnames(predicate) <- c("disengagementScores", "entropyRFP", "floss", "ioScore",
                            "ORFScores","RFPFpkm", "RRS", "RSS", "startCodonCoverage")
   predictors <- fixNAandINFTable(predicate)
+  # Here is lines with filter
+  # filter on isoforms
+  d <- getBestIsoformStartCodonCoverage()
+  # combine filter with ribo-seq prediction
+  d <- d[readHits > quantile(d$readHits, 0.74),]
+  d <- d[, .SD[which.max(readHits)], by = group]
+  predictors$startCodonPerGroupBest <- seq.int(1, nrow(predictors)) %in% d$index
+  
   save(predictors, file = paste0("forests/predicateTables/table_",tissue,".rdata"))
   
   return(predictors)
@@ -110,13 +119,14 @@ getAllSequenceFeaturesTable <- function(){
     numberOfUorfsPerTx <- numberOfUorfsPerTx$txNames[order]
     lengths <- widthPerGroup(grl, F)
     exonExonJunctions  <- readTable("exon-exonJunctionsuORFs", with.IDs = F)
-    
+    goTerms <- readTable("goTerms")
+    gc <- readTable("gcContent")
     # make Predicates:
     uorfData <- data.table(rankInTx, lengths, kozak, fractionLengths,
                            StartCodons = as.factor(StartCodons$startCodon),
                            StopCodons = as.factor(StopCodons$stopCodon),
                            distORFCDS, distORFTSS, inFrameCDS, isOverlappingCds, 
-                           exonExonJunctions)
+                           exonExonJunctions, gc, goTerms = as.factor(goTerms))
     save(uorfData, file = "forests/uORFSequenceFeatures.rdata")
   }
   return(uorfData)
@@ -136,21 +146,44 @@ fixNAandINFTable <- function(predicate){
 
 #' A filter per stop codon group
 #' Uses 3 large ribo-seq libraries for ribo-seq validation
-getBestIsoformStartCodonCoverage <- function() {
+#' get start for each in group, count overlaps, return orf with
+#' highest per group
+getBestIsoformStartCodonCoverage <- function(cdsAndThree = F) {
+  # reduce isoform overlaps by highest start codon reads per group
+  if (cdsAndThree) {
+    if(file.exists(paste0("forests/bestStartCodonsCDSTHREE.rdata"))) {
+      load(paste0("forests/bestStartCodonsCDSTHREE.rdata"))
+      return(dCDSThree)
+    }
+    g <- getCDS(assignIt = F)
+    sg <- stopCodons(g, is.sorted = T)
+    uo <- uniqueOrder(sg) # <- grouping 
+    counts <- rowMeans(readTable("cdsstartCodonCoverage"))
+    dCDS <- data.table(readHits = counts, group = uo, index = seq.int(length(uo)))
+    # filter with same as cds
+    fpkm <- getTissueFromFeatureTable(tableName = "cdsRfpFPKMs", tissue = "all")
+    dCDS <- dCDS[fpkm > 0.0189589]
+    
+    getThreeUTRs()
+    threeUTRs <- threeUTRs[widthPerGroup(threeUTRs) > 5]
+    sg <- stopCodons(threeUTRs, is.sorted = T)
+    uo <- uniqueOrder(sg) # <- grouping 
+    counts <- rowMeans(readTable("threestartCodonCoverage"))
+    dThree <- data.table(readHits = counts, group = uo, index = seq.int(length(uo)))
+    dThree$group <- dThree$group + max(dCDS$group)
+    dThree$index <- dThree$index + max(dCDS$index)
+    dCDSThree <- rbindlist(list(dCDS, dThree))
+    save(dCDSThree, file = paste0("forests/bestStartCodonsCDSTHREE.rdata"))
+    return(dCDSThree)
+  }
   if(file.exists(paste0("forests/bestStartCodons.rdata"))) {
     load(paste0("forests/bestStartCodons.rdata"))
     return(d)
   }
-  # reduce isoform overlaps by highest start codon reads per group
   g <- getUorfsInDb(T, T, T)
-  
   sg <- stopCodons(g, is.sorted = T)
   uo <- uniqueOrder(sg) # <- grouping 
-  
-  # get start for each in group
-  # count overlaps
-  # return orf with highest per group
-  # which start codon does it have ?
+
   counts <- rowMeans(readTable("startCodonCoverage"))
   d <- data.table(readHits = counts, group = uo, index = seq.int(length(uo)))
   save(d, file = paste0("forests/bestStartCodons.rdata"))
@@ -159,7 +192,9 @@ getBestIsoformStartCodonCoverage <- function() {
 
 #' Train h2o rf model.
 #' negDT if you want own samples for that
-forest <- function(dt, cv = 10, ntrees = 50){
+forest <- function(dt, cv = 10, ntrees = 64){
+  library(h2o)
+  h2o.init(nthreads = 40, max_mem_size = "60G")
   # new h2o model training
   indices <- sample(1:nrow(dt), 0.6*nrow(dt), replace = F)
   validationIndices <- seq.int(nrow(dt))[-indices]
@@ -239,7 +274,7 @@ findClassificationBoundary <- function(tissues){
 
 #' Combine classifier and CAGE data, for final prediction table
 #' 
-makeCombinedPrediction <- function(tissue, cutOff = 0.75) {
+makeCombinedPrediction <- function(tissue, cutOff = 0.70) {
   # load data
   load(paste0("forests/finalPrediction_",tissue, ".rdata"))
   cageTissues <- readTable("tissueAtlasByCage", with.IDs = F)
@@ -258,9 +293,15 @@ makeCombinedPrediction <- function(tissue, cutOff = 0.75) {
   finalCagePred <- rowSums(cageTissuesPrediction) > 0
   insertTable(finalCagePred, "finalCAGEuORFPrediction", rmOld = T)
   
-  hits <- finalCagePred
-  # good: ATG, CTG, procaryote: GTG, TTG
-  # bad: AAG AND AGG
+  startCodonMetrics(finalCagePred)
+}
+
+#' Get start codon bias usage
+#' good: ATG, CTG, ACG and GTG 
+#' bad: AAG AND AGG
+startCodonMetrics <- function(hits){
+  if(!exists("uorfData")) uorfData <- getAllSequenceFeaturesTable()
+  
   ySeq <- rep(0, nrow(uorfPrediction))
   ySeq[hits] <- 1
   StartResultsSequences <- chisq.test(table(data.frame(uorfData$StartCodons, prediction = as.factor(ySeq))))
@@ -268,6 +309,18 @@ makeCombinedPrediction <- function(tissue, cutOff = 0.75) {
   print(round(StartResultsSequences$residuals,1))
   print(round(table(uorfData$StartCodons[hits])/sum(hits), 2))
   print(table(uorfData$StartCodons[hits]))
+}
+
+overCDS <- function(){
+  if(file.exists(paste0("forests/uORFsOverlappingCDS.rdata"))) {
+    load(paste0("forests/uORFsOverlappingCDS.rdata"))
+    return(isOverCDS)
+  } 
+  grl <- getUorfsInDb()
+  getCDS()
+  isOverCDS <- countOverlaps(grl, cds) > 0
+  save(isOverCDS, file = paste0("forests/uORFsOverlappingCDS.rdata"))
+  return(isOverCDS)
 }
 
 # Get only specific tissues, or all.
@@ -291,4 +344,73 @@ getTissueFromFeatureTable <- function(tableName, tissue) {
   return(rowMeans(riboTable))
 }
 
-
+outputDivisionsOfPred <- function(prediction){
+  print("orf score correlation with ribo prediction")
+  print(cor.test(uorfTable$ORFScores, as.double(prediction$p1)))
+  uorfTable <- makeUORFPredicateTable(tissue)
+  # remove cds overlaps
+  uorfTable <- makeUORFPredicateTable()
+  uts <- uorfTable[!overCDS()]
+  uorfData <- getAllSequenceFeaturesTable()
+  uds <- uorfData[!overCDS()]
+  
+  pred <- prediction$predict
+  print("Output feature summaries")
+  print("For ribo seq prediction")
+  print("On Ribo seq feature table")
+  for(i in colnames(uorfTable)){
+    print(i)
+    print(summary(uts[pred == 1,i, with = F]))
+    print(summary(uts[pred == 0,i, with = F]))
+  }
+  print("On sequence feature table")
+  for(i in colnames(uorfData)){
+    print(i)
+    print(summary(uds[pred == 1,i, with = F]))
+    print(summary(uds[pred == 0,i, with = F]))
+  }
+  print("For sequence prediction")
+  print("On Ribo seq feature table")
+  for(i in colnames(uorfTable)){
+    print(i)
+    print(summary(uorfTable[uorfPrediction$predict == T,i, with = F]))
+    print(summary(uorfTable[uorfPrediction$predict == F,i, with = F]))
+  }
+  print("On sequence feature table")
+  for(i in colnames(uorfData)){
+    print(i)
+    print(summary(uorfData[uorfPrediction$predict == T,i, with = F]))
+    print(summary(uorfData[uorfPrediction$predict == F,i, with = F]))
+  }
+  
+  # check orfscore vs start codon usage
+  for(i in unique(uorfData$StartCodons)){
+    print(paste(i , round(mean(uorfTable$ORFScores[uorfData$StartCodons == i]), 3)))
+  }
+  for(i in unique(uorfData$StartCodons)){
+    print(paste(i , round(mean(uorfTable$entropyRFP[uorfData$StartCodons == i]), 3)))
+  }
+  for(i in unique(uorfData$StartCodons)){
+    print(paste(i , round(mean(uorfTable$RRS[uorfData$StartCodons == i]), 3)))
+  }
+  for(i in unique(uorfData$StartCodons)){
+    print(paste(i , round(mean(uorfTable$ioScore[uorfData$StartCodons == i]), 3)))
+  }
+  for(i in unique(uorfData$StartCodons)){
+    print(paste(i , round(mean(uorfTable$RFPFpkm[uorfData$StartCodons == i]), 3)))
+  }
+  
+  # more checks on orf score
+  x <- seq(0,1, 0.05)[2:20]
+  for(i in x){
+    print(paste(i , round(mean(uorfTable$ORFScores[prediction$p1 > i]), 3)))
+  }
+  # cor test ORF score
+  for(i in colnames(uorfTable)){
+    print(i)
+    print(cor.test(uorfTable$ORFScores, as.double(unlist(uorfTable[,i, with = F]))))
+  }
+  
+  
+  
+}

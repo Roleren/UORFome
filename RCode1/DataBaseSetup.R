@@ -11,12 +11,13 @@ source("./DataBaseInfo.R")
 source("./DataBaseValidation.R")
 source("./TissueTables.R")
 source("./PipelineParts.R")
-source("./dataBaseGroupers")
+source("./DataBaseGroupers.R")
 source("./DataBaseAtlasFunctions.R")
 source("./DataBaseCreator.R")
 source("./features.R")
 source("./Classifier.R")
 source("./ClassifierHelpers.R")
+source("./experiment.R")
 
 #goals:
 #1. get some way to load matrices, they are big and many!
@@ -37,6 +38,7 @@ if(!dir.exists(dataBaseFolder)){
 }
 
 setwd(dataBaseFolder)
+#databaseName = "final_results/uorfCatalogue"
 databaseName = "uorfCatalogue"
 databaseName = p(databaseName,".sqlite")
 

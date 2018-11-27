@@ -120,7 +120,7 @@ getLeaders = function(cageName = NULL, assignLeader = T, exportUorfRegions = T){
 }
 
 leaderCage <- function(with.cds = TRUE){
-  if(width.cds) {
+  if(with.cds) {
     load(p(dataBaseFolder,"/CageFiveUTRsWithCDS.rdata"))
     return(CageFiveWithCDS)
   }

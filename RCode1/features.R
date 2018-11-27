@@ -62,7 +62,11 @@ getSequenceFeatures <- function(){
   # go Terms
   uorfGo <- getORFsGoTerms(dt$geneNames)
   insertTable(data.table(go = uorfGo), "goTerms")
-  
+  # gc content
+  getSequencesFromFasta(grl, T)
+  alf <- alphabetFrequency(seqs, as.prob=TRUE)
+  gc <- rowSums(alf[,c("G", "C")])
+  insertTable(data.table(gc = gc), "gcContent")
 }
 
 #' Get all features from grl

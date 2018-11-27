@@ -30,9 +30,8 @@ createUniqueIDs <- function(){
 #' convert to gr from string and filter NB!!! put this  in pipeline!!
 createGRObjects <- function(makeBed = T){
   if (tableNotExists("uorfsAsGRWithTx")) {
-    uniqueIDs <- readTable("uniqueIDs")$Matrix
-    grl <- toGRFromUniqueID(uniqueIDs)
-
+    grl <- toGRFromUniqueID(readTable("uniqueIDs")$Matrix)
+    uniqueIDs <- ORFik:::orfID(grl)
     save(grl, file = "./uniqueUorfsAsGR.rdata")
     insertTable(Matrix = uniqueIDs, tableName =  "uniqueIDs", rmOld = T)
     insertTable(Matrix = grl,tableName = "SplittedByExonsuniqueUORFs", rmOld = T)
@@ -120,7 +119,7 @@ getTissueTable <- function(){
     tissueAtlas <- finalMatrix
     
     save(tissueAtlas,file = "tissueAtlas.rdata")
-    insertTable(Matrix = tissueAtlas,tableName = "tissueAtlasByCage")
+    insertTable(Matrix = tissueAtlas,tableName = "tissueAtlasByCage", rmOld = T)
     return("ok tissueAtlassCage")
   }
   return("tissueAtlasCage already exists, stop if you want new")

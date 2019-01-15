@@ -1,6 +1,6 @@
 
 #' Create 1 column of all unique ids from uorfID folder
-createUniqueIDs <- function(){
+createUniqueIDs <- function() {
   if (length(idFiles) == 0) {
     stop("idFiles can not have 0 length")
   }
@@ -29,7 +29,7 @@ createUniqueIDs <- function(){
 
 #' convert to gr from string and filter NB!!! put this  in pipeline!!
 createGRObjects <- function(makeBed = T){
-  if (tableNotExists("uorfsAsGRWithTx")) {
+  if (file.exists(p(dataBaseFolder,"/uniqueUorfsAsGRWithTx.rdata"))) {
     grl <- toGRFromUniqueID(readTable("uniqueIDs")$Matrix)
     uniqueIDs <- ORFik:::orfID(grl)
     save(grl, file = "./uniqueUorfsAsGR.rdata")
@@ -55,16 +55,14 @@ createUORFAtlas <- function(){
     uorfIDsAllUnique <- readTable("uniqueIDs")
     colnames(uorfIDsAllUnique) = "uorfID"
     uorfAtlas <- as.data.table(matrix(F, nrow = nrow(uorfIDsAllUnique), ncol = length(idFiles)+1))
-    uorfAtlas[,"V1" := uorfIDsAllUnique]
+    uorfAtlas[,"V1" := uorfIDsAllUnique$uorfID]
     colnames(uorfAtlas) = c("uorfID", as.character(1:(length(idFiles))))
     j = 1
     print(paste("creating uorfAtlas at index of max:", length(idFiles)))
     for(i in idFiles){
       load(p(idFolder, i))
       
-      uorfs <- uorfID[!duplicated(uorfID)]
-      
-      uorfAtlas[, as.character(j) :=  data.table::`%chin%`(uorfIDsAllUnique$uorfID, uorfs)]
+      uorfAtlas[, as.character(j) :=  data.table::`%chin%`(uorfIDsAllUnique$uorfID, uorfID)]
         
       j = j+1
       print(j)

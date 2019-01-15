@@ -6,15 +6,15 @@ faiName <- "/export/valenfs/data/references/Zv10_zebrafish/Danio_rerio.GRCz10.fa
 fa <- FaFile(file = faiName)
 txdb <- GenomicFeatures::makeTxDbFromGFF("/export/valenfs/data/references/Zv10_zebrafish/Danio_rerio.GRCz10.81_chr.gtf",                                         format = "gtf")
 cds <- cdsBy(txdb,"tx", use.names = TRUE)
-tx <- exonsBy(txdb, by = "tx", use.names = TRUE)
+#tx <- exonsBy(txdb, by = "tx", use.names = TRUE)
 
 # load their nmd data
 library(xlsx)
 df2 <- xlsx::read.xlsx2(p(nmdFolder, "TCT_SuppTable.xlsx"), sheetName = "Table S3", startRow = 5,
                         colClasses = c("character", "character", "double", "double", "double",
                                        "double", "double", "character"))
-big <- df2[(df2$YC.1 > df2$YC),]
-bigger <- df2[(df2$YC.1 > df2$YC) & df2$p.value < 0.06, ]
+big <- df2[(df2$YC.1 > df2$YC) & (df2$EnsemblID %in% names(cds)),]
+bigger <- big[big$p.value < 0.06, ]
 theirHigh <- length(unique(bigger$EnsemblID))
 theirAll <- length(unique(big$EnsemblID))
 
@@ -36,14 +36,14 @@ for(i in seq.int(1, length(rfpFiles), by = 2)){
   rfp <- sort(c(rfp, rfp2))
   rfp <- rep(rfp, rfp$score)
   rfp$score <- NULL
-  
+  print(p("Library Size: ", length(rfp)))
   df <- predictNMD(cds, rfp, fa)
   # View and save
   # View(goodHits)
   save(df, file = paste0(nmdFolder, "potentialOutOfFrameStopCodons_",stage,".Rdata"))
   
   # Statistics
-  goodHits <- df[df$outOfFrame == T & df$hasStopCodon == T & df$distanceCDSEnd > 4, ]
+  goodHits <- df[df$hasStopCodon == T & df$distanceCDSEnd > 4, ]
   hits <- goodHits[goodHits$transcript %in% bigger$EnsemblID,]
   hitsBig <- goodHits[goodHits$transcript %in% big$EnsemblID,]
   overlapHigh <- length(unique(hits$transcript))
@@ -64,31 +64,33 @@ for(i in seq.int(1, length(rfpFiles), by = 2)){
   
   plotNMD(stop, nmd, overlaps, stage)
 }
+overlapsTests()
+# p-value
+# mean
+#'
 
 
 predictNMD <- function(cds, rfp, fa){
   # algorithm
   cov <- ORFik:::coverageByWindow(rfp, cds, is.sorted = T)
-  cov <- cov[sum(cov) > 1]
-  print(paste(round(length(cov) / length(cds), 2), "% of CDS had reads accepted by filter"))
+  cov <- cov[sum(cov) > 11]
+  print(paste(round((length(cov) / length(cds))*100, 0), "% of CDS had reads accepted by filter"))
   print(summary(sum(cov)))
   
-  hits <- runValue(cov) > pmax(median(sum(cov)), 1) # median is 37 on average
+  hits <- runValue(cov) > pmax(median(cov)*6, 11) # sum median is 37 on average cds
   cov <- cov[any(hits)]
   hits <- hits[any(hits)]
   
   # now we know which are hits, now lets find their positions.
-  len <- BiocGenerics::lengths(cov)
   sums <- cumsum(runLength(cov))
   locations <- sums[hits]
   names <-  names(unlist(locations, use.names = T))
   grl <- ORFik:::pmapFromTranscriptF(IRanges(start = unlist(locations, use.names = F), width = 1), cds[names],
                                      indices = seq.int(length(names)))
-  grl <- ORFik:::removeMetaCols(grl)
   gr <- unlistGrl(grl) # <- here are the positions in genomic coordinates
-  
+  mcols(gr) <- NULL
   # Now lets make a window
-  window <- ORFik:::windowPerGroup(gr = gr, tx = tx, downstream = 3, upstream = 3) # window of 3 each direction from point
+  window <- ORFik:::windowPerGroup(gr = gr, tx = cds, downstream = 3, upstream = 3) # window of 3 each direction from point
   seqs <- ORFik:::txSeqsFromFa(grl = window, faFile = fa, is.sorted = T) # window per sequence
   
   taaHits <- grep(x = seqs, pattern = "TAA")
@@ -122,4 +124,65 @@ plotNMD <- function(stop, nmd, overlaps, stage){
   grid.draw(venn.plot);
   dev.off();
   
+}
+
+transcriptOverlapPValue <- function(a, b, all, pValue = 0.005, reps = 2000){
+  biggest <- which.max(c(length(a), length(b)))
+  mean <- sum(a %in% b)/length(a)
+  means <- c()
+  print("          Overlap significance Test")
+  print(p("Valid set? ",all(a %in% all) & all(b %in% all)))
+  for(i in seq.int(reps)){
+    sample <- sample(x = all, size = length(a), replace = F)
+    newMean <- sum(unique(sample) %in% b)/length(sample)
+    means <- c(means, newMean)
+  }
+  res <- round(sum(means >= mean)/reps, 2) 
+  if (pValue > res){
+    print(paste0("p-value < ", min(1/reps, pValue)))
+    print("sets are significantly correlated")
+  } else {
+    print(paste0("p-value = ", res))
+    print("sets are NOT significantly correlated")
+  }
+}
+
+#' Test if stop codon peaks overlap well
+overlapsTests <- function(){
+  # import all dfs
+  dfs <- grep(pattern = "potential", x = list.files(nmdFolder), value = T)
+  lists <- rep(list(rep(vector(mode = "character"), length(dfs))), length(dfs))
+  j = 1
+  for(i in dfs){
+    load(p(nmdFolder,i))
+    g <- unique(df[df$hasStopCodon == T & df$distanceCDSEnd > 4, ]$transcript)
+    lists[[j]] <- g
+    j = j+1
+  }
+  names(lists) <- dfs
+  print("Length lists")
+  print(summary(lengths(lists)))
+  # Overlap between dfs
+  a <- c()
+  for(i in seq.int(length(lists)-1)) {
+    a <- c(a, sum(unlist(lists[i], F) %in% unlist(lists[i+1], F))/lengths(lists, use.names = F)[i])
+  }
+  print("Overlap between df's and their whole")
+  print(summary(a))
+  # overlap between dfs and their whole list
+  b <- c()
+  for(i in seq.int(length(lists))) {
+    b <- c(b, sum(unlist(lists[i], F) %in% big$EnsemblID)/lengths(lists, use.names = F)[i])
+  }
+  print("Overlap between df's and their confident")
+  print(summary(b))
+  
+  # do all unique, check specific overlap
+  d <- unique(unlist(lists, F))
+  print(p("number of unique transcripts total: ", length(d)))
+  transcriptOverlapPValue(d, big$EnsemblID, names(cds)) 
+  
+  d <- as.character(d[d %in% bigger$EnsemblID])
+  notD <- bigger$EnsemblID[!(bigger$EnsemblID %in% d)]
+  print(paste0("missed ", length(notD), " of significant in total of all stages"))
 }

@@ -11,8 +11,7 @@ library(ORFik)
 source("./HelperVariables.R")
 source("./HelperFunctions.R")
 source("./GenomicGetters.R")
-source("./scanUORFs.R")
-source("./Plotting&Statistics/PlotUORFome.R")
 source("./GRangesHelpers.R")
-source("./bedMaker.R")
+source("./findUORFsOverlappingCDS.R")
+
 

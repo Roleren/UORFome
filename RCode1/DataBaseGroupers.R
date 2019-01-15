@@ -38,10 +38,17 @@ allLeadersSpanningLeader <- function(){
   
   # Inside Leader
   inside <- change < 0
-  fIn <- pmapToTranscripts(fiveUTRs[inside], fiveUTRs[inside])
-  start(fIn) <- start(fIn) - change[inside] # -- = +
-  fIn <- unlist(fIn, use.names = F)
-  fInNew <- ORFik:::pmapFromTranscriptF(fIn, fiveUTRs, which(inside))
+  if(any(inside)) {
+    fIn <- pmapToTranscripts(fiveUTRs[inside], fiveUTRs[inside])
+    start(fIn) <- start(fIn) - change[inside] # -- = +
+    fIn <- unlist(fIn, use.names = F)
+    fIn <- ranges(fIn)
+    names(fIn) <- which(inside)
+    fInNew <- ORFik:::pmapFromTranscriptF(fIn, fiveUTRs)
+  } else {
+    fInNew <- GRangesList()
+  }
+  
   
   fTot <- fiveUTRs
   fTot[either] <- fOut
@@ -69,11 +76,12 @@ allLeadersSpanningLeader <- function(){
 linkORFsToTx <- function(){
   if (!file.exists(p(dataBaseFolder,"/uniqueUorfsAsGRWithTx.rdata"))) {
     leaders <- leaderCage()
-    getUorfsInDb(T, F, F)
-    overlaps <- findOverlaps(grl,leaders, type = "within")
+    grl <- getUorfsInDb(T, F, F)
+    overlaps <- findOverlaps(grl, leaders, type = "within")
     if( length(unique(from(overlaps))) != length(grl)) {
       stop("leader is not spanning all uORFs, check for uORFs going into cds.")
     }
+    
     sortedIndeces <- order(to(overlaps))
     from <- from(overlaps)[sortedIndeces]
     to <- to(overlaps)[sortedIndeces]
@@ -89,9 +97,7 @@ linkORFsToTx <- function(){
     asGR <- unlist(grlb, use.names = T)
     names(grlb@unlistData) <- names(asGR)
     
-    grlf <- ORFik:::makeORFNames(grlb, F)
-    insertTable(Matrix = grlf, tableName = "uorfsAsGRWithTx",rmOld = T)
-    grl <- grlf
+    grl <- ORFik:::makeORFNames(grlb, F)
     save(grl, file = "uoRFsAsGRAllWithTx.rdata")
     # Unique uORFs
     c <- ORFik:::orfID(grl, with.tx = F)

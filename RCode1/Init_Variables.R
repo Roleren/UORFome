@@ -12,9 +12,9 @@ mainFolder = "/export/valenfs/projects/uORFome" # main folder is one back from R
 
 codeFolder = p(mainFolder,"/RCode1") # the rcode location
 
-resultsFolder = p(mainFolder,"/test_results") #output folder
+resultsFolder = p(mainFolder,"/results") #output folder
 
-dataFolder = p(resultsFolder,"/Old_Tests/test_data") #location of gtf, fasta and .fai
+dataFolder = p(mainFolder,"/Annotations") #location of gtf, fasta and .fai
 faiName = p(dataFolder,"/Homo_sapiens.GRCh38.dna.primary_assembly.chr.fa")
 gtfName = p(dataFolder,"/Homo_sapiens.GRCh38.79.chr.NO_PATCH.gtf")
 gtfdb = p(dataFolder,"/Gtf.db")  ### a speed up for Gtf, remove if not used

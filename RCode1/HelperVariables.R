@@ -7,10 +7,9 @@ source("./Init_Variables.R")
 
 # output folders
 plottingFolder = p(resultsFolder,"/Plotting/Single_result_Plots/")
-leadersbedFolder = p(resultsFolder,"/New_Cage_bedLeaders/")
+regionUORFsFolder = p(resultsFolder,"/regionUORFs/")
 leadersFolder = p(resultsFolder,"/New_Cage_Leaders/")
 fastaFolder = p(resultsFolder,"/fasta/")
-uorfBedFolder = p(resultsFolder,"/bedUORFS/")
 uorfFolder = p(resultsFolder,"/rangesOfUORFs/")
 idFolder = p(resultsFolder,"/uorfIDs/")
 

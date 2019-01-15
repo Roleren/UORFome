@@ -36,22 +36,30 @@ listTables = function(){
   sort(dbListTables(uorfDB))
 }
 
-tableNotExists <- function(name){
-  sum(grep(pattern = name, x = listTables())) == 0
+tableNotExists <- function(name, exact = TRUE){
+  if (exact) return(sum(name %in% listTables()) == 0)
+  
+  return(sum(grep(pattern = name, x = listTables())) == 0)
 }
 
 deleteTable = function(tableName){
-  dbRemoveTable(uorfDB,tableName)
+  if (!tableNotExists(tableName)) { dbRemoveTable(uorfDB,tableName)
+  } else { print(paste(tableName, "is not a table in the uORF database"))
+    }
 }
 
 #' Delete uorf tables
 #' 
 #' For rerunning
+#' It keeps the RNA seq tables, since they usually not change
 deleteUorfTables <- function() {
   deleteTable("uorfsAsGRWithTx")
   deleteTable("uniqueIDs")
   deleteTable("SplittedByExonsuniqueUORFs")
+  deleteTable("toUniqueOrder")
   
+  
+  # Ribo seq features
   deleteTable("RSS")
   deleteTable("RRS")
   deleteTable("Ribofpkm")
@@ -64,22 +72,32 @@ deleteUorfTables <- function() {
   deleteTable("teFiltered")
   deleteTable("teUnfiltered")
   deleteTable("tissueAtlasByCage")
+  deleteTable("entropyRFP")
+  deleteTable("floss")
+  deleteTable("startCodonCoverage")
   
+  
+  # sequence features
   deleteTable("numberOfUorfsPerTx")
   deleteTable("rankInTx")
   deleteTable("disengagementScores")
-  
-  deleteTable("entropyRFP")
   deleteTable("fractionLengths")
   deleteTable("ioScore")
   deleteTable("kozak")
   deleteTable("inFrameCDS")
   deleteTable("isOverlappingCds")
-  
   deleteTable("distORFCDS")
+  deleteTable("distORFTSS")
   deleteTable("linkORFsToTx")
   deleteTable("isOverlappingCds")
-  deleteTable("floss")
+  deleteTable("StopCodons")
+  deleteTable("StartCodons")
+  deleteTable("finalCAGEuORFPrediction")
+  deleteTable("gcContent")
+  deleteTable("goTerms")
+  deleteTable("exon-exonJunctionsLeader")
+  deleteTable("exon-exonJunctionsuORFs")
+  deleteTable("uORFTxToGene")
   
   
   if(!tableNotExists("biggestTEVariance")) {

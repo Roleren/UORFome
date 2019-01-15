@@ -14,13 +14,12 @@
 #set working dir correctly to ./RCode1/ location
 setwd("/export/valenfs/projects/uORFome/RCode1/") #!! set this path as codeFolder
 # source("./HelperFunctions.R")
-# updateORFik("functionGeneralization") # update if needed
-source("./DataBaseSetup.R")
-setwd(codeFolder)
+# updateORFik("update19", "Roleren") # update if needed
+source("./pipelineSetup.R")
 
 
 # set up multithreading options
-pipelineCluster(69) #!! set number of cores, I use 69 usually on furu.
+pipelineCluster(40) #!! set number of cores, I use 69 usually on furu.
 
 
 ##### Second Find new cage leaders
@@ -29,14 +28,12 @@ getLeadersFromCage(length(cageFiles))
 
 ##### Third Find uORFs
 
-leadersList = list.files(regionUORFs)
-nLeadersList = length(leadersList)
-
-getUorfsFromLeaders(nLeadersList)
+getUorfsFromLeaders()
 
 #### Fourth make uorf IDs
 
-getIDsFromUorfs(length(uorfFiles))
+getIDsFromUorfs()
+
 
 ### Fifth Create feature database
 #5. 
@@ -49,7 +46,7 @@ rm(cl)
 
 
 # Sixth Predict uORFs
-# Either split tissues, or use all for all in one go
+# Either split tissues, or use argument "all" for all in one go
 #6.
 predictUorfs("all")
 

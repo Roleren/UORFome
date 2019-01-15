@@ -1,20 +1,26 @@
 
 getLeadersFromCage <- function(nCageList){
-  foreach(i=1:nCageList, .inorder = F, .export = c("cageFiles", "getRelativePathName", "getLeaders"), .packages = c("ORFik")) %dopar% {
+  foreach(i=1:nCageList, .inorder = F, .export = c("cageFolder","cageFiles", "getRelativePathName", "regionUORFsFolder",
+                                                   "getLeaders", "p", "dataFolder", "getGTF", "getRelativePathName", "getCDS", "leadersFolder"),
+          .packages = c("ORFik")) %dopar% {
     getLeaders(cageName = p(cageFolder,cageFiles[i]),
                assignLeader = F , exportUorfRegions = T)
     print("ok")
   }
 }
 
-getUorfsFromLeaders <- function(nLeadersList){
-  foreach(i=1:nLeadersList, .inorder = F, .verbose = T, .export = c("FaFile", "extractTranscriptSeqs", "stopSites", "groupGRangesBy")) %dopar% {
-    usedCage = gsub(pattern = ".regionUORF.rdata",replacement = "",x = searchRegionList[i])
-    saveName <- getUORFRDataName(usedCage)
-    if(!file.exists(saveName)){
-      load(p(regionUORFs,searchRegionList[i]))
-      rangesOfuORFs <- getUnfilteredUORFs(uORFSeachRegion,assignRanges = F, isSorted = T,
-                                          startCodons = "ATG|CTG|TTG|GTG|AAG|AGG|ACG|ATC|ATA|ATT")
+getUorfsFromLeaders <- function(folder = regionUORFsFolder){
+  leadersList = list.files(folder)
+  nLeadersList = length(leadersList)
+  
+  foreach(i=1:nLeadersList, .inorder = F, .export = c("uorfFolder","folder","leadersList","dataFolder","getCDS","removeORFsWithStartInsideCDS","removeORFsWithSameStartAsCDS","removeORFsWithSameStopAsCDS","sortPerGroup","removeORFsWithinCDS","findMapORFs","faiName","getFasta","getSequencesFromFasta","FaFile", "extractTranscriptSeqs", "stopSites", "groupGRangesBy", "getUnfilteredUORFs", "filterORFs", "p"), .packages = "ORFik") %dopar% {
+    saveName = p(uorfFolder, gsub(pattern = "regionUORF.rdata", replacement = "uorf.rdata", x = leadersList[i]))
+    if (!file.exists(saveName)) {
+      load(p(folder, leadersList[i]))
+      
+      rangesOfuORFs <- getUnfilteredUORFs(uORFSeachRegion, assignRanges = F, isSorted = T,
+                                          startCodons = "ATG|CTG|TTG|GTG|AAG|AGG|ACG|ATC|ATA|ATT", 
+                                          minimumLength = 0)
       rangesOfuORFs <- filterORFs(rangesOfuORFs)
       save(rangesOfuORFs, file = saveName)
       return(i)
@@ -23,12 +29,15 @@ getUorfsFromLeaders <- function(nLeadersList){
   }
 }
 
-getIDsFromUorfs <- function(nuorfsList){
-  foreach(i=1:nuorfsList, .inorder = F, .export = c("resultsFolder","uorfFolder"), .packages = c("ORFik")) %dopar% {
-    load(paste0(uorfFolder, list.files(uorfFolder)[i]))
+getIDsFromUorfs <- function(folder = uorfFolder){
+  uorfFiles = list.files(folder)
+  nuorfsList <- length(uorfFiles)
+  
+  foreach(i=1:nuorfsList, .inorder = F, .export = c("idFolder","folder")) %dopar% {
+    load(paste0(folder, list.files(folder)[i]))
     
     uorfID <- unique(ORFik:::orfID(rangesOfuORFs))
-    saveName = paste0(resultsFolder,"/uorfIDs/",gsub("uorf.rdata","",list.files(uorfFolder)[i]),"uorfID.rdata")
+    saveName = paste0(idFolder, gsub("uorf.rdata","",list.files(folder)[i]),"uorfID.rdata")
     save(uorfID, file = saveName)
     print("ok")
   }

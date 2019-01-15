@@ -89,23 +89,23 @@ getLeaders = function(cageName = NULL, assignLeader = T, exportUorfRegions = T){
     if (!is.null(cageName)) {
       print("Using cage.. ")
       
-      fiveUTRs = ORFik::reassignTSSbyCage(fiveUTRs,cageName)
+      fiveUTRs = ORFik::reassignTSSbyCage(fiveUTRs, cageName, filterValue = 3)
       if (exportUorfRegions) {
         getCDS()
         uORFSeachRegion <- ORFik:::addCdsOnLeaderEnds(fiveUTRs, cds, onlyFirstExon = F)
         uORFSeachRegion <- sortPerGroup(uORFSeachRegion)
         print("exporting new uorf regions")
-        exportNamerdata = paste0(regionUORFs,
+        exportNamerdata = paste0(regionUORFsFolder,
                                  getRelativePathName(p(cageName,
                                                        ".regionUORF.rdata")))
         save(uORFSeachRegion, file = exportNamerdata)
       }
       
       print("exporting new leaders")
-      exportNamerdata = paste0(leadersFolder,
+      exportNamerdataLeader = paste0(leadersFolder,
                                getRelativePathName(p(cageName,
                                                      ".leader.rdata")))
-      save(fiveUTRs,file = exportNamerdata)
+      save(fiveUTRs,file = exportNamerdataLeader)
       print("finished new 5' UTRs")
     }
   }
@@ -129,6 +129,23 @@ leaderCage <- function(with.cds = TRUE){
   return(CageFiveUTRs)
 }
 
+#' Convenience wrapper from findMapORFs
+#' Get the upstream open reading frames from the 5' leader sequences, given as GRangesList 
+getUnfilteredUORFs = function(uORFSeachRegion, assignRanges = TRUE, isSorted = FALSE,
+                              startCodons = "ATG", groupByTx = FALSE, minimumLength = 2){
+  print("making leader sequences")
+  getSequencesFromFasta(uORFSeachRegion, isSorted)
+  
+  print("find uORFs")
+  rangesOfuORFs = findMapORFs(grl = uORFSeachRegion, seqs = seqs, longestORF = FALSE,
+                                     minimumLength = minimumLength, startCodon = startCodons,
+                                     groupByTx = groupByTx)
+  
+  if(assignRanges)
+    assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
+  print("finished unfiltered UORFs")
+  return(rangesOfuORFs)
+}
 
 #' Get the fasta indexed file
 #' 
@@ -164,7 +181,7 @@ getAll <- function(include.cage = T, cdsOnFiveEnd = F){
   getCDS()
   getThreeUTRs()
   getLeaders()
-  tx <- getTx()
+  getTx(T)
   
   #or with extension
   if (include.cage) {
@@ -175,7 +192,7 @@ getAll <- function(include.cage = T, cdsOnFiveEnd = F){
   return(NULL)
 }
 
-# delete all
+# delete all tx objects
 da <- function(){
   if (exists("threeUTRs")) {
     rm(threeUTRs, envir = .GlobalEnv)
@@ -191,28 +208,12 @@ da <- function(){
   }
 }
 
-#' Convenience wrapper from findMapORFs
-#' Get the upstream open reading frames from the 5' leader sequences, given as GRangesList 
-getUnfilteredUORFs = function(uORFSeachRegion, assignRanges = T, isSorted = F,
-                              startCodons = "ATG", groupByTx = F){
-  
-  getSequencesFromFasta(uORFSeachRegion, isSorted)
-  
-  
-  rangesOfuORFs = ORFik::findMapORFs(grl = uORFSeachRegion,seqs = seqs, longestORF = F,
-                                     minimumLength = 2, startCodon = startCodons,
-                                     groupByTx = groupByTx)
-  
-  if(assignRanges)
-    assign("rangesOfuORFs",rangesOfuORFs,envir = .GlobalEnv)
-  print("finished unfiltered UORFs")
-  return(rangesOfuORFs)
-}
-
-  
-getAllTranscriptLengths = function(){
-  load(p(dataFolder,"/transcriptLengths.rdata"))
-  #transcriptLengths(Gtf,with.cds_len = T,with.utr5_len = T,with.utr3_len = T)
+getAllTranscriptLengths = function(name = p(dataFolder,"/transcriptLengths.rdata")){
+  if(file.exists(name)) { load(name)
+  } else {
+    getGTF()
+    transcriptLengths(Gtf,with.cds_len = T,with.utr5_len = T,with.utr3_len = T)
+  }
   assign("allLengths",allLengths,envir = .GlobalEnv)
 }
 
@@ -253,5 +254,4 @@ getRiboTest <- function(onlyGRL = FALSE, rfpIndex = 7) {
   RFPPath <- p(rfpFolder, rfpList[rfpIndex])
   assign(x = "grl", getUorfsInDb(), envir = .GlobalEnv)
   assign(x = "RFP", fread.bed(RFPPath), envir = .GlobalEnv)
-  
 }

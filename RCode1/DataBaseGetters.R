@@ -74,7 +74,7 @@ removeIDColumns <- function(dt){
 #' @param withTranscripts should the uorfs have transcript information, 
 #' warning, this will duplicate some uorfs.
 #' @return a GRangesList or data.table, if(F, F)
-getUorfsInDb <- function(withExons = T, withTranscripts = T, uniqueORFs = T){
+getUorfsInDb <- function(withExons = T, withTranscripts = T, uniqueORFs = T) {
   if (withExons && withTranscripts) {
     if(uniqueORFs) {
       if (file.exists(p(dataBaseFolder, "/uniqueUorfsAsGRWithTx.rdata"))) {
@@ -82,8 +82,8 @@ getUorfsInDb <- function(withExons = T, withTranscripts = T, uniqueORFs = T){
         return(grl)
       } else stop("unique uorfs with tx does not exists")
     }
-    if(file.exists(p(dataBaseFolder, "/uORFsAsGR.rdata"))) {
-      load(p(dataBaseFolder, "/uORFsAsGR.rdata"))
+    if(file.exists(p(dataBaseFolder, "/uoRFsAsGRAllWithTx.rdata"))) {
+      load(p(dataBaseFolder, "/uoRFsAsGRAllWithTx.rdata"))
       return(grl)
     } else if(!tableNotExists("uorfsAsGRWithTx")) {
       grl <- readTable("uorfsAsGRWithTx", asGR = T)

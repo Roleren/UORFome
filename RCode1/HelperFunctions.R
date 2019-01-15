@@ -25,15 +25,14 @@ getRelativePathName = function(name){
 orfikDirs <- function(mainPath, makeDatabase = F){
   setwd(mainPath)
   print(paste("main path for project will be: ", mainPath))
-  resultsLoc <- "test_results/"
-  dir.create(resultsLoc)
+  resultsLoc <- resultsFolder
+  if (!dir.exists(resultsLoc)) dir.create(resultsLoc)
   
-  dir.create(p(resultsLoc,"New_Cage_Leaders"))
-  dir.create(p(resultsLoc,"New_Cage_bedLeaders"))
-  dir.create(p(resultsLoc,"rangesOfUORFs"))
-  dir.create(p(resultsLoc,"bedUORFS"))
-  dir.create(p(resultsLoc,"fasta"))
-  dir.create(p(resultsLoc,"uorfIDs"))
+  dir.create(p(resultsLoc,"/New_Cage_Leaders"))
+  dir.create(p(resultsLoc,"/regionUORFs"))
+  dir.create(p(resultsLoc,"/rangesOfUORFs"))
+  dir.create(p(resultsLoc,"/fasta"))
+  dir.create(p(resultsLoc,"/uorfIDs"))
   
   if (makeDatabase) {
     dir.create("dataBase")
@@ -84,6 +83,6 @@ pipelineCluster <- function(maxCores = NULL, outfile = NULL){
   message("running with number of threads: ", maxCores)
 }
 
-updateORFik <- function(branch = "master") {
-  devtools::install_github("JokingHero/ORFik", ref = branch)
+updateORFik <- function(branch = "master", user = "JokingHero")  {
+  devtools::install_github(paste0(user, "/ORFik"), ref = branch)
 }

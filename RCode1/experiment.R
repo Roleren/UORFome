@@ -84,3 +84,90 @@ ORFsInGeneMetrics <- function(hgncSymbol = "ATF4"){
   print(uorfData$rankInTx[hits])
   return(hits)
 }
+
+primersToMake <- function(){
+  uorfTable <- makeUORFPredicateTable()
+  uorfData <- getAllSequenceFeaturesTable()
+  teTable <- readTable("TEByTissueMeanWithoutInf")
+  grl <- getUorfsInDb()
+  hits <- uorfData$StartCodons == "ATG" & uorfTable$RFPFpkm > 0.5 & uorfTable$startCodonCoverage > 1.0 & uorfTable$ORFScores > 0.01 & teTable$HeLa > teTable$HEK293*5
+  grl <- grl[hits]
+  # now check them in IGV
+  #candidates are here
+  gr <- GRanges(c("chr1:6026375-6026398:+", "chr1:10210717-10210740:+",
+            "chr1:10430850-10431044:+","chr1:11273233-11273253:+","chr1:11980456-11980482:+",
+            "chr1:153536104-153536118:-","chr1:153536171-153536233:-", "chr2:30148292-30148309:+",
+            "chr3:55480956-55480997:-", "chr5:32711306-32711335:+"))
+  names <- c( "ENST00000341524(HeLa, not Hek)","ENST00000377093(Both)",
+              "ENST00000602296(both)","ENST00000376810(both)","ENST00000444836(both)",
+              "ENST00000496817(HeLa, not HEK)1","ENST00000496817(HeLa, not HEK)",
+              "ENST00000379519(Both)","ENST00000614415(HeLa, not HEK)","ENST00000265074(HeLa, not HEK)"
+  )
+  names(gr) <- names    
+  
+  control <- GRanges(c("chr22:39520648-39520659:+"))
+  names(control) <- c("ATFuORF2")
+  
+  gr <- c(gr, control)
+  getSequencesFromFasta(groupGRangesBy(gr))
+  
+  fileConn<-file("output.txt")
+  writeLines(c("Hello","World"), fileConn)
+  close(fileConn)
+  write.(seqs, "primers.fa")
+}
+
+uORFAnalysis <- function(){
+  uorfTable <- makeUORFPredicateTable()
+  uorfData <- getAllSequenceFeaturesTable()
+  teTable <- readTable("TEByTissueMeanWithoutInf")
+  grl <- getUorfsInDb()
+  RNA <- readTable("RNAByTissueMean")
+  rowMeans <- rowMeans(RNA[,2:ncol(RNA)])
+  rowMeans <- rowMeans[data.table::chmatch(txNames(grl), RNA$txNames)]
+  
+  hits <- which(final$Matrix == 1 & rowMeans > 10 & uorfTable$RFPFpkm > 0.5 &
+                  uorfTable$startCodonCoverage > 1.0 & uorfData$eejuORF == 1 & uorfData$isOverlappingCds == F)
+  
+  for(i in hits[25]) {
+    print(p("uORF: ", names(grl[i])))
+    print(uorfData[i,])
+    print(uorfTable[i,])
+    print(grl[i])
+  }
+  notOver <- !overCDS()
+  hits <- rowMeans > 10 & uorfTable$RFPFpkm > 0.5 &
+                  uorfTable$startCodonCoverage > 1.0 & uorfData$eejuORF == 1 & uorfData$isOverlappingCds == F
+  
+  hits <- which((prediction$p1 > 0.9 & hits[notOver]))
+  grl2 <- grl[notOver]
+  uorfData2 <- uorfData[notOver,]
+  uorfTable2 <- uorfTable[notOver,]
+  
+  for(i in hits[34]) {
+    print(p("uORF: ", names(grl2[i])))
+    print(uorfData2[i,])
+    print(uorfTable2[i,])
+    print(grl2[i])
+  }
+  
+  sum(uorfData$StartCodons == "ATG")
+  sum(uorfData2$StartCodons == "ATG" & prediction$predict == 1)
+  
+  grl2[which(uorfData2$StartCodons == "ATG" & prediction$predict == 0 & rowMeans[notOver] > 10)][1]
+  cages <- readTable("tissueAtlasByCage")
+  cages$uorfID <- NULL
+  cage <- cages[notOver,]
+  hits <- which(cage$kidney == 0 & cage$ovary == 0 & cage$brain == 0 & cage$blood == 0 & cage$prostate == 0 & prediction$predict == 1 & rowMeans[notOver] > 10)
+  i = 200
+  uorfData2$StartCodons[hits][i]
+  grl2[hits][i]
+  
+  # hit matrix oo, on, no, oo
+  sum(cage$kidney == 1 & cage$ovary == 1 & cage$brain == 1 & cage$blood == 1 & cage$prostate == 1 & prediction$predict == 1)
+  sum(cage$kidney == 1 & cage$ovary == 1 & cage$brain == 1 & cage$blood == 1 & cage$prostate == 1 & prediction$predict == 0)
+  sum(cage$kidney == 0 & cage$ovary == 0 & cage$brain == 0 & cage$blood == 0 & cage$prostate == 0 & prediction$predict == 1)
+  sum(cage$kidney == 0 & cage$ovary == 0 & cage$brain == 0 & cage$blood == 0 & cage$prostate == 0 & prediction$predict == 0)
+  
+  
+}

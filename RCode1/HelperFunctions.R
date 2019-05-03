@@ -11,7 +11,7 @@ an = function(fac){
 #' @param replacement (0) what should the non finite values be changed to ?
 removeNonFinite <- function(DT, replacement = 0){
   invisible(lapply(names(DT),function(.name)
-    set(DT, which(!is.finite(DT[[.name]])), j = .name,value = replacement)))
+    set(DT, which(!is.finite(DT[[.name]])), j = .name, value = replacement)))
   return(DT)
 }
 
@@ -62,10 +62,14 @@ UorfRangesNotExists <- function(assignUorf = F, givenCage = NULL){
 #' 
 #' Cluster object saved as cl
 #' @param maxCores what is max cores, if Null set to half of available cores
-pipelineCluster <- function(maxCores = NULL, outfile = NULL){
-  if(exists("cl") && any(class(cl) == "cluster")){
+pipelineCluster <- function(maxCores = NULL, reset = FALSE, outfile = NULL){
+  if(exists("cl") && is(cl, "cluster") && !reset){
     message("cluster already exists, abort if not correct")
   } else {
+    if(exists("cl") && is(cl, "cluster") && reset) {
+      setDefaultCluster(NULL)
+      rm(cl)
+    }
     library(doParallel)
     if(is.null(maxCores)){
       maxCores = as.integer(detectCores()-(detectCores()/2)) # using half
@@ -83,6 +87,39 @@ pipelineCluster <- function(maxCores = NULL, outfile = NULL){
   message("running with number of threads: ", maxCores)
 }
 
+writeFasta <- function(input, file = p(mainFolder,"/fasta.fasta")){
+  if(is(input, "GRangesList") | is(input, "GRanges")){ getSequencesFromFasta(input)
+  } else {
+    seqs <- input
+  }
+  writeXStringSet(seqs, filepath = file)
+}
+
 updateORFik <- function(branch = "master", user = "JokingHero")  {
   devtools::install_github(paste0(user, "/ORFik"), ref = branch)
+}
+
+GRToWig <- function(gr, outputPrefix = p(mainFolder,"/test_")) {
+  
+  if(!is(gr, "GRanges")){
+    if(is.character(gr)){
+      if (tools::file_ext(gr) == "bam") {
+        gr <- GenomicAlignments::readGAlignments(gr)
+      } else if(tools::file_ext(gr) == "bed") {
+        gr <- fread.bed(gr)
+      } else gr <- import(gr)
+    } else stop("character or GR, nothing else supported!")
+  }
+  gr <- GRanges(gr)
+  gr <- resize(gr, width = 1, fix = "start")
+  forward <- gr[strand(gr) == "+"]
+  reverse <- gr[strand(gr) == "-"]
+  forward <- GRanges(coverage(forward))
+  forward <- resize(forward[forward$score > 0], width = 1, fix = "start")
+  reverse <- GRanges(coverage(reverse))
+  reverse <- resize(reverse[reverse$score > 0], width = 1, fix = "start")
+  
+  export.wig(forward, p(outputPrefix, "forward.wig"))
+  export.wig(reverse, p(outputPrefix, "reverse.wig"))
+  
 }

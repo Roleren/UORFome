@@ -1,9 +1,9 @@
 
 #' Get the Genomic transcript format, currently using GRch38 data
 getGTF = function(assignIt = T){
+  library(AnnotationDbi)
   if(exists("Gtf") == F){
     print("loading human GTF GRch38")
-    library(AnnotationDbi)
     if(is.null(gtfdb)){
       if(file.exists(gtfName)){
         Gtf = makeTxDbFromGFF(gtfName)
@@ -36,6 +36,17 @@ getTx <- function(assignIt = F){
 
 #Get the coding sequences from the gtf file
 getCDS = function(assignIt = T){
+  if (!assignIt) {
+    if (!file.exists(p(dataFolder, "/cds.rdata"))) {
+      getGTF()
+      cds = cdsBy(Gtf,"tx", use.names = TRUE)
+      save(cds, file = p(dataFolder, "/cds.rdata"))
+      print("saving cds rdata file for quicker reload")
+    } else {
+      load(p(dataFolder, "/cds.rdata"), envir = .GlobalEnv)
+    }
+    return(cds)
+  }
   if (exists("cds",mode = "S4") == F) {
     if (!file.exists(p(dataFolder, "/cds.rdata"))) {
       getGTF()
@@ -168,7 +179,7 @@ getFasta = function(filePath = NULL, assignIt = T){
 }
 
 #' get sequences from a GRangeslist
-getSequencesFromFasta = function(grl, isSorted = F){
+getSequencesFromFasta = function(grl, isSorted = T){
   getFasta() #get .fai
   if(!isSorted) grl <- ORFik:::sortPerGroup(grl)
   seqs = extractTranscriptSeqs(fa, transcripts = grl)
@@ -181,13 +192,14 @@ getAll <- function(include.cage = T, cdsOnFiveEnd = F){
   getCDS()
   getThreeUTRs()
   getLeaders()
-  getTx(T)
   
   #or with extension
   if (include.cage) {
     cageFiveUTRs <- leaderCage(cdsOnFiveEnd)
     assign("cageFiveUTRs", cageFiveUTRs,  envir = .GlobalEnv)
     getCageTx()
+  } else {
+    getTx(T)
   }
   return(NULL)
 }
@@ -230,9 +242,9 @@ getCageTx <- function() {
   if (file.exists(p(dataBaseFolder, "/cageTx.rdata"))) {
     load(p(dataBaseFolder, "/cageTx.rdata"), envir = .GlobalEnv)
   } else {
-    getTx()
+    tx <- getTx()
     cageFiveUTRs <- leaderCage()
-    tx <- ORFik:::extendLeaders(tx, cageFiveUTRs)
+    tx[names(cageFiveUTRs)] <- ORFik:::extendLeaders(tx, cageFiveUTRs)
     assign("tx", tx,  envir = .GlobalEnv)
     save(tx, file = p(dataBaseFolder, "/cageTx.rdata"))
   }

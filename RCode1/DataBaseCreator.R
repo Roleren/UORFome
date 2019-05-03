@@ -79,7 +79,7 @@ createUORFAtlas <- function(){
 #' to declare a hit in that tissue. If only one sample, that sample
 #' must include uORF to be a hit. 
 getTissueTable <- function(){
-  if (!tableNotExists("tissueAtlasByCage")) {
+  if (tableNotExists("tissueAtlasByCage")) {
     cageTable <- getCageInfoTable()
     uniqueTissues <- unique(cageTable$tissue)  
     

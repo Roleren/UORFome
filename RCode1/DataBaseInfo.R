@@ -67,3 +67,8 @@ getRiboRNAInfoTable <- function(tableName = "/matching_rna_ribo.rdata"){
   load(file = p(mainFolder,tableName))
   return(matching_rna_ribo)
 }
+
+getRiboMatchedToAll <- function() {
+  grep(paste(getRiboRNAInfoTable()$ribo, collapse="|"), grep(pattern = "merged", 
+                                                             x = list.files(rfpFolder), value = T))
+}

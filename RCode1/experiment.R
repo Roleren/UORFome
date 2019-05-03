@@ -60,6 +60,17 @@ getORFsGeneSymbols <- function(hgncSymbol = "ATF4", refTable = refTable){
   return(which(refTable$geneNames == geneHits[1, 1]))
 }
 
+getAllORFGeneSymbols <- function(geneNames){
+  library(biomaRt)
+  ensembl <- useEnsembl(biomart="ensembl", dataset="hsapiens_gene_ensembl")
+  uniqueGenes <- unique(geneNames)
+  geneHits <- getBM(attributes = c('ensembl_gene_id', 'hgnc_symbol'),
+                    filters = 'ensembl_gene_id', values = uniqueGenes, mart = ensembl)
+  group2 <- data.table::chmatch(geneNames, geneHits$ensembl_gene_id)
+  
+  return(data.table(geneNames = geneNames, symbol = geneHits$hgnc_symbol[group2]))
+}
+
 getORFsGoTerms <- function(uORFGenes){
   library(biomartr)
   old <- uORFGenes
@@ -170,4 +181,23 @@ uORFAnalysis <- function(){
   sum(cage$kidney == 0 & cage$ovary == 0 & cage$brain == 0 & cage$blood == 0 & cage$prostate == 0 & prediction$predict == 0)
   
   
+}
+
+#' ATF4 gene, transcript isoform ENST00000404241, 6 should be at start chr22 39,520,586
+#' Conclusion: It now finds all three 
+ATF4Check <- function(){
+    
+  order(prediction$p1, decreasing = T)
+  
+  hits6 <- which((ORFik:::txNames(grl) == "ENST00000404241") & widthPerGroup(grl, F) == 6)
+  grl[hits6] # nr 2 is correct
+  hitsPred <- hits6 %in% which(prediction$predict == 1) 
+  
+  hits12 <- which((ORFik:::txNames(grl) == "ENST00000404241") & widthPerGroup(grl, F) == 12)
+  grl[hits12] # nr 3 is correct
+  hitsPred <- hits12 %in% which(prediction$predict == 1) 
+  
+  hitsLast <- which((ORFik:::txNames(grl) == "ENST00000404241") & startSites(grl, F, F, T) == 39520747)
+  grl[hitsLast]
+  hitsPred <- hitsLast %in% which(prediction$predict == 1) 
 }

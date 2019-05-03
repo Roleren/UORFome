@@ -6,8 +6,9 @@
 #' 2nd table is row-mean fpkm per tissue
 #' @param riboDbName "Ribofpkm"
 #' @param dbOutputNames the 2 output names c("RiboByTissueTF", "RiboByTissueMean")
-riboAtlasFPKMTissue <- function(riboDbName = "Ribofpkm",
-                                dbOutputNames = c("RiboByTissueTF", "RiboByTissueMean")){
+riboAtlasFPKMTissue <- function(riboDbName = "Ribofpkm", 
+                                dbOutputNames = c("RiboByTissueTF", "RiboByTissueMean"),
+                                onlyMatching = FALSE){
   if(length(dbOutputNames) != 2) stop("dbOutputNames must have 2 character elements")
   
   # now do per tissue true/false
@@ -20,6 +21,8 @@ riboAtlasFPKMTissue <- function(riboDbName = "Ribofpkm",
   riboTable <- readTable(riboDbName)
   idColumns <- getIDColumns(riboTable)
   riboTable <- removeIDColumns(riboTable)
+  # if not all
+  if (onlyMatching) riboTable <- riboTable[,getRiboMatchedToAll(), with = F]
   # number of id columns used
   riboByTissue <- as.data.table(matrix(nrow = nrow(riboTable),
                                        ncol = length(uniqueTissues)))
@@ -55,6 +58,10 @@ riboAtlasFPKMTissue <- function(riboDbName = "Ribofpkm",
 #' 2nd table is row-mean fpkm per tissue
 #' @param nIDColumns 1L transcript names
 rnaAtlasFPKMTissue <- function(){
+  if(!tableNotExists("RNAByTissueMean")){
+    print("rnaAtlasFPKMTissue table exists, remove it if you want to rerun with new values")
+    return(NULL)
+  }
   # now do per tissue true/false
   rnaSamples <- getRiboRNAInfoTable()
   #1. we have tissues in link
@@ -97,67 +104,11 @@ rnaAtlasFPKMTissue <- function(){
   return(NULL)
 }
 
-#' In tf and
-teAtlasTissue <- function(TFDbName = c("RiboByTissueTF", "RNAByTissueTF"),
-                          MeanDbName = c("RiboByTissueMean", "RNAByTissueMean"),
-                          dbOutputNames = c("TEByTissueTF", "TEByTissueMeanWithInf", "TEByTissueMeanWithoutInf")){
-  
-  riboTF <- readTable(TFDbName[1])
-  rnaTF <- readTable(TFDbName[2]) # check that amount match
-  rnaTF <- matchByTranscript(rnaTF, riboTF)
-  if(nrow(rnaTF) != nrow(riboTF)) stop("not equal nrow in ribo and rna TF")
-
-  teTF <- copy(riboTF)
-  
-  uniqueTissues <- colnames(teTF)
-  uniqueTissues <- uniqueTissues[-1] # 1 col only, FIX IF NEEDED!!!
-  
-  #5. So if at least 2 samples in that tissue have
-  # .. fpkm of > 1 on that uorf,
-  # #for both ribo and rna-seq, it will be true
-  for(i in uniqueTissues){
-    print(i)
-    teTF[, i] <- rnaTF[, i, with = F] & riboTF[, i, with = F]
-  }
-  
-  insertTable(Matrix = teTF, tableName = dbOutputNames[1], rmOld = T)
-  
-  teMean <- teTF
-  rm(teTF)
-  rm(rnaTF)
-  rm(riboTF)
-  
-  riboMean <- readTable(MeanDbName[1])
-  rnaMean <- readTable(MeanDbName[2])
-  rnaMean <- matchByTranscript(rnaMean, riboMean)
-  if(nrow(rnaMean) != nrow(riboMean)) stop("not equal nrow in ribo and rna Mean")
-  
-  # with non-finite values
-  for(i in uniqueTissues){
-    teMean[, i] <- rnaMean[, i, with = F] / riboMean[, i, with = F]
-  }
-  
-  insertTable(Matrix = teMean, tableName = dbOutputNames[2])
-  
-  # now do without non-finite
-  DTtemp <- teMean
-  DT <- DTtemp[, (2):ncol(DTtemp)] # dangerous id remover here! change if needed!
-  DT <- removeNonFinite(DT)
-  DTtemp[, (2):ncol(DTtemp)] <- DT
-  insertTable(Matrix = DTtemp, tableName = dbOutputNames[3])
-  return(NULL)
-}
-
-teAtlasTissueNew <- function(inputDT, colExclusion = "fpkmRFP_", dbOutputNames = 
-                               c("TEByTissueMean")){
+teAtlasTissue <- function(inputDT, dbOutputNames = c("TEByTissueMean")) {
   info <- getRiboRNAInfoTable()
-  
-  pattern <- colExclusion
   inputDTNon <- removeIDColumns(inputDT)
-  indices <- as.integer(gsub(pattern = pattern, replacement = "", x = colnames(inputDTNon)))
-  if(length(indices) == 0) stop("could not find te indices from colExclusion")
-  tissues <- info$tissue[indices] 
   
+  tissues <- info$tissue 
   uniques <- unique(tissues)
   
   if(!is.null(inputDT$uorfIDs)){
@@ -173,10 +124,11 @@ teAtlasTissueNew <- function(inputDT, colExclusion = "fpkmRFP_", dbOutputNames =
   }
   
   if(!is.null(inputDT$uorfIDs)){
-    colnames(dt) <- c("uorfIDs", "txNames", uniques )
+    colnames(dt) <- c("uorfIDs", "txNames", as.character(uniques))
   } else {
-    colnames(dt) <- c("txNames", uniques )
+    colnames(dt) <- c("txNames", as.character(uniques))
   }
   
-  return(dt)
+  insertTable(dt, dbOutputNames, rmOld = T)
+  return(NULL)
 }

@@ -52,56 +52,61 @@ deleteTable = function(tableName){
 #' 
 #' For rerunning
 #' It keeps the RNA seq tables, since they usually not change
-deleteUorfTables <- function() {
+deleteUorfTables <- function(onlyRibo = FALSE, onlySeq = FALSE) {
+  
+  # Ribo seq features
+  if(onlyRibo | !onlySeq) {
+    deleteTable("RSS")
+    deleteTable("RRS")
+    deleteTable("Ribofpkm")
+    deleteTable("ORFScores")
+    deleteTable("disengagementScores")
+    deleteTable("ioScore")
+    deleteTable("RiboByTissueMean")
+    deleteTable("RiboByTissueTF")
+    deleteTable("TEByTissueMeanWithInf")
+    deleteTable("TEByTissueMeanWithoutInf")
+    deleteTable("TEByTissueTF")
+    deleteTable("teFiltered")
+    deleteTable("teUnfiltered")
+    deleteTable("tissueAtlasByCage")
+    deleteTable("entropyRFP")
+    deleteTable("floss")
+    deleteTable("startCodonCoverage")
+    if(!tableNotExists("biggestTEVariance")) {
+      deleteTable("biggestTEVariance")
+      deleteTable("smallestTEVariance")
+    }
+    if(onlyRibo) return(NULL)
+  }
+  
+  # sequence features
+  if(onlySeq | !onlyRibo) {
+    deleteTable("numberOfUorfsPerTx")
+    deleteTable("rankInTx")
+    deleteTable("fractionLengths")
+    deleteTable("kozak")
+    deleteTable("inFrameCDS")
+    deleteTable("isOverlappingCds")
+    deleteTable("distORFCDS")
+    deleteTable("distORFTSS")
+    deleteTable("linkORFsToTx")
+    deleteTable("isOverlappingCds")
+    deleteTable("StopCodons")
+    deleteTable("StartCodons")
+    deleteTable("finalCAGEuORFPrediction")
+    deleteTable("gcContent")
+    deleteTable("goTerms")
+    deleteTable("exon-exonJunctionsLeader")
+    deleteTable("exon-exonJunctionsuORFs")
+    deleteTable("uORFTxToGene")
+    if(onlySeq) return(NULL)
+  }
+  
   deleteTable("uorfsAsGRWithTx")
   deleteTable("uniqueIDs")
   deleteTable("SplittedByExonsuniqueUORFs")
   deleteTable("toUniqueOrder")
   
-  
-  # Ribo seq features
-  deleteTable("RSS")
-  deleteTable("RRS")
-  deleteTable("Ribofpkm")
-  deleteTable("ORFScores")
-  deleteTable("RiboByTissueMean")
-  deleteTable("RiboByTissueTF")
-  deleteTable("TEByTissueMeanWithInf")
-  deleteTable("TEByTissueMeanWithoutInf")
-  deleteTable("TEByTissueTF")
-  deleteTable("teFiltered")
-  deleteTable("teUnfiltered")
-  deleteTable("tissueAtlasByCage")
-  deleteTable("entropyRFP")
-  deleteTable("floss")
-  deleteTable("startCodonCoverage")
-  
-  
-  # sequence features
-  deleteTable("numberOfUorfsPerTx")
-  deleteTable("rankInTx")
-  deleteTable("disengagementScores")
-  deleteTable("fractionLengths")
-  deleteTable("ioScore")
-  deleteTable("kozak")
-  deleteTable("inFrameCDS")
-  deleteTable("isOverlappingCds")
-  deleteTable("distORFCDS")
-  deleteTable("distORFTSS")
-  deleteTable("linkORFsToTx")
-  deleteTable("isOverlappingCds")
-  deleteTable("StopCodons")
-  deleteTable("StartCodons")
-  deleteTable("finalCAGEuORFPrediction")
-  deleteTable("gcContent")
-  deleteTable("goTerms")
-  deleteTable("exon-exonJunctionsLeader")
-  deleteTable("exon-exonJunctionsuORFs")
-  deleteTable("uORFTxToGene")
-  
-  
-  if(!tableNotExists("biggestTEVariance")) {
-    deleteTable("biggestTEVariance")
-    deleteTable("smallestTEVariance")
-  }
+  return(NULL)
 }

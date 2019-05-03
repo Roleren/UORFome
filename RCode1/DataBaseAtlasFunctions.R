@@ -28,6 +28,6 @@ createCatalogueDB <- function(){
   createUniqueIDs()
   createGRObjects()
   createUORFAtlas()
+  getTissueTable()
   allFeaturesAtlas()
-  
 }

@@ -826,31 +826,7 @@ predictionVsCageHits <- function(){
   
 }
 
-#ATF4 gene, transcript isoform ENST00000396680
-ATF4Check <- function(){
-  
-  link$uorfID[finalCagePred[order]][which(link$txNames[finalCagePred[order]] == "ENST00000396680")]
-  widthPerGroup(fiveUTRs["ENST00000396680"])
-  fiveUTRs["ENST00000396680"]
-  39520648 - 39520564 # 2nd uORF
-  39520747- 39520564 # third uORF
-  
-  # also ENST00000626055 (ADH5)
-  # also ENST00000370449 (ABCC2)
-  
-  # check cds TE
-  
-  cdsTET <- readTable("cdsRiboByTissueMean")
-  
-  ATFcds <- unlist(cdsTET[cdsTET$txNames == "ENST00000396680",2:length(cdsTET)], use.names = F)
-  
-  cageHits <- cageTissues[order,][which(link$txNames[finalCagePred[order]] == "ENST00000396680"),]
-  
-  uORFTE <- readTable("teUnfiltered", with.IDs = F)
-  uORFTEATF <- unlist(uORFTE[which(link$txNames[finalCagePred[order]] == "ENST00000396680"),], use.names = F)
-  plot(ATFcds)
-  plot(uORFTEATF)
-}
+
 
 verifyOthersWorks <- function(){
   

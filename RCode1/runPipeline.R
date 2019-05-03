@@ -19,7 +19,7 @@ source("./pipelineSetup.R")
 
 
 # set up multithreading options
-pipelineCluster(40) #!! set number of cores, I use 69 usually on furu.
+pipelineCluster(35) #!! set number of cores, I use 69 usually on furu.
 
 
 ##### Second Find new cage leaders
@@ -37,7 +37,7 @@ getIDsFromUorfs()
 
 ### Fifth Create feature database
 #5. 
-source("./DataBaseSetup.R")
+source(p(codeFolder,"/DataBaseSetup.R"))
 createCatalogueDB()
 
 # stop cluster, not needed in prediction, it uses h2o package
@@ -50,3 +50,10 @@ rm(cl)
 #6.
 predictUorfs("all")
 
+
+# r <- as.data.table(RFP, stringsAsFactors = FALSE)
+# g <- as.data.table(grl, stringsAsFactors = FALSE)
+# 
+# setkeyv(r, c("seqnames", "strand", "start", "end"))
+# setkeyv(g, c("seqnames", "strand", "start", "end"))
+# data.table::foverlaps(r, g, type = "within")

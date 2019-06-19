@@ -71,16 +71,28 @@ getAllORFGeneSymbols <- function(geneNames){
   return(data.table(geneNames = geneNames, symbol = geneHits$hgnc_symbol[group2]))
 }
 
-getORFsGoTerms <- function(uORFGenes){
+geneSymbolsTo <- function(geneNames, org.db = org.Dr.eg.db){
+  library(clusterProfiler)
+  
+  geneNames <- as.character(geneNames)
+  
+  uniqueGenes <- unique(geneNames)
+  geneHits <- bitr(uniqueGenes, fromType = "ENSEMBL", toType = "SYMBOL", OrgDb = org.Dr.eg.db)
+  group2 <- data.table::chmatch(geneNames, geneHits$ENSEMBL)
+  
+  return(data.table(symbol = geneHits$SYMBOL[group2]))
+}
+
+getORFsGoTerms <- function(uORFGenes, organism = "Homo sapiens"){
   library(biomartr)
   old <- uORFGenes
   uORFGenes <- unique(uORFGenes)
-  Go <- biomartr::getGO(organism = "Homo sapiens", 
+  Go <- biomartr::getGO(organism = organism, 
                             genes    = uORFGenes,
                             filters  = "ensembl_gene_id")
   desc <- Go$goslim_goa_description
   
-  return(desc[data.table::chmatch(old, uORFGenes)])
+  return(desc[data.table::chmatch(as.character(old), as.character(uORFGenes))])
 }
 
 ORFsInGeneMetrics <- function(hgncSymbol = "ATF4"){

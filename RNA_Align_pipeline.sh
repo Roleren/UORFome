@@ -1,0 +1,416 @@
+#!/bin/bash
+
+#HT 12/02/19
+# script to process and align genomic non paired fastq datasets 
+#1 STAR INDICES (If not existing, must be done in seperate script for now)
+#2 make directories
+#3 Trim adaptor
+#4 Remove PhiX
+#5 Remove rRNA (from silva)
+#6 Remove organism specific ncRNA (from ensembl, zebrafish does not contain tRNA)
+#7 Remove organism specific tRNA (from tRNAscan-SE)
+#8 Map to organism specific reference
+
+usage(){
+cat << EOF
+usage: $0 options
+
+script to process and align genomic non paired fastq datasets 
+
+OPTIONS:
+	Important options:
+	-f	path to input fasta file. Must be file type of: fasta, fa, fastq, fq or gz
+	-o	path to output dir
+	-l	minimum length of reads
+	-g	genome dir for all indices (Standard is zebrafish: danrerio10, change to human index if needed etc)
+	-s	steps of depletion and alignment wanted:
+		(a string: which steps to do? (default: "tr-ph-rR-nc-tR-ge")
+			 tr: trim, ph: phix, rR: rrna, nc: ncrna, tR: trna, ge: genome) 
+		Write your wanted steps, seperated by "-". Order does not matter.
+		To just do trim and alignment to genome write -s "tr-ge"
+	-a	adapter sequence for trim (found automaticly if not given), also you can write -a "disable", 
+		to disable it or "standard" to get "AAAAAAAAAA", the illumina standard sequence.
+	-A	Alignment type: (default Local, EndToEnd (Local is Local, EndToEnd is force Global))
+
+	Less important options:
+	-r	resume?: a character (defualt n) (n for new start fresh with file f from point s, 
+			             (if you want a continue from crash specify the step you want to start 
+				      from, as defined in -s, start on genome, do -r "ge")
+	-m	max cpus allowed (defualt 90)
+	-h	this help message
+
+fasp location must be: ~/bin/fastp
+STAR location must be: ~/bin/STAR-2.7.0c/source/STAR
+
+NOTES: 
+if STAR is stuck on load, run this line:
+STAR --genomeDir /export/valenfs/projects/uORFome/STAR_INDEX_ZEBRAFISH/genomeDir/ --genomeLoad Remove
+Also the minimum read quality is set to 10, it will be removed if less.
+
+example usage: RNA_Align_pipeline.sh -f <in.fastq.gz> -o <out_dir>
+
+EOF
+}
+
+# Default arguments:
+min_length=15
+gen_dir=/export/valenfs/projects/uORFome/STAR_INDEX_ZEBRAFISH
+allSteps="tr-ph-rR-nc-tR-ge"
+steps=$allSteps
+resume="n"
+alignment="Local"
+adapter="auto"
+maxCPU=90
+while getopts ":f:o:l:g:s:a:A:r:m:h" opt; do
+    case $opt in 
+    f)
+        in_file=$OPTARG
+        echo "-f input file $OPTARG"
+	;;
+    o)
+        out_dir=$OPTARG
+        echo "-o output folder $OPTARG"
+        ;;
+    l)
+        min_length=$OPTARG
+        echo "-l minimum length of reads $OPTARG"
+        ;;
+    g)
+        gen_dir=$OPTARG
+        echo "-g genome dir for all indices $OPTARG"
+        ;;
+    s)
+        steps=$OPTARG
+        echo "-s steps to do: $OPTARG"
+        ;;
+    a)
+        adapter=$OPTARG
+        echo "-s adapter sequence $OPTARG"
+        ;;
+    A)
+        alignment=$OPTARG
+        echo "-s alignment type $OPTARG"
+        ;;
+    r)
+	resume=$OPTARG
+	echo "-r resume (r or new n): $OPTARG"
+        ;;
+    m)
+	maxCPU=$OPTARG
+	echo "-m maxCPU: $OPTARG"
+        ;;
+    h)
+        usage
+        exit
+        ;;
+    ?) 
+        echo "Invalid option: -$OPTARG"
+        usage
+        exit 1
+        ;;
+    esac
+done
+echo ""
+#exit 1
+
+
+IFS="-" read -a stepsArray <<< $steps
+export stepsArray
+
+
+if [ ! -f $in_file ]; then
+    echo "input file does not exist!"
+    exit 1
+fi
+
+if [[ ! $in_file =~ .*\.(fasta|fa|fastq|gz|fq) ]]; then
+    echo "Invalid input file type: $in_file"
+    echo "Must be either fasta, fa, fastq, fq or gz"
+fi
+
+# 1. mkdir
+
+if [ ! -d $out_dir ]; then
+    mkdir $out_dir
+fi
+
+if [ ! -d ${out_dir}/trim ]; then
+        mkdir ${out_dir}/trim
+fi
+
+if [ ! -d ${out_dir}/phix_depletion ]; then
+        mkdir ${out_dir}/phix_depletion
+fi
+
+if [ ! -d ${out_dir}/rRNA_depletion ]; then
+        mkdir ${out_dir}/rRNA_depletion
+fi
+
+if [ ! -d ${out_dir}/ncRNA_depletion ]; then
+    	mkdir ${out_dir}/ncRNA_depletion
+fi
+
+if [ ! -d ${out_dir}/tRNA_depletion ]; then
+        mkdir ${out_dir}/tRNA_depletion
+fi
+
+if [ ! -d ${out_dir}/aligned ]; then
+        mkdir ${out_dir}/aligned
+fi
+
+
+# 3-7 filtering
+phix=$gen_dir/PhiX_genomeDir
+rRNA=$gen_dir/rRNA_genomeDir
+ncRNA=$gen_dir/ncRNA_genomeDir
+tRNA=$gen_dir/tRNA_genomeDir
+usedGenome=$gen_dir/genomeDir
+
+
+ibn=$(basename ${in_file}) # <- name to use
+ibn=${ibn%.gz}
+ibn=${ibn%.fastq}
+ibn=${ibn%.fq}
+ibn=${ibn%.fasta}
+ibn=${ibn%.fa}
+echo "basename of file is: ${ibn}"
+
+
+function indexOf()
+{
+	string=($1) && shift
+	myArray=($@)
+
+	for i in "${!myArray[@]}"; do
+
+		if [ ${myArray[i]} == $string ]; then
+        		echo $i
+		fi
+    	done
+} 
+
+function pathList() 
+{
+	case $1 in
+		"tR")
+			echo "${2}/tRNA_depletion/tRNA_${3}_Unmapped.out.mate1"
+			;;
+		"nc")
+			echo "${2}/ncRNA_depletion/ncRNA_${3}_Unmapped.out.mate1"
+			;;
+		"rR")
+			echo "${2}/rRNA_depletion/rRNA_${3}_Unmapped.out.mate1"
+			;;
+		"ph")
+			echo "${2}/phix_depletion/PhiX_${3}_Unmapped.out.mate1"
+			;;
+		"tr")
+			echo "${2}/trim/trimmed_${3}.fastq"
+			;;	
+	esac	
+}
+
+# Get fasta/bam file to use in this step
+# Parameters $resume $in_file 'genome' ${out_dir} ${ibn}
+# TODO: fix for $1 == "c"
+function inputFile()
+{
+    if [ $1 == "n" ]; then 
+	var=$(indexOf "$3" ${stepsArray[@]})
+	if [ ${var} == "0" ]; then    	
+		echo "$2"
+	else
+		ind=$(expr $var - 1)
+		echo $(pathList ${stepsArray[ind]} $4 $5)
+	fi
+    else
+	"find start, go 1 back and start from there"
+	case $3 in
+		"ge")
+			echo "${4}/tRNA_depletion/tRNA_${5}_Unmapped.out.mate1"
+			;;
+		"tR")
+			echo "${4}/ncRNA_depletion/ncRNA_${5}_Unmapped.out.mate1"
+			;;
+		"nc")
+			echo "${4}/rRNA_depletion/rRNA_${5}_Unmapped.out.mate1"
+			;;
+		"rR")
+			echo "${4}/phix_depletion/PhiX_${5}_Unmapped.out.mate1"
+			;;
+		"ph")
+			echo "${4}/trim/trimmed_${5}.fastq"
+			;;	
+	esac		
+    fi
+}
+
+function comp()
+{
+	if [[ $1 =~ .*\.(gz) ]]; then
+		echo "zcat"
+	else
+		echo "-"
+	fi
+}
+# 1: currently used cores, 2: max cores
+function nCores()
+{
+	if (( $1 > $2 )); then
+		echo $2
+	else
+		echo $1
+	fi
+}
+
+if [ $adapter == "standard" ]; then
+	adapter="AAAAAAAAAA"
+fi
+
+#------------------------------------------------------------------------------------------
+    #3 Trim adaptors
+    #------------------------------------------------------------------------------------------
+    #--in1 input file
+    #--out1 output name
+    #--trim_front1 trim 3 bases
+    #--length_required minimum length
+    #--disable_quality_filtering no fastq filtering
+    #--adapter_sequence adapter sequence, normally set manually (normally needed)
+    if grep -q "tr" <<< $steps; then
+	echo trimming	
+	if [ $adapter == "disable" ]; then
+		~/bin/fastp \
+		--in1=${in_file} \
+		--out1=${out_dir}/trim/trimmed_${ibn}.fastq \
+		--json=${out_dir}/trim/report_${ibn}.json \
+		--html=${out_dir}/trim/report_${ibn}.html \
+		--trim_front1=3 \
+		--length_required=$min_length \
+		--disable_quality_filtering \
+		--thread $(nCores 16 $maxCPU)
+	elif [ $adapter == "auto" ]; then
+		~/bin/fastp \
+		--in1=${in_file} \
+		--out1=${out_dir}/trim/trimmed_${ibn}.fastq \
+		--json=${out_dir}/trim/report_${ibn}.json \
+		--html=${out_dir}/trim/report_${ibn}.html \
+		--trim_front1=3 \
+		--length_required=$min_length \
+		--disable_quality_filtering \
+		--thread $(nCores 16 $maxCPU)
+	else
+		~/bin/fastp \
+		--in1=${in_file} \
+		--out1=${out_dir}/trim/trimmed_${ibn}.fastq \
+		--json=${out_dir}/trim/report_${ibn}.json \
+		--html=${out_dir}/trim/report_${ibn}.html \
+		--trim_front1=3 \
+		--length_required=$min_length \
+		--disable_quality_filtering \
+		--adapter_sequence=$adapter \
+		--thread $(nCores 16 $maxCPU)
+	fi
+    fi
+ #------------------------------------------------------------------------------------------
+    #4 Remove PhiX
+    #------------------------------------------------------------------------------------------
+    #--readFilesIn input file
+    #--genomeDir STAR index genome dir
+    #--outFileNamePrefix output prefix name (will add input name also)
+    #--outSAMtype type of SAM output (bam, sam or None)
+    #--outReadsUnmapped output type for unmapped reads
+    #--outFilterMatchNmin minimum length of reads accepted
+    #--runThreadN number of threads to use
+    #--limitIObufferSize hard drive buffer size (smaller is better when IO is bottle neck)
+# get output of everything that did not hit, as fastaq
+if grep -q "ph" <<< $steps; then
+	echo PhiX
+	~/bin/STAR-2.7.0c/source/STAR \
+	--readFilesIn $(inputFile $resume $in_file "ph" ${out_dir} ${ibn}) \
+	--genomeDir ${phix} \
+	--outFileNamePrefix ${out_dir}/phix_depletion/PhiX_${ibn}_ \
+	--outSAMtype None \
+	--outSAMmode None \
+	--outReadsUnmapped Fastx \
+	--outFilterMatchNmin $min_length \
+	--runThreadN $(nCores 70 $maxCPU) \
+	--limitIObufferSize 50000000
+fi
+
+
+#------------------------------------------------------------------------------------------
+    #5 Remove rRNA
+    #------------------------------------------------------------------------------------------
+# get output of everything that did not hit, as fastaq
+if grep -q "rR" <<< $steps; then
+	echo rRNA
+	~/bin/STAR-2.7.0c/source/STAR \
+	--readFilesIn $(inputFile $resume $in_file "rR" ${out_dir} ${ibn}) \
+	--genomeDir ${rRNA} \
+	--outFileNamePrefix ${out_dir}/rRNA_depletion/rRNA_${ibn}_ \
+	--outSAMtype None \
+	--outSAMmode None \
+	--outReadsUnmapped Fastx \
+	--outFilterMatchNmin $min_length \
+	--runThreadN $(nCores 90 $maxCPU) \
+	--genomeLoad LoadAndRemove \
+	--limitIObufferSize 50000000
+fi
+
+ #------------------------------------------------------------------------------------------
+    #6 Remove organism specific ncRNA
+    #------------------------------------------------------------------------------------------
+# get output of everything that did not hit, as fastaq
+if grep -q "nc" <<< $steps; then
+	echo ncRNA
+	~/bin/STAR-2.7.0c/source/STAR \
+	--readFilesIn $(inputFile $resume $in_file "nc" ${out_dir} ${ibn})\
+	--genomeDir ${ncRNA} \
+	--outFileNamePrefix ${out_dir}/ncRNA_depletion/ncRNA_${ibn}_ \
+	--outSAMtype None \
+	--outSAMmode None \
+	--outReadsUnmapped Fastx \
+	--outFilterMatchNmin $min_length \
+	--runThreadN $(nCores 80 $maxCPU) \
+	--limitIObufferSize 50000000
+fi
+
+#------------------------------------------------------------------------------------------
+    #7 Remove organism specific tRNA
+    #------------------------------------------------------------------------------------------
+# get output of everything that did not hit, as fastaq
+if grep -q "tR" <<< $steps; then
+	echo tRNA
+	~/bin/STAR-2.7.0c/source/STAR \
+	--readFilesIn $(inputFile $resume $in_file "tR" ${out_dir} ${ibn}) \
+	--genomeDir ${tRNA} \
+	--outFileNamePrefix ${out_dir}/tRNA_depletion/tRNA_${ibn}_ \
+	--outSAMtype None \
+	--outSAMmode None \
+	--outReadsUnmapped Fastx \
+	--outFilterMatchNmin $min_length \
+	--runThreadN $(nCores 70 $maxCPU) \
+	--limitIObufferSize 50000000
+fi
+#------------------------------------------------------------------------------------------
+    # 8. aligner (STAR)
+    #------------------------------------------------------------------------------------------
+    #--limitBAMsortRAM RAM used by sorting function (higher is better)
+    #--alignEndsType how to align (local alignment or whole read(harder if adapter or weak 3' end))
+    # <(gunzip -c ${in_file})
+if grep -q "ge" <<< $steps; then
+	echo "final mapping to genome"
+	~/bin/STAR-2.7.0c/source/STAR \
+	--readFilesIn $(inputFile $resume $in_file 'ge' ${out_dir} ${ibn}) \
+	--genomeDir ${usedGenome} \
+	--outFileNamePrefix ${out_dir}/aligned/${ibn}_ \
+	--outSAMtype BAM SortedByCoordinate \
+	--runThreadN $(nCores 80 $maxCPU) \
+	--genomeLoad LoadAndRemove \
+	--limitIObufferSize 50000000 \
+	--outFilterMatchNmin $min_length \
+	--limitBAMsortRAM 30000000000 \
+	--readFilesCommand $(comp $(inputFile $resume $in_file 'ge' ${out_dir} ${ibn})) \
+	--alignEndsType $alignment
+fi
+

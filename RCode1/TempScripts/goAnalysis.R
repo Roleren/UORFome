@@ -78,6 +78,7 @@ ddd <- setDT(readRDS("expression_both.rds"))
 ######################## PLOTS #########################################
 ######################## STEP 3 ########################################
 # START HERE IF DONE ->
+setwd(p(mainFolder, "/AdamVienna/"))
 dt <- setDT(readRDS("kozakTxWithGo.rds")) # <- final adams
 dd <- setDT(readRDS("expression_me.rds"))
 ddd <- setDT(readRDS("expression_both.rds"))
@@ -153,19 +154,20 @@ getGOrilla <- function(fileName, txdb) {
   return(gg$tx_name)
 }
 
-gg_high <- getGOrilla("./go_high.csv") # ER
-gg_low <- getGOrilla("./go_low.csv") # Nucleus
-gg_extraC <- dt$transcript_id[dt$go == "extracellular region" | dt$go == "extracellular space"]
+gg_high <- getGOrilla("./go_high.csv", txdb) # ER
+gg_low <- getGOrilla("./go_low.csv", txdb) # Nucleus
+#gg_extraC <- dt$transcript_id[dt$go == "extracellular region" | dt$go == "extracellular space"]
 
-ddG <-  dd[txNames %in% c(gg_high, gg_low, gg_extraC),]
+#ddG <-  dd[txNames %in% c(gg_high, gg_low, gg_extraC),]
+ddG <-  dd[txNames %in% c(gg_high, gg_low),]
 
-ddG$fraction <- "GO_low"
-ddG$fraction[ddG$txNames %in% c(gg_high)] <- "GO_high"
-ddG$fraction[ddG$txNames %in% c(gg_extraC)] <- "GO_ER"
+ddG$fraction <- "GO_nuc"
+ddG$fraction[ddG$txNames %in% c(gg_high)] <- "GO_ER"
+#ddG$fraction[ddG$txNames %in% c(gg_extraC)] <- "GO_ER"
 ddG$fraction <- as.factor(ddG$fraction)
 ddG <- ddG[rfp > 0. & ssu > 0.,]
 
-ggplot(ddG, aes(rfp, ssu, color = fraction)) + 
+ggplot(ddG, aes((rfp / sum(rfp)), (ssu / sum(ssu)), color = fraction)) + 
   geom_point() + 
   xlim(10, 2000) + ylim(10, 2000) + 
   geom_smooth(method='lm', fill = NA) + 
@@ -262,3 +264,34 @@ uORF_low <- ret[which(txNames(ret) %in% gg_low)]
 
 te_High <- ORFik:::translationalEff(uORF_high, RNA = rna, RFP = rfp, tx = tx, pseudoCount = TRUE)
 te_Low <- ORFik:::translationalEff(uORF_low, RNA = rna, RFP = rfp, tx = tx, pseudoCount = TRUE)
+
+
+#################################### 4Ei vs WT ####################################
+#<- load from threadingLadders
+readsLSU4Ei <- ORFik:::readBam(df2$LSU[df2$type == "4Ei"], tx)
+readsSSU4Ei <- ORFik:::readBam(pathSSU4Ei, tx)
+readsLSUGoodTrans <- readsLSUGood[readWidths(readsLSUGood) < 35 & readWidths(readsLSUGood) > 25]
+readsLSU4EiTrans <- readsLSU4Ei[readWidths(readsLSU4Ei) < 35 & readWidths(readsLSU4Ei) > 25]
+rna <- ORFik:::readBam(df$RFP[3], leadersShield)
+
+se4Ei <- translationalEff(leadersShield, rna, readsSSU4Ei, cdsShield, pseudoCount = 1)
+te4Ei <- translationalEff(cdsShield, rna, readsLSU4EiTrans, cdsShield, pseudoCount = 1)
+seWT <- translationalEff(leadersShield, rna, readsSSUGood, cdsShield, pseudoCount = 1)
+teWT <- translationalEff(cdsShield, rna, readsLSUGoodTrans, cdsShield, pseudoCount = 1)
+teWTAll <- translationalEff(cdsShield, rna, readsLSUGoodTrans, cdsShield, pseudoCount = 1, with.fpkm = T)
+dt <- data.table(se4Ei, te4Ei, seWT, teWT)
+dt <- melt(dt)
+dt$value <- log10(dt$value)
+dt <- dt[dt$value > 0.1 | dt$value < -0.5,]
+
+g <- ggplot(dt, aes(value))
+g + geom_density(aes(fill=factor(variable)), alpha=0.2) + 
+  labs(title="Density plot", 
+       subtitle="rates of scanning and translation",
+       caption="Source: yamilla",
+       x="log10 (TE or SE)",
+       fill="# type:")
+
+ggplot() + geom_point(aes(se4Ei, seWT)) + xlim(0, 3) + ylim(0, 3) + labs(title = "SE (4Ei vs WT)")
+ggplot() + geom_point(aes(te4Ei, teWT)) + xlim(0, 3) + ylim(0, 3) + labs(title = "TE (4Ei vs WT)")
+ggplot(dt, aes(variable, value, color = variable)) + geom_violin() + labs(title = "SE (4Ei vs WT)")

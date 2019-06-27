@@ -1,3 +1,6 @@
+library(ORFik)
+library(ggplot2)
+
 # Input of this are reads (bam files) after alignin process
 
 # STEPS:
@@ -125,14 +128,11 @@ tcpHeatMap_int <- function(region, tx, df = getTCPdf(), outdir = p(mainFolder, "
 
 tcpHeatMap_single <- function(region, tx, reads, outdir = p(mainFolder, "/tcp_plots/mir430/normal_"), 
                               scores = "sum", upstream, downstream,  zeroPosition = upstream,
-                              returnCoverage = FALSE, logIt = TRUE) {
+                              returnCoverage = FALSE, logIt = TRUE, acLen = NULL) {
   if (length(scores) != 1) stop("scores must exactly only 1 score type")
   dt <- windowPerReadLength(region, tx, reads, upstream = upstream, downstream = downstream, 
-                      zeroPosition = zeroPosition, scoring = scores[1])
-  if (!is.null(dt$count)) {
-    dt$score <- dt$count
-    dt$count <- NULL
-  }
+                            zeroPosition = zeroPosition, scoring = scores[1], acceptedLengths = acLen)
+ 
   if (logIt) dt$score <- log2(dt$score)
   
   plot <- ORFik:::coverageHeatMap(coverage = dt, scoring = scores[1])
@@ -285,6 +285,18 @@ getTCPdfAll <- function(stage = c("64", "sphere", "shield"),
                              "/export/valenfs/projects/adam/TCP_seq/RCP_files/shield_LSU_reps_1_2_3_peaks_removed_translating_filter.bam")) {
   
   return(data.frame(SSU, RFP, RNA, LSU, stage, type, stringsAsFactors = FALSE))
+}
+
+getTCPNew <- function(){
+  mergedF <- "/export/valenfs/projects/uORFome/withrRNA/aligned/"
+  df2 <- data.frame(LSU = c(p(mergedF, "64_cell_LSU_V7.bam"), p(mergedF, "64_cell_LSU_V8.bam"),
+                            p(mergedF, "shield_V5_merged_LSU.bam"), p(mergedF, "shield_V6_merged_LSU.bam"),
+                            p(mergedF, "shield_V15_merged_LSU.bam"), p(mergedF, "shield_all_merged_LSU.bam"),
+                            p(mergedF, "sphere1_V7_merged_LSU.bam"), p(mergedF, "sphere2_V7_merged_LSU.bam"),
+                            p(mergedF, "sphere3_V7_merged_LSU.bam"), p(mergedF, "64_LSU_V12_4Ei.bam")),
+                    stage = c(rep("64", 2), rep("shield", 4), rep("sphere", 3), "64"),
+                    type = c(rep("WT", 2), rep("WT", 3), "WT_ALL", rep("WT", 3), "4Ei"), stringsAsFactors = FALSE)
+  return(df2)
 }
 
 libraryTypes <- function(df){

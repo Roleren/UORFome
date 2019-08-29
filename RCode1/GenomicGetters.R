@@ -15,7 +15,7 @@ getGTF = function(assignIt = T){
     if(assignIt)
       assign("Gtf",Gtf,envir = .GlobalEnv)
   } else if(!dbIsValid(Gtf$conn)) {
-    Gtf = loadDb(gtfdb)
+    Gtf = ORFik:::loadTxdb(Gtf$conn@dbname)
     assign("Gtf",Gtf,envir = .GlobalEnv)
   }
 }

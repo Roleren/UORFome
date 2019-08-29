@@ -19,7 +19,7 @@ bed6 <- function(grl,bedName = NULL){
 #' grl A GRangesList
 #' bedName is bed name
 #' uscs bed 12 format
-bed12 <- function(grl,bedName, fixChromoNaming = F){
+bed12 <- function(grl, bedName, fixChromoNaming = F){
   if(!ORFik:::is.grl(class(grl))) stop("grl, must be of class GRangesList")
   if (fixChromoNaming) print(seqlevels(grl))
   grl <- sortPerGroup(grl,ignore.strand = T) # <- sort bed way!

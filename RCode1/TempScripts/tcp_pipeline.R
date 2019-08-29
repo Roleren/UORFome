@@ -9,7 +9,7 @@ library(ggplot2)
 #3: Extend improperly trimmed regions (while trimmed reads exactly match transcripts)
 #4: Remove high coverage peaks in transcripts. Reads with same start + stop coord >= 200X mean transcript coverage.
 #5: Remove ambiguous reads from TCP-seq 40S complexes. Ambiguous reads are those with the same length as translating 80S complexes (25-35nt in length). 
-#6: 
+#6: Do what you need to do
 
 #' After aligning with STAR, run this
 tcpPipeLine <- function() {
@@ -126,41 +126,108 @@ tcpHeatMap_int <- function(region, tx, df = getTCPdf(), outdir = p(mainFolder, "
   return(cov)
 }
 
+# TEMP VERSION
+# tcpHeatMap_single <- function(region, tx, reads, outdir = p(mainFolder, "/tcp_plots/mir430/normal_"), 
+#                               scores = "sum", upstream, downstream,  zeroPosition = upstream,
+#                               returnCoverage = FALSE, logIt = FALSE, acLen = NULL, legendPos = "right") {
+#   if (length(scores) != 1) stop("scores must exactly only 1 score type")
+#   dt <- windowPerReadLength(region, tx, reads, upstream = upstream, downstream = downstream, 
+#                             zeroPosition = zeroPosition, scoring = scores[1], acceptedLengths = acLen)
+#   
+#   if (logIt) dt$score <- log2(dt$score)
+#   if (scores[1] == "log2sum") scores <- "log2(sum)"
+#   if (scores[1] == "sum") scores <- "Count\nSum"
+#   
+#   #plot <- ORFik:::coverageHeatMap(coverage = dt, scoring = scores[1])
+#   
+#   dt$fraction <- factor(dt$fraction, levels = unique(dt$fraction), 
+#                         labels = unique(dt$fraction))
+#   
+#   plot <- ggplot(dt, aes(x = position, y = fraction, 
+#                          fill = score)) + geom_tile() + scale_fill_gradientn(colours = c("white", 
+#                                                                                          "yellow2","yellow3", "lightblue", "blue", "navy", "navy", "black"), 
+#                                                                              name = scores[1]) + xlab("Position relative to start of transcript") + 
+#     ylab("Protected fragment length") + scale_x_continuous(breaks = seq.int(-upstream, downstream, by = 10)) + 
+#     theme_bw(base_size=15) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+#     scale_y_discrete(breaks = yAxisScaler(levels(dt$fraction))) + theme(legend.position = legendPos)
+#   
+#   ggsave(filename = outdir, plot = plot, width = 200, height = 100, units = "mm",
+#          dpi = 300, limitsize = FALSE)  
+#   if (returnCoverage) {
+#     return(dt)
+#   } else return(plot)
+# }
+
 tcpHeatMap_single <- function(region, tx, reads, outdir = p(mainFolder, "/tcp_plots/mir430/normal_"), 
                               scores = "sum", upstream, downstream,  zeroPosition = upstream,
-                              returnCoverage = FALSE, logIt = TRUE, acLen = NULL) {
+                              returnCoverage = FALSE, logIt = FALSE, acLen = NULL, legendPos = "right", 
+                              colors = NULL, addFracPlot = TRUE) {
   if (length(scores) != 1) stop("scores must exactly only 1 score type")
   dt <- windowPerReadLength(region, tx, reads, upstream = upstream, downstream = downstream, 
                             zeroPosition = zeroPosition, scoring = scores[1], acceptedLengths = acLen)
  
   if (logIt) dt$score <- log2(dt$score)
+  if (scores[1] == "log2sum") scores <- "log2(sum)"
   
-  plot <- ORFik:::coverageHeatMap(coverage = dt, scoring = scores[1])
+  dt$fraction <- factor(dt$fraction, levels = unique(dt$fraction), 
+                              labels = unique(dt$fraction))
+  if (is.null(colors)) colors <- c("white", "yellow2", "yellow3", "lightblue", "blue", "navy")
+  if (colors == "high") colors <- c("white", "yellow2", "yellow3", "lightblue", "blue", "blue", "blue", "navy", "black")
+  
+  plot <- ggplot(dt, aes(x = position, y = fraction, 
+                               fill = score)) + geom_tile() + 
+    scale_fill_gradientn(colours = colors, name = scores[1]) + 
+    xlab("Position relative to start of transcript") + 
+    ylab("Protected fragment length") + scale_x_continuous(breaks = seq.int(-upstream, downstream, by = 10)) + 
+    theme_bw(base_size = 15) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+    scale_y_discrete(breaks = yAxisScaler(levels(dt$fraction))) + theme(legend.position = legendPos)
+  
+  if (addFracPlot) {
+    plot2 <- pSitePlot(dt, forHeatmap = TRUE)
+    plot <- gridExtra::grid.arrange(plot2, plot + theme(legend.position = "bottom"),
+                         heights = c(1, 4))
+  }
+  
   ggsave(filename = outdir, plot = plot, width = 350, height = 180, units = "mm",
          dpi = 300, limitsize = FALSE)  
-  return(dt)
+  if (returnCoverage) {
+    return(dt)
+  } else return(plot)
 }
-
-
 
 #' Make 100 bases size meta window for all libraries in input data.frame
 transcriptWindow <- function(leaders, cds, trailers, df = getTCPdf(), 
                              outdir = p(mainFolder, "/tcp_plots/mir430/normal_"),
-                             scores = c("sum", "zscore")) {
-  libTypes <- libraryTypes(df)
-  coverage <- data.table()
+                             scores = c("sum", "zscore"), allTogether = FALSE) {
   
-  for (i in 1:nrow(df)) { # For each stage
-    print(i)
-    readsList <- list()
-    for (lib in libTypes) { # For each library of that stage (SSU, LSU, RNA-seq, RIBO-seq)
-      reads <- readGAlignments(df[i, lib]) ;seqlevelsStyle(reads) <- seqlevelsStyle(leaders)[1]
-      
-      readsList <- list(readsList, reads)
+  varNames <- bamVarName(df)
+  outputBams(df, leaders)
+  coverage <- data.table()
+  if (!allTogether) {
+    libTypes <- libraryTypes(df)
+    j <- 0
+    for (i in 1:nrow(df)) { # For each stage
+      j <- j + 1
+      print(i)
+      readsList <- list()
+      for (lib in libTypes) { # For each library of that stage (SSU, LSU, RNA-seq, RIBO-seq)
+        readsList <- list(readsList, get(varNames[j]))
+      }
+      readsList <- readsList[-1]
+      transcriptWindowPer(leaders, cds, trailers, df[i,], outdir, scores, fractions,
+                          readsList)
     }
-    readsList <- readsList[-1]
-    transcriptWindowPer(leaders, cds, trailers, df[i,], outdir, scores, fractions,
-                        readsList)
+  } else { # all combined
+      coverage <- data.table()
+      for (i in varNames) { # For each stage
+        print(i)
+        coverage <- rbindlist(list(coverage, ORFik:::splitIn3Tx(leaders, cds, trailers, 
+                                                                get(i), fraction = i)))
+      }
+      for(s in scores) {
+        a <- windowCoveragePlot(coverage, scoring = s)
+        ggsave(paste0(outdir, "all_", s, ".png"), a, height = 10)
+      }
   }
 }
 
@@ -178,7 +245,8 @@ transcriptWindowPer <- function(leaders, cds, trailers, df = getTCPdf()[1,],
   coverage <- data.table()
   
   for(i in 1:length(reads)) {
-    coverage <- rbindlist(list(coverage, splitIn3(leaders, cds, trailers, unlist(reads[[i]]), libTypes[i])))
+    coverage <- rbindlist(list(coverage, ORFik:::splitIn3Tx(leaders, cds, trailers, 
+                                                            unlist(reads[[i]]), fraction = libTypes[i])))
   }
   
   return(plotHelper(coverage, df, outdir, scores, returnCoverage))
@@ -237,9 +305,28 @@ regionWindowAll <- function(one, two, tx, df = getTCPdf(),
       coverage <- rbindlist(list(coverage, hitMapOne, hitMapTwo))
     }
   }
-  
   return(plotHelper(coverage, df, outdir, scores, returnCoverage = FALSE, title = title, 
                     colors =  c("skyblue4", "orange")[c(1,1,2,2)]))
+}
+
+regionBarPlot <- function(region, tx, reads, 
+                          outdir = p(mainFolder, "/tcp_plots/TIS_region/target_"),
+                          upstream = 75, downstream = 74, scores = "transcriptNormalized") {
+  windows <- startRegion(region, tx, TRUE, upstream = upstream, downstream = downstream)
+  hitMap <- metaWindow(reads, windows, zeroPosition = upstream, feature = "1", fraction = "123", 
+                       scoring = scores, forceUniqueEven = F)
+  hitMap[, score := score / sum(score)]
+  if (scores == "transcriptNormalized") scores <- "Proportion of reads"
+  plot <- ggplot(hitMap, aes(x = position, y = score)) + 
+    geom_bar(stat = "identity", color = 'white', width=1, position = position_dodge(width=0.099))  + 
+    xlab("Position relative to start of transcript") + ylab(scores) +
+    scale_x_continuous(breaks = seq.int(-upstream, downstream, by = 10)) +  theme_bw() +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) 
+    
+  
+  ggsave(filename = outdir, plot = plot, width = 350, height = 180, units = "mm",
+         dpi = 300, limitsize = FALSE) 
+  return(plot)
 }
 
 #' Experiment info table
@@ -289,6 +376,7 @@ getTCPdfAll <- function(stage = c("64", "sphere", "shield"),
 
 getTCPNew <- function(){
   mergedF <- "/export/valenfs/projects/uORFome/withrRNA/aligned/"
+  p <- paste0
   df2 <- data.frame(LSU = c(p(mergedF, "64_cell_LSU_V7.bam"), p(mergedF, "64_cell_LSU_V8.bam"),
                             p(mergedF, "shield_V5_merged_LSU.bam"), p(mergedF, "shield_V6_merged_LSU.bam"),
                             p(mergedF, "shield_V15_merged_LSU.bam"), p(mergedF, "shield_all_merged_LSU.bam"),
@@ -299,114 +387,7 @@ getTCPNew <- function(){
   return(df2)
 }
 
-libraryTypes <- function(df){
-  return(colnames(df)[!(colnames(df) %in% c("stage", "type"))])
-}
 
-countsPerLibraryOverTranscript <- function(tx, df = getTCPdf(), 
-                                           output = p(mainFolder, "/tcp_plots/countsPerTranscript_Targets.csv")) {
-  # find most translated genes
-  overlaps <- data.table(txNames = names(tx))
-  for (i in 1:nrow(df)) {
-    print(i)
-    SSU <- df$SSU[i]
-    LSU <- df$LSU[i]
-    stage <- df$stage[i]
-    type <- df$type[i]
-    
-    readsSSU <- readGAlignments(SSU) ;seqlevelsStyle(readsSSU) <- seqlevelsStyle(tx)[1]
-    readsLSU <- readGAlignments(LSU) ;seqlevelsStyle(readsLSU) <- seqlevelsStyle(tx)[1]
-    
-    overlaps <- cbind(overlaps, data.table(counts = countOverlaps(tx, readsSSU)))
-    colnames(overlaps)[i + 1] <- paste0(type,"_",stage)
-  }
-  
-  write.csv(overlaps, file = output)
-  return(NULL)
-}
-
-countsPerLibraryOverTranscriptPerSubunit <- function(tx, df = getTCPdf(), 
-                                           output = p(mainFolder, "/Repeats/countsPerRepeat.csv")) {
-  # find most translated genes
-  overlaps <- data.table(txNames = names(tx))
-  for (i in 1:nrow(df)) {
-    print(i)
-    SSU <- df$SSU[i]
-    LSU <- df$LSU[i]
-    stage <- df$stage[i]
-    type <- df$type[i]
-    
-    readsSSU <- readGAlignments(SSU) ;seqlevelsStyle(readsSSU) <- seqlevelsStyle(tx)[1];
-    readsLSU <- readGAlignments(LSU) ;seqlevelsStyle(readsLSU) <- seqlevelsStyle(tx)[1];
-    
-    current <- data.table(counts1 = countOverlaps(tx, readsSSU), counts2 = countOverlaps(tx, readsLSU))
-    colnames(current)[1] <- paste0(type,"_",stage, "_", "SSU")
-    colnames(current)[2] <- paste0(type,"_",stage, "_", "LSU")
-    
-    overlaps <- cbind(overlaps, current)
-  }
-  
-  write.csv(overlaps, file = output)
-  return(NULL)
-}
-
-readLengthsPerLibrary <- function(df = getTCPdf()) {
-  # find most translated genes
-  overlaps <- data.table(id = 1)
-  for (i in 1:nrow(df)) {
-    print(i)
-    SSU <- df$SSU[i]
-    LSU <- df$LSU[i]
-    stage <- df$stage[i]
-    type <- df$type[i]
-    
-    readsSSU <- readGAlignments(SSU)
-    readsLSU <- readGAlignments(LSU)
-    
-    current <- data.table(counts1 = length(readsSSU), counts2 = length(readsLSU))
-    colnames(current)[1] <- paste0(type,"_",stage, "_", "SSU")
-    colnames(current)[2] <- paste0(type,"_",stage, "_", "LSU")
-    
-    overlaps <- cbind(overlaps, current)
-  }
-  overlaps[, id := NULL]
-  return(overlaps)
-}
-
-#' heatmap
-periodicityChecker <- function(txdb, df = getTCPdf(),
-                       shifting = NULL, plot = TRUE) {
-  
-  
-  names2 <- filterTranscripts(txdb, 100, 50, 0)
-  cds <- cdsBy(txdb, use.names = TRUE)[names2]
-  tx <- exonsBy(txdb, use.names = TRUE)[names2]
-  window <- ORFik:::startRegion(cds, tx, TRUE, 100, -19)
-  
-  libTypes <- libraryTypes(df)
-  
-  for (i in 1:nrow(df)) { # For each stage
-    print(i)
-    for (lib in libTypes) { # For each library of that stage (SSU, LSU, RNA-seq, RIBO-seq)
-      reads <- readGAlignments(df[i, lib]) ;seqlevelsStyle(reads) <- seqlevelsStyle(window)[1]
-      if (!is.null(shifting)) {
-        reads <- ORFik:::convertToOneBasedRanges(reads, method = shifting, addSizeColumn = TRUE)
-      } 
-      
-      
-      all_lengths <- sort(unique(ORFik:::readWidths(reads)))
-      dt <- data.table()
-      for(l in all_lengths) {
-        dt <- data.table::rbindlist(list(dt, ORFik:::metaWindow(x = reads[ORFik:::readWidths(reads) == l], windows = window, withFrames = T, zeroPosition = 1,
-                                                                returnAs = "data.table", fraction = l)))
-      }
-      #dt$score <- log2(dt$score)
-      
-      print(paste("any periodic:", any(coverageScorings(dt, "periodic")$score)))
-    }
-  }
-  return(NULL)
-}
 
 allBamFilesInFolder <- function(dir) {
   files <- grep(pattern = ".bam", x = list.files(dir, full.names = T), value = T)
@@ -473,7 +454,11 @@ if (0) {
   df10 <- tRNA_helper(trna, bamFiles)
 }
 
-
+removeBadTxByRegion <- function(tx, reads, upstream, downstream, value = 200, extension = 100) {
+  region <- ORFik:::startRegion(tx, extendLeaders(tx, extension = extension), upstream = upstream, downstream = downstream)
+  counts <- countOverlaps(region, reads);summary(counts); sum(counts > value)
+  return(leadersShield[!(counts > value)])
+}
 
 removeRepeatRegionTx <- function(tx, reads) {
   reads <- readGAlignments(bam);seqlevelsStyle(reads) <- seqlevelsStyle(tx);
@@ -482,6 +467,27 @@ removeRepeatRegionTx <- function(tx, reads) {
   means <- mean(cov)
   hits <- max(cov) > (200*means) & means > 1 
   return(tx[!hits])
+}
+
+#' Get peptides from singalp
+#' @param outputSingalp
+#' @param inputFa
+#' @return character, a list of gene names
+getPeptides <- function(outputSingalp = "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/signal_peptide_prediction/danio_rerio_peptides__summary.signalp5", 
+                        inputFa = "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/signal_peptide_prediction/Danio_rerio.GRCz10.pep.all.fa") {
+  faa = FaFile(inputFa)
+  peps <- getSeq(faa)
+  splits <- tstrsplit(names(peps), " ", fixed=TRUE, fill="<NA>")
+  # proteins
+  split <- splits[[1]]
+  tab <- read.table(outputSingalp, sep = "\t")
+  tab <- tab[tab$V2 != "OTHER",]$V1 
+  valid <- split %in% tab
+  # genes
+  split <- splits[[4]]
+  genes <- gsub(pattern = "gene:", x = split, replacement = "")
+  genes <- genes[valid]
+  return(genes)
 }
 
 plotHelper <- function(coverage, df, outdir, scores, returnCoverage = FALSE,
@@ -505,4 +511,18 @@ plotHelper <- function(coverage, df, outdir, scores, returnCoverage = FALSE,
   }
   if (returnCoverage) return(coverage)
   return(NULL)
+}
+
+yAxisScaler <- function(covPos) {
+  covPos <- as.integer(covPos)
+  pos <- length(covPos)
+  min <- min(covPos)
+  max <- max(covPos)
+  
+  by <- ifelse(pos > 70, ifelse(pos > 120, ifelse(pos > 300, 100, 50), 20), 10)
+  if (max > 100) { 
+    return(as.character(c(50, 100, max)))
+  } else {
+    return(as.character(seq.int(10, max, 10)))
+  }
 }

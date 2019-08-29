@@ -2,37 +2,58 @@
 setwd("/export/valenfs/projects/uORFome/RCode1/") 
 source("./pipelineSetup.R")
 source("./TempScripts/tcp_pipeline.R")
-
-# miR430 target genes
-path <- "/export/valenfs/projects/adam/TCP_seq/data_files/targetscanFish_180829_tidy.csv"
-targets <- read.csv(path)
-targets <- targets[!(is.na(targets$miR430_score) | is.nan(targets$miR430_score)),]
-targets <- targets[targets$miR430_score <= -0.20,]
-genes <- targets$gene_id
+source("./TempScripts/MZdicer.R")
+source("./SummarizedExperimentHelpers.R")
 
 # Get annotation
-# gtfPath <- "/export/valenfs/data/references/Zv10_zebrafish/Danio_rerio.GRCz10.81.gtf"
-gtfPath <- p(mainFolder, "/Annotations/Zebrafish/zebrafish_GRCh10_81.gtf.db")
-txdb <- loadDb(gtfPath); seqlevelsStyle(txdb) <- "NCBI"
+txdb <- loadTxdb("/export/valenfs/projects/uORFome/Annotations/Zebrafish/Danio_rerio.Zv9.79.gtf.db")
+seqlevelsStyle(txdb) <- "NCBI"
+tx <- loadRegion(txdb, "mrna")
+df <- getmzDicerDf()
 
-
-# txdb <- makeTxDbFromGFF(file = gtfPath)
-tx <- exonsBy(txdb, by = "tx", use.names = TRUE)
+# miR430 target genes
+genes <- getMir430()
 
 # Get miR430 target transcripts
 len <- GenomicFeatures::transcriptLengths(txdb)
 match <- len[len$gene_id %in% genes,]
 match <- match[match$tx_name %in% names(tx),]
 txNames <- match$tx_name
+length(txNames)
+
+####################################### FPKM PlOTS ######################################
+res <- makeSummarizedExperimentFromBam(df, txdb, saveName = "/export/valenfs/projects/Håkon/mir430/countList.rds",
+                                       longestPerGene = TRUE, 
+                                       geneOrTxNames = "gene")
+dt <- scoreSummarizedExperiment(res, score = "fpkm")
+dt <- as.data.table(dt)
+dif <- SEdif(dt)
+d <- SESplit(dif, names(tx) %in% txNames)
+
+lim <- 100
+p <- ggplot() +
+  geom_point(data = d[ismiRNA == F,], aes(x = RNA, y = RFP, alpha = 0.1, color = "gray")) + 
+  geom_point(data = d[ismiRNA == T,], aes(x = RNA, y = RFP, alpha = 0.1, color = "red")) + 
+  xlim(-lim, lim) +
+  ylim(-lim, lim) + 
+  xlab(expression("WT vs MZ dicer "*Delta*" mRNA")) + 
+  ylab(expression("WT vs MZ dicer "*Delta*" RFP")) + 
+  scale_color_manual(values= c("gray", "red")) +
+  facet_grid( ~ stage, scales = "free")
+p  
+ggsave(p, filename = "/export/valenfs/projects/Håkon/mir430/2dFigure.png", width = 10, height = 4)
+
+############################### COVERAGE PLOTS #####################################################
 longEnough <- filterTranscripts(txdb, 100, 100, 100)
-txNames <- txNames[txNames %in% longEnough]
+validMir <- txNames[txNames %in% longEnough]
 
 # Create coverage plots of miR430 targets
-leaders = fiveUTRsByTranscript(txdb,use.names = T)[txNames]
-cds <- cdsBy(txdb,"tx", use.names = TRUE)[txNames]
-trailers = threeUTRsByTranscript(txdb, use.names = TRUE)[txNames]
-tx <- exonsBy(txdb, by = "tx", use.names = TRUE)[txNames]
-transcriptWindow(leaders, cds, trailers, outdir = p(mainFolder, "/tcp_plots/mir430/targets_"))
+leaders = fiveUTRsByTranscript(txdb,use.names = T)[validMir]
+cds <- cdsBy(txdb,"tx", use.names = TRUE)[validMir]
+trailers = threeUTRsByTranscript(txdb, use.names = TRUE)[validMir]
+tx <- exonsBy(txdb, by = "tx", use.names = TRUE)[validMir]
+transcriptWindow(leaders, cds, trailers, df = df, outdir = p(mainFolder, "/tcp_plots/mir430/targets_"), 
+                 allTogether = TRUE)
 
 # Create coverage of non-miR430 targets
 validNames <- longEnough
@@ -42,12 +63,6 @@ cds <- cdsBy(txdb,"tx", use.names = TRUE)[validNames]
 trailers = threeUTRsByTranscript(txdb, use.names = TRUE)[validNames]
 tx <- exonsBy(txdb, by = "tx", use.names = TRUE)[validNames]
 transcriptWindow(leaders, cds, trailers)
-
-# Create counts per library per transcipt
-tx <- exonsBy(txdb, by = "tx", use.names = TRUE)[txNames] # targets
-countsPerLibraryOverTranscript(tx)
-tx <- exonsBy(txdb, by = "tx", use.names = TRUE)[validNames] # non-targets
-countsPerLibraryOverTranscript(tx, output = p(mainFolder, "/tcp_plots/countsPerTranscript_Normal.csv"))
 
 # Interest Region TIS Cover plots 
 cds <- cdsBy(txdb,"tx", use.names = TRUE)[txNames] # targets
@@ -66,4 +81,5 @@ regionWindow(trailers, tx, outdir = p(mainFolder, "/tcp_plots/STOP_region/target
 trailers = threeUTRsByTranscript(txdb, use.names = TRUE)[validNames] # non-targets
 tx <- exonsBy(txdb, by = "tx", use.names = TRUE)[validNames]
 regionWindow(trailers, tx, outdir = p(mainFolder, "/tcp_plots/STOP_region/normal_"))
+
 

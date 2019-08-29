@@ -3,8 +3,6 @@
 rm(list=ls())
 setwd("/export/valenfs/projects/uORFome/RCode1/") 
 source("./pipelineSetup.R")
-#dbDisconnect(uorfDB)
-#rm(uorfDB)
 source("./TempScripts/tcp_pipeline.R")
 
 setwd(p(mainFolder, "/AdamVienna/"))
@@ -15,7 +13,7 @@ gtfPath <- p(dataFolder, "/Zebrafish/zebrafish_GRCh10_81.gtf.db")
 txdb <- loadDb(gtfPath);
 getFasta("/export/valenfs/data/references/Zv10_zebrafish/Danio_rerio.GRCz10.fa")
 seqlevelsStyle(txdb)  <- seqlevelsStyle(fa)
-tx <- exonsBy(txdb, use.names = TRUE)
+tx <- loadRegion(txdb)
 leaders <- fiveUTRsByTranscript(txdb, use.names = T)
 
 # Shield CAGE annotation
@@ -23,10 +21,14 @@ gtfPathShield <- "/export/valenfs/projects/adam/TCP_seq/transcript_GFF3/shield_t
 txdbShield <- loadTxdb(gtfPathShield)
 
 leadersShield <- fiveUTRsByTranscript(txdbShield, use.names = T)
-validTxShield <- ORFik:::filterTranscripts(txdbShield, 100, 50)
+validTxShield <- ORFik:::filterTranscripts(txdbShield, 102, 50)
 leadersShield <- leadersShield[validTxShield]
-leadersShield <- leadersShield[-which(startSites(leadersShield) < 55)]
-validTxShield <- names(leadersShield)
+if(length(which(startSites(leadersShield) < 100)) > 0) {
+  leadersShield <- leadersShield[-which(startSites(leadersShield) < 100)]
+}
+geneNames <- ORFik:::txNamesToGeneNames(names(leadersShield), txdbShield)
+validTxShield <- names(leadersShield)[!(geneNames %in% c("ENSDARG00000036180", "ENSDARG0000001479"))]
+leadersShield <- leadersShield[validTxShield]
 txShield <- loadRegion(txdbShield)[validTxShield]
 cdsShield <- loadRegion(txdbShield, "cds")[validTxShield]
 trailersShield <- loadRegion(txdbShield, "trailer")
@@ -213,18 +215,27 @@ tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), r
                   scores = "sum")
 
 ############################# TSS #################################
-txNames <- filterTranscripts(txdb, 100,50)
-leaders <- leaders[txNames]
-leaders <- leaders[-12674]
+
+
+# Best stages
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 100), reads5SGood, upstream = 100, downstream = 51, outdir = paste0(heatMapsFolder, "final/TSS_heatmap_5prime_best.png"),
+                   scores = "log2sum", acLen = 17:72)
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), reads3SGood, upstream = 50, downstream = 101, outdir = paste0(heatMapsFolder, "final/TSS_heatmap_3prime_shield_best.png"),
+                   scores = "log2sum", acLen = 17:72)
+regionBarPlot(leadersShield, extendLeaders(leadersShield, extension = 100), reads5SGood, upstream = 100, downstream = 51, outdir = paste0(heatMapsFolder, "final/TSS_heatmap_5prime_shield_best_bar.png"))
+regionBarPlot(leadersShield, extendLeaders(leadersShield, extension = 50), reads3SGood, upstream = 50, downstream = 101, outdir = paste0(heatMapsFolder, "final/TSS_heatmap_3prime_shield_best_bar.png"))
 
 # All stages TSS
+leadersShield <- removeBadTxByRegion(leadersShield, reads3SSUAll, upstream, downstream, 200, 100)
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 100), reads5SSUAll, upstream = 100, downstream = 51, outdir = paste0(heatMapsFolder, "final/TSS_heatmap_5prime_all.pdf"),
+                  scores = "log2sum", acLen = 17:70)
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), reads3SSUAll, upstream = 50, downstream = 101, outdir = paste0(heatMapsFolder, "final/TSS_heatmap_3prime_shield_all.pdf"),
+                  scores = "log2sum", acLen = 17:70)
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), reads3SSUAll, upstream = 50, downstream = 96, outdir = paste0(heatMapsFolder, "final/TSS_heatmap_3prime_shield_all_rawsum_layout_left.pdf"),
+                  scores = "sum", acLen = 17:70, legendPos = c(.14, .66))
+regionBarPlot(leadersShield, extendLeaders(leadersShield, extension = 100), reads5SSUAll, upstream = 100, downstream = 51, outdir = paste0(heatMapsFolder, "final/TSS_heatmap_5prime_shield_all_bar.pdf"))
+regionBarPlot(leadersShield, extendLeaders(leadersShield, extension = 50), reads3SSUAll, upstream = 50, downstream = 101, outdir = paste0(heatMapsFolder, "final/TSS_heatmap_3prime_shield_all_bar.pdf"))
 
-tcpHeatMap_single(leaders, extendLeaders(leaders, extension = 50), reads5, upstream = 30, downstream = 99, 
-                  outdir = paste0(plotFolder, "/heatmaps/final/TSS_heatmap_5prime_shield_SSU_nonDepleted.png"),
-                   scores = "sum")
-tcpHeatMap_single(leaders, extendLeaders(leaders, extension = 50), reads3, upstream = 30, downstream = 99, 
-                  outdir = paste0(plotFolder, "/heatmaps/final/TSS_heatmap_3prime_shield_SSU_nonDepleted.png"),
-                   scores = "sum")
 tcpHeatMap_single(leaders, extendLeaders(leaders, extension = 50), reads5LSU, upstream = 30, downstream = 99, 
                   outdir = paste0(plotFolder, "/heatmaps/final/TSS_heatmap_5prime_shield_LSU_nonDepleted.png"),
                   scores = "sum")
@@ -385,21 +396,33 @@ yeastTx <- loadRegion(txdbYeast)
 yeastCage <- ORFik:::readBam("/export/valenfs/data/processed_data/CAGE/wery_2015_S_cerevisiae/final_results/aligned_R64_1_1/SRR2048394.bam", yeastLeaders)
 yeastCageScore <- convertToOneBasedRanges(yeastCage, addScoreColumn = T)
 yeastCage5 <- convertToOneBasedRanges(yeastCage, addSizeColumn = T)
-yeastLeadersCage <- reassignTSSbyCage(fiveUTRs = yeastLeaders, yeastCageScore,  filterValue = 10, removeUnused = F)
-yeastLeadersCage <- yeastLeadersCage[widthPerGroup(yeastLeadersCage) > 59]
-yeastCDS <- yeastCDS[widthPerGroup(yeastCDS) > 59]
+yeastLeadersCage <- reassignTSSbyCage(fiveUTRs = yeastLeaders, yeastCageScore, filterValue = 10, removeUnused = F, preCleanup = F)
+yeastLeadersCage <- yeastLeadersCage[widthPerGroup(yeastLeadersCage) > 69]
+yeastCDS <- yeastCDS[widthPerGroup(yeastCDS) > 69]
 
 tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 100), yeastCage5, upstream = 75, downstream = 59, outdir = paste0(heatMapsFolder, "yeast_CAGE_5prime_TSS.png"), scores = "sum")
 
 
 yeastSSU <- ORFik:::readBam("/export/valenfs/data/processed_data/TCP-seq/archer_2016_yeast_15nt_without_3nt_trim/final_results/aligned_R64_1_1_tidy_tRNA/WT_SSU.bam", yeastLeaders)
 yeastSSU5 <- convertToOneBasedRanges(yeastSSU, addSizeColumn = TRUE); yeastSSU3 <- convertToOneBasedRanges(yeastSSU, method = "3prime",addSizeColumn = TRUE)
-tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU5, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "aa_cage_yeast_SSU_5prime_TSS_log2sum.png"), scores = "log2sum", logIt = F, acLen = 1:70)
-tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU5, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "aa_cage_yeast_SSU_5prime_TSS_trans.png"), scores = "transcriptNormalized", logIt = F, acLen = 1:70)
-tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU5, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "aa_cage_yeast_SSU_5prime_TSS_zscore.png"), scores = "zscore", logIt = F, acLen = 1:75)
-tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU3, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_log2sum.png"), scores = "log2sum", logIt = F, acLen = 1:70)
-tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU3, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_trans.png"), scores = "transcriptNormalized", logIt = F, acLen = 1:70)
-tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU3, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_zscore.png"), scores = "zscore", logIt = F, acLen = 1:75)
+# filter bad
+region <- ORFik:::startRegion(yeastLeadersCage, yeastLeadersCage, upstream = -2, downstream = 14)
+counts <- countOverlaps(region, yeastSSU5);summary(counts); sum(counts > 200)
+yeastLeadersCage <- yeastLeadersCage[!(counts > 200)]
+counts <- fpkm(yeastLeadersCage, yeastSSU5);summary(counts)
+
+#tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU5, upstream = 30, downstream = 49, outdir = paste0(heatMapsFolder, "yeast_SSU_5prime_TSS_trans.png"), scores = "transcriptNormalized", acLen = 1:70)
+#tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU5, upstream = 30, downstream = 49, outdir = paste0(heatMapsFolder, "yeast_SSU_5prime_TSS_zscore.png"), scores = "zscore", acLen = 1:75)
+#tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU3, upstream = 30, downstream = 49, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_trans.png"), scores = "transcriptNormalized", acLen = 1:70)
+#tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU3, upstream = 30, downstream = 49, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_zscore.png"), scores = "zscore", acLen = 1:75)
+
+tcpHeatMap_single(yeastLeadersCage[counts > 5], extendLeaders(yeastLeadersCage[counts > 5], extension = 50), yeastSSU5, upstream = 30, downstream = 57, outdir = paste0(heatMapsFolder, "yeast_SSU_5prime_TSS_trans.pdf"), scores = "transcriptNormalized", acLen = 16:70)
+tcpHeatMap_single(yeastLeadersCage[counts > 5], extendLeaders(yeastLeadersCage[counts > 5], extension = 50), yeastSSU3, upstream = 20, downstream = 67, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_trans.pdf"), scores = "transcriptNormalized", acLen = 16:70)
+tcpHeatMap_single(yeastLeadersCage[counts > 5], extendLeaders(yeastLeadersCage[counts > 5], extension = 50), yeastSSU5, upstream = 30, downstream = 57, outdir = paste0(heatMapsFolder, "yeast_SSU_5prime_TSS_sum.pdf"), scores = "sum", acLen = 16:70)
+tcpHeatMap_single(yeastLeadersCage[counts > 5], extendLeaders(yeastLeadersCage[counts > 5], extension = 50), yeastSSU3, upstream = 20, downstream = 67, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_sum.pdf"), scores = "sum", acLen = 16:70)
+regionBarPlot(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU5, upstream = 30, downstream = 57, outdir = paste0(heatMapsFolder, "yeast_SSU_5prime_TSS_bar.pdf"))
+regionBarPlot(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU3, upstream = 20, downstream = 67, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_bar.pdf"))
+
 yeastLSU <- ORFik:::readBam("/export/valenfs/data/processed_data/TCP-seq/archer_2016_yeast_15nt_without_3nt_trim/final_results/aligned_R64_1_1_tidy_tRNA/WT_RS.bam", yeastLeaders)
 tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), convertToOneBasedRanges(yeastLSU, addSizeColumn = TRUE), upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "yeast_LSU_5prime_TSS.png"))
 tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), convertToOneBasedRanges(yeastLSU, method = "3prime",addSizeColumn = TRUE), upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "yeast_LSU_3prime_TSS.png"))
@@ -420,7 +443,7 @@ tx <- tx[txNames]
 #cageLeaders <- reassignTSSbyCage(fiveUTRs = fiveUTRs, yeastCageScore,  filterValue = 10, removeUnused = F)
 rfpHeLa <-  ORFik:::readBam("/export/valenfs/data/processed_data/Ribo-seq/yamilla_test2_2017_HeLa/aligned_GRCh38/80S.bam", fiveUTRs)
 
-# TSS AND TIS
+#  AND TIS
 tcpHeatMap_single(fiveUTRs, extendLeaders(fiveUTRs, extension = 50), convertToOneBasedRanges(rfpHeLa, addSizeColumn = TRUE), upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "hela_rfp_5prime_TSS.png"))
 tcpHeatMap_single(fiveUTRs, extendLeaders(fiveUTRs, extension = 50), convertToOneBasedRanges(rfpHeLa, method = "3prime",addSizeColumn = TRUE), upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "hela_rfp_3prime_TSS.png"))
 
@@ -441,24 +464,22 @@ isoPath <- "/export/valenfs/data/references/Isodiametra_pulchra/bowtie_index/"
 txdbIso <- loadTxdb(yeastPath)
 isoLeaders <- loadRegion(txdbYeast, "leader")
 isoLeaders <- yeastLeaders[widthPerGroup(yeastLeaders) > 59]
-# TSS
+# 
 
 ################################### 150 NT valen 16 #####################################
 
 
+counts <- fpkm(leadersShield, readsSSU150NT5)
+hitMap5 <-  tcpHeatMap_single(leadersShield[counts > 2], extendLeaders(leadersShield[counts > 2], extension = 100), readsSSU150NT5, upstream = 100, downstream = 50, outdir = paste0(heatMapsFolder, "150NT_SSU_5prime_TSS_sum.pdf"), scores = "sum", acLen = 18:150)
+hitMap3 <- tcpHeatMap_single(leadersShield[counts > 2], extendLeaders(leadersShield[counts > 2], extension = 50), readsSSU150NT3, upstream = 50, downstream = 100, outdir = paste0(heatMapsFolder, "150NT_SSU_3prime_TSS_sum.pdf"), scores = "sum", acLen = 18:150)
+regionBarPlot(leadersShield[counts > 5], extendLeaders(leadersShield[counts > 5], extension = 100), readsSSU150NT5, upstream = 100, downstream = 51, outdir = paste0(heatMapsFolder, "150NT_SSU_5prime_TSS_bar.pdf"))
+regionBarPlot(leadersShield[counts > 5], extendLeaders(leadersShield[counts > 5], extension = 50), readsSSU150NT3, upstream = 50, downstream = 101, outdir = paste0(heatMapsFolder, "150NT_SSU_3prime_TSS_bar.pdf"))
 
-tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsSSU150NT5, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "150NT_SSU_5prime_TSS.png"), scores = "sum", logIt = T)
-tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsSSU150NT3, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "150NT_SSU_3prime_TSS.png"), scores = "sum", logIt = T)
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsLSU150NT5, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "150NT_LSU_5prime_TSS.png"), scores = "sum", logIt = F, acLen = 16:75)
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsLSU150NT3, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "150NT_LSU_3prime_TSS.png"), scores = "sum", logIt = F, acLen = 16:75)
 
-tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsLSU150NT5, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "150NT_LSU_5prime_TSS.png"), scores = "sum", logIt = T, acLen = 1:75)
-tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsLSU150NT3, upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "150NT_LSU_3prime_TSS.png"), scores = "sum", logIt = T, acLen = 1:75)
-
-tcpHeatMap_single(rRNA5S, NULL, readsLSU150NT5, upstream = 0, downstream = 99, zeroPosition = 1, 
-                  outdir = paste0(heatMapsFolder, "150NT_rRNA5S_heatmap_5prime_SSU.png"),
-                  scores = "zscore", logIt = FALSE)
-tcpHeatMap_single(rRNA5S, NULL, readsLSU150NT3, upstream = 0, downstream = 99, zeroPosition = 1, 
-                  outdir = paste0(heatMapsFolder, "150NT_rRNA5S_heatmap_3prime_SSU.png"),
-                  scores = "zscore", logIt = TRUE)
+tcpHeatMap_single(rRNA5S, NULL, readsLSU150NT5, upstream = 0, downstream = 99, zeroPosition = 1, outdir = paste0(heatMapsFolder, "150NT_rRNA5S_heatmap_5prime_SSU.png"), scores = "zscore", logIt = FALSE)
+tcpHeatMap_single(rRNA5S, NULL, readsLSU150NT3, upstream = 0, downstream = 99, zeroPosition = 1, outdir = paste0(heatMapsFolder, "150NT_rRNA5S_heatmap_3prime_SSU.png"), scores = "zscore", logIt = TRUE)
 
 ################################### lncRNA ######################################
 lincRNAs <- ORFik:::loadTranscriptType(gtfPathOri, part = "lincRNA")
@@ -493,3 +514,105 @@ ggsave(paste0(heatMapsFolder, "metaCoverage_cage_sum.png"), plot)
 dtSSUHeat <- tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), reads5SSUAll, upstream = 30, downstream = 74, outdir = paste0(heatMapsFolder, "TSS_SSU_merged_5prime.png"), scores = "log2sum", logIt = F, acLen = 16:70)
 
 tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsLSUGood, upstream = 30, downstream = 74, outdir = paste0(heatMapsFolder, "TSS_LSU_merged_5prime.png"), scores = "zscore", logIt = F, acLen = 1:70)
+
+adamsFormatHeatMap <- function(plot) {
+  p <- plot + scale_y_continuous(breaks = c(50, 100, 150))
+  return(p)
+}
+
+################################## Silvesterol ##################################
+dfSiv <- data.frame(SSU = "/export/valenfs/data/processed_data/TCP-seq/valen_2018_zebrafish_10_trim3_15nt_tRNAscan/aligned_GRCz10_tidy_tRNA_multi/merge/SSU_fractions_12_13_14_silvestrol.bam",
+                    LSU = "/export/valenfs/data/processed_data/TCP-seq/valen_2018_zebrafish_10_trim3_15nt_tRNAscan/aligned_GRCz10_tidy_tRNA_multi/merge/LSU_fractions_18_19_silvestrol.bam", 
+                    stage = "64", type = "silvesterol")
+readsSivSSU <- ORFik:::readBam(dfSiv$SSU, leadersShield)
+readsSivLSU <- ORFik:::readBam(dfSiv$LSU, leadersShield)
+
+readsSivSSU5 <- convertToOneBasedRanges(readsSivSSU, addSizeColumn = TRUE)
+readsSivSSU3 <- convertToOneBasedRanges(readsSivSSU, method = "3prime", addSizeColumn = TRUE)
+readsSivLSU5 <- convertToOneBasedRanges(readsSivLSU, addSizeColumn = TRUE)
+readsSivLSU3 <- convertToOneBasedRanges(readsSivLSU, method = "3prime", addSizeColumn = TRUE)
+
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsSivSSU5, upstream = 30, downstream = 99, outdir = paste0(heatMapsFolder, "SSU7_silvesterol_TSS_heatmap_5prime.png"), scores = "sum", acLen = 19:72)
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsSivSSU3, upstream = 30, downstream = 99, outdir = paste0(heatMapsFolder, "SSU7_silvesterol_TSS_heatmap_3prime.png"), scores = "sum", acLen = 19:72)
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsSivLSU5, upstream = 30, downstream = 99, outdir = paste0(heatMapsFolder, "LSU7_silvesterol_TSS_heatmap_5prime.png"), scores = "sum", acLen = 19:72)
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), readsSivLSU3, upstream = 30, downstream = 99, outdir = paste0(heatMapsFolder, "LSU7_silvesterol_TSS_heatmap_3prime.png"), scores = "sum", acLen = 19:72)
+
+tcpHeatMap_single(cdsShield, txShield, readsSivSSU5, upstream = 30, downstream = 99, outdir = paste0(heatMapsFolder, "SSU7_silvesterol_TIS_heatmap_5prime.png"), scores = "sum", acLen = 19:72)
+tcpHeatMap_single(cdsShield, txShield, readsSivSSU3, upstream = 30, downstream = 99, outdir = paste0(heatMapsFolder, "SSU7_silvesterol_TIS_heatmap_3prime.png"), scores = "sum", acLen = 19:72)
+tcpHeatMap_single(cdsShield, txShield, readsSivLSU5, upstream = 30, downstream = 99, outdir = paste0(heatMapsFolder, "LSU7_silvesterol_TIS_heatmap_5prime.png"), scores = "sum", acLen = 19:72)
+tcpHeatMap_single(cdsShield, txShield, readsSivLSU3, upstream = 30, downstream = 99, outdir = paste0(heatMapsFolder, "LSU7_silvesterol_TIS_heatmap_3prime.png"), scores = "sum", acLen = 19:72)
+
+# Check WT
+reads64SSU <- ORFik:::readBam(df$SSU[1], leadersShield)
+reads64SSU5 <- convertToOneBasedRanges(reads64SSU, addSizeColumn = TRUE)
+reads64LSU <- ORFik:::readBam("/export/valenfs/projects/adam/TCP_seq/RCP_files/64cell_LSU_reps_1_2_peaks_removed_translating_filter.bam", leadersShield)
+tcpHeatMap_single(leadersShield, extendLeaders(leadersShield, extension = 50), reads64SSU5, upstream = 30, downstream = 99, outdir = paste0(heatMapsFolder, "SSU64_WT_TSS_heatmap_5prime.png"), scores = "sum", acLen = 19:72)
+
+# Coverage
+dtSSU <- ORFik:::splitIn3Tx(leadersShield, cdsShield, trailersShield, readsSivSSU, fraction = "SSU_silv")
+dtLSU <- ORFik:::splitIn3Tx(leadersShield, cdsShield, trailersShield, readsSivLSU, fraction = "LSU_silv")
+dt <- rbindlist(list(dtSSU, dtLSU))
+dt <- dt[feature != "trailers",]
+windowCoveragePlot(dt, output = paste0(heatMapsFolder,"coveragePlot_silvesterol.png"), scoring = "sum", equalMax = T)
+
+# With structure
+means <- read.csv("viennaLeaders_50NT.csv", row.names = 1)
+high <- means[mean < quantile(mean, 0.5),]
+low <- means[mean >= quantile(mean, 0.5),]
+highest <- means[mean < quantile(mean, 0.20),]
+lowest <- means[mean >= quantile(mean, 0.80),]
+
+txHigh <- high$txNames
+txLow <- low$txNames
+txHighest <- highest$txNames
+txLowest <- lowest$txNames
+dt[genes %in% which(names(cdsShield) %in% txHigh),]$fraction <- paste0(dt[genes %in% which(names(cdsShield) %in% txHigh),]$fraction,"_high")
+dt[genes %in% which(names(cdsShield) %in% txHighest),]$fraction <- paste0(dt[genes %in% which(names(cdsShield) %in% txHighest),]$fraction,"_max")
+dt[genes %in% which(names(cdsShield) %in% txLow),]$fraction <- paste0(dt[genes %in% which(names(cdsShield) %in% txLow),]$fraction,"_low")
+dt[genes %in% which(names(cdsShield) %in% txLowest),]$fraction <- paste0(dt[genes %in% which(names(cdsShield) %in% txLowest),]$fraction,"_min")
+dt <- dt[!c(fraction %in% c("SSU_silv" , "LSU_silv")), ]
+levels(dt$fraction) <- c("SSU_silv_high_max", "SSU_silv_high", "SSU_silv_low", "SSU_silv_low_min", "LSU_silv_high_max", "LSU_silv_high",    
+                          "LSU_silv_low", "LSU_silv_low_min")
+
+pp <- windowCoveragePlot(dt, scoring = "zscore", scaleEqual = T, colors = c(rep("skyblue4", 4), rep("orange", 4)))
+ggsave(paste0(heatMapsFolder,"structure_coveragePlot_silvesterol.png"), height = 15)
+# WT
+dtSSUWT <- ORFik:::splitIn3Tx(leadersShield, cdsShield, trailersShield, reads64SSU, fraction = "SSU")
+dtLSUWT <- ORFik:::splitIn3Tx(leadersShield, cdsShield, trailersShield, reads64LSU, fraction = "LSU")
+dtWT <- rbindlist(list(dtSSUWT, dtLSUWT))
+dtWT <- dtWT[feature != "trailers",]
+
+dtWT[genes %in% which(names(cdsShield) %in% txHighest),]$fraction <- paste0(dtWT[genes %in% which(names(cdsShield) %in% txHighest),]$fraction,"_max")
+dtWT[genes %in% which(names(cdsShield) %in% txHigh),]$fraction <- paste0(dtWT[genes %in% which(names(cdsShield) %in% txHigh),]$fraction,"_high")
+dtWT[genes %in% which(names(cdsShield) %in% txLow),]$fraction <- paste0(dtWT[genes %in% which(names(cdsShield) %in% txLow),]$fraction,"_low")
+dtWT[genes %in% which(names(cdsShield) %in% txLowest),]$fraction <- paste0(dtWT[genes %in% which(names(cdsShield) %in% txLowest),]$fraction,"_min")
+dtWT <- dtWT[!c(fraction %in% c("SSU" , "LSU")), ]
+pp <- windowCoveragePlot(dtWT, scoring = "zscore", scaleEqual = T, colors = c(rep("skyblue4", 4), rep("orange", 4)))
+ggsave(paste0(heatMapsFolder,"structure_coveragePlot_WT.png"), height = 15)
+################################## RNA ##################################
+
+df <- getTCPdfAll()
+readsRNA <- ORFik:::readBam(df$RNA[3], leadersShield)
+readsRNA5 <- convertToOneBasedRanges(readsRNA, addSizeColumn = TRUE)
+readsRNA3 <- convertToOneBasedRanges(readsRNA, method = "3prime", addSizeColumn = TRUE)
+
+windowsOne <- startRegion(leadersShield, extendLeaders(leadersShield, extension = 75), TRUE, upstream = 75, downstream = 74)
+hitMap <- metaWindow(readsRNA, windowsOne, scoring = "meanPos", withFrames = FALSE, fraction = "RNA", feature = "shield")
+windowCoveragePlot(hitMap, output = paste0(heatMapsFolder,"RNA_TSS_5prime.png"))
+
+seqlevelsStyle(leaders)  <- seqlevelsStyle(leadersShield)[1]
+leaders <- leaders[startSites(leaders) > 100 & widthPerGroup(leaders) > 100]
+windowsOne <- startRegion(leaders, extendLeaders(leaders, extension = 75), TRUE, upstream = 75, downstream = 74)
+hitMap <- metaWindow(readsRNA, windowsOne, scoring = "meanPos", withFrames = FALSE, fraction = "RNA", feature = "shield")
+windowCoveragePlot(hitMap, output = paste0(heatMapsFolder,"RNA_TSS_5prime_nonCAGE.png"))
+
+seqlevelsStyle(tx)  <- seqlevelsStyle(leadersShield)[1]
+tx <- tx[startSites(tx) > 100 & widthPerGroup(tx) > 100]
+#windowsOne <- startRegion(tx, extendLeaders(leaders, extension = 75), TRUE, upstream = 75, downstream = 74)
+hitMap <- metaWindow(readsRNA, tx, scoring = NULL, withFrames = FALSE, fraction = "RNA", feature = "shield")
+
+
+windowCoveragePlot(hitMap, output = paste0(heatMapsFolder,"RNA_TSS_5prime_nonCAGE_tx.png"))
+
+dtSSU <- ORFik:::splitIn3Tx(leadersShield, cdsShield, trailersShield, readsSivSSU, fraction = "SSU_silv")
+windowCoveragePlot(dt, output = paste0(heatMapsFolder,"coveragePlot_silvesterol.png"), scoring = "zscore", equalMax = F)

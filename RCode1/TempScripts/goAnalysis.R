@@ -156,56 +156,61 @@ getGOrilla <- function(fileName, txdb) {
 
 gg_high <- getGOrilla("./go_high.csv", txdb) # ER
 gg_low <- getGOrilla("./go_low.csv", txdb) # Nucleus
+
+
 #gg_extraC <- dt$transcript_id[dt$go == "extracellular region" | dt$go == "extracellular space"]
 
 #ddG <-  dd[txNames %in% c(gg_high, gg_low, gg_extraC),]
 ddG <-  dd[txNames %in% c(gg_high, gg_low),]
-
+ddG[, rfpTPM := (rfp / sum(rfp))*1e6]
+ddG[, ssuTPM := (ssu / sum(ssu))*1e6]
 ddG$fraction <- "GO_nuc"
 ddG$fraction[ddG$txNames %in% c(gg_high)] <- "GO_ER"
 #ddG$fraction[ddG$txNames %in% c(gg_extraC)] <- "GO_ER"
 ddG$fraction <- as.factor(ddG$fraction)
 ddG <- ddG[rfp > 0. & ssu > 0.,]
 
-ggplot(ddG, aes((rfp / sum(rfp)), (ssu / sum(ssu)), color = fraction)) + 
+
+ddG$hasUORFs <- ddG$txNames %in% c(txNames(uORF_high), txNames(uORF_low))
+ggplot(ddG, aes(rfpTPM, ssuTPM, color = fraction)) + 
   geom_point() + 
-  xlim(10, 2000) + ylim(10, 2000) + 
+  xlim(0, 3000) + ylim(0, 3000) +
   geom_smooth(method='lm', fill = NA) + 
-  scale_x_log10() + scale_y_log10()
+  labs(x = "tpm RFP", y = "tpm SSU") + stat_cor(method = "pearson") + 
+  facet_wrap( ~ hasUORFs)
 
 ggplot(ddG, aes(rfp / (rnaCDS + 1), ssu / (rnaCDS + 1), color = fraction)) + 
   geom_point() + 
-  xlim(10, 2000) + ylim(10, 2000) + 
   geom_smooth(method='lm', fill = NA) + 
   scale_x_log10() + scale_y_log10()
 
-# Transcript
-ddG <-  dd[txNames %in% c(gg_high, gg_low, gg_extraC),]
 
-ddG$fraction <- "GO_low"
-ddG$fraction[ddG$txNames %in% c(gg_high)] <- "GO_high"
-ddG$fraction[ddG$txNames %in% c(gg_extraC)] <- "GO_ER"
-ddG$fraction <- as.factor(ddG$fraction)
+# Load whatever SSU; rfp and rna you want. Here I use shield
 ddG <- ddG[stage == "shield",]
-tNames <- ddG$txNames[ddG$fraction == "GO_high"] 
-tNames <- tNames[tNames %in% names(trailers)]
-high_ssu <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = ssu, fraction = "GO_high_ssu")
-high_rfp <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rfp, fraction = "GO_high_rfp")
-high_rna <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rna, fraction = "GO_high_rna")
-
-tNames <- ddG$txNames[ddG$fraction == "GO_low"] 
-tNames <- tNames[tNames %in% names(trailers)]
-low_ssu <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = ssu, fraction = "GO_low_ssu")
-low_rfp <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rfp, fraction = "GO_low_rfp")
-low_rna <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rna, fraction = "GO_low_rna")
-
 tNames <- ddG$txNames[ddG$fraction == "GO_ER"] 
 tNames <- tNames[tNames %in% names(trailers)]
-er_ssu <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = ssu, fraction = "GO_low_ssu")
-er_rfp <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rfp, fraction = "GO_low_rfp")
-er_rna <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rna, fraction = "GO_low_rna")
+rna <- ORFik:::readBam(df$RNA[3], tx); strand(rna) <- "*"
+rfp <- ORFik:::readBam(df$RFP[3], tx)
+#ssu <- ORFik:::readBam(df_stage$SSU[3], tx)
+ssu <- readsSSUAll
 
-dt <- rbindlist(list(high_ssu, high_rfp, low_ssu, low_rfp, er_ssu, er_rfp))
+high_ssu <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = ssu, fraction = "GO_ER_ssu")
+high_rfp <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rfp, fraction = "GO_ER_rfp")
+high_rna <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rna, fraction = "GO_ER_rna")
+
+tNames <- ddG$txNames[ddG$fraction == "GO_nuc"] 
+tNames <- tNames[tNames %in% names(trailers)]
+low_ssu <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = ssu, fraction = "GO_nuc_ssu")
+low_rfp <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rfp, fraction = "GO_nuc_rfp")
+low_rna <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rna, fraction = "GO_nuc_rna")
+
+# tNames <- ddG$txNames[ddG$fraction == "GO_ER"] 
+# tNames <- tNames[tNames %in% names(trailers)]
+# er_ssu <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = ssu, fraction = "GO_low_ssu")
+# er_rfp <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rfp, fraction = "GO_low_rfp")
+# er_rna <- ORFik:::splitIn3Tx(leaders[tNames], cds[tNames], trailers[tNames], reads = rna, fraction = "GO_low_rna")
+
+mergedHiLo <- rbindlist(list(high_ssu, high_rfp, low_ssu, low_rfp, er_ssu, er_rfp))
 
 p <- windowCoveragePlot(dt, scoring = "sum", title = "GO - IR expression normalized by RNA", )
 
@@ -244,14 +249,69 @@ low_rfp <- metaWindow(x = rfp, windows = window, fraction = "GO_low_rfp", zeroPo
 dt <- rbindlist(list(high_ssu, high_rfp, low_ssu, low_rfp))
 p <- windowCoveragePlot(dt, scoring = "sum", title = "GO - IR expression", type = "TSS region")
 
+# Try to recreate dotPlot
+gorillaToDotplot <- function(goDf1, outName=NULL) {
+  library(ggplot2)
+  scaler <- max(nchar(as.character(goDf1$Description)))/39
+  # Plot
+  p <- ggplot(goDf1, aes(x=GeneRatio, y=Description, color = -log10(qvalue), size = Count)) + 
+    geom_point(stat='identity')  +
+    theme_bw(base_size=13) + 
+    scale_color_gradientn(colours = c("navy", "purple","red", "red2"), name = "-log10(q-value)") + 
+    labs(title="GO enrichment", 
+         subtitle="Onthology: Component") + 
+    xlim(0.0, 0.3)
+  
+  
+  if (!is.null(outName)) {
+    
+    ggsave(filename = outName, plot = p, width = 160, height = 140, units = "mm",
+           dpi = 300, limitsize = FALSE)  
+  }
+  return(p)
+}
+
+goDf <- data.table(t(matrix(c(3.64E-14, 	2.96E-11, 634,
+                 2.18E-13, 	8.84E-11, 544,
+                 2.34E-13, 	6.33E-11, 542,
+                 9.83E-10, 	1.99E-7, 713,
+                 3.1E-7, 5.03E-5, 98,
+                 5.48E-6, 7.42E-4, 48,
+                 8.13E-6, 9.43E-4, 77,
+                 6.37E-5, 6.47E-3, 649,
+                 5.45E-4, 4.92E-2, 6),
+               nrow = 3)))
+colnames(goDf) <- c("pvalue", 	"qvalue", "Count")
+goDf$GeneRatio <- goDf$Count/2489
+goDf$ID <- c("GO:0044425", "GO:0031224", "GO:0016021", "GO:0016020", "GO:0005783", "GO:0005789", "GO:0044432", "GO:0044444", "GO:0005793")
+goDf$Description <- c("membrane part", "intrinsic component of membrane", "integral component of membrane", 
+                 "membrane", "endoplasmic reticulum", "endoplasmic reticulum membrane", "endoplasmic reticulum part",
+                 "cytoplasmic part", "endoplasmic reticulum-Golgi compartment")
+
+goDf$Description <- factor(goDf$Description, levels = goDf$Description[order(goDf$GeneRatio, decreasing = FALSE)])
+goDf <- goDf[order(GeneRatio, decreasing = FALSE),]
+a <- gorillaToDotplot(goDf, paste0(plotFolder, "/heatmaps/final/GO_ER.pdf"))
+goDfNuc <- data.table(t(matrix(c("GO:0005634", 	"nucleus", 	1.24E-11,	1.01E-8, 	669,
+                                 "GO:0044428", 	"nuclear part", 	3.37E-6, 	1.37E-3, 	302, 	
+                                 "GO:0044451", 	"nucleoplasm part", 	2.16E-4, 	5.86E-2, 	121,
+                                 "GO:0005667", 	"transcription factor complex", 	4.38E-4, 	8.9E-2, 50), 
+                               nrow = 5)))
+colnames(goDfNuc) <- c("ID", "Description", "pvalue","qvalue", "Count")
+class(goDfNuc$pvalue) <- "numeric";class(goDfNuc$qvalue) <- "numeric";class(goDfNuc$Count) <- "numeric"
+goDfNuc$GeneRatio <- goDfNuc$Count/2489
+goDfNuc$Description <- factor(goDfNuc$Description, levels = goDfNuc$Description[order(goDfNuc$GeneRatio, decreasing = FALSE)])
+goDfNuc <- goDfNuc[order(GeneRatio, decreasing = FALSE),]
+b <- gorillaToDotplot(goDfNuc, paste0(plotFolder, "/heatmaps/final/GO_nuc.pdf"))
+
 ###################################### Length and uORF analysis ################
 # Length
-summary(widthPerGroup(leaders[dd$txNames[dd$fraction == "GO_high"]]))
-summary(widthPerGroup(leaders[dd$txNames[dd$fraction == "GO_low"]]))
-t.test(widthPerGroup(leaders[dd$txNames[dd$fraction == "GO_low"]]), widthPerGroup(leaders[dd$txNames[dd$fraction == "GO_high"]]))
-
+summary(widthPerGroup(leaders[dd$txNames[ddG$fraction == "GO_ER"]]))
+summary(widthPerGroup(leaders[dd$txNames[ddG$fraction == "GO_nuc"]]))
+t.test(widthPerGroup(leaders[ddG$txNames[ddG$fraction == "GO_nuc"]]), widthPerGroup(leaders[ddG$txNames[ddG$fraction == "GO_ER"]]))
+wilcox.test(widthPerGroup(leaders[ddG$txNames[ddG$fraction == "GO_ER"]]), widthPerGroup(leaders[!(names(leaders) %in% ddG$txNames)]))
+t.test(widthPerGroup(leaders[ddG$txNames[ddG$fraction == "GO_ER"]]), widthPerGroup(leaders[!(names(leaders) %in% ddG$txNames)]))
 # uORFs
-
+getFasta("/export/valenfs/data/references/Zv10_zebrafish/Danio_rerio.GRCz10.fa")
 cds <- cdsBy(txdb, use.names = TRUE)[names(leaders)]
 
 uorfRegion <- ORFik:::addCdsOnLeaderEnds(leaders, cds)
@@ -272,19 +332,19 @@ readsLSU4Ei <- ORFik:::readBam(df2$LSU[df2$type == "4Ei"], tx)
 readsSSU4Ei <- ORFik:::readBam(pathSSU4Ei, tx)
 readsLSUGoodTrans <- readsLSUGood[readWidths(readsLSUGood) < 35 & readWidths(readsLSUGood) > 25]
 readsLSU4EiTrans <- readsLSU4Ei[readWidths(readsLSU4Ei) < 35 & readWidths(readsLSU4Ei) > 25]
-rna <- ORFik:::readBam(df$RFP[3], leadersShield)
+rna <- ORFik:::readBam(df$RNA[1], leadersShield); strand(rna) <- "*"
 
 se4Ei <- translationalEff(leadersShield, rna, readsSSU4Ei, cdsShield, pseudoCount = 1)
 te4Ei <- translationalEff(cdsShield, rna, readsLSU4EiTrans, cdsShield, pseudoCount = 1)
 seWT <- translationalEff(leadersShield, rna, readsSSUGood, cdsShield, pseudoCount = 1)
 teWT <- translationalEff(cdsShield, rna, readsLSUGoodTrans, cdsShield, pseudoCount = 1)
-teWTAll <- translationalEff(cdsShield, rna, readsLSUGoodTrans, cdsShield, pseudoCount = 1, with.fpkm = T)
+#teWTAll <- translationalEff(cdsShield, rna, readsLSUGoodTrans, cdsShield, pseudoCount = 1, with.fpkm = T)
 dt <- data.table(se4Ei, te4Ei, seWT, teWT)
-dt <- melt(dt)
-dt$value <- log10(dt$value)
-dt <- dt[dt$value > 0.1 | dt$value < -0.5,]
+dtMelt <- melt(dt)
+dtMelt$value <- log10(dtMelt$value)
+dtMelt <- dtMelt[dtMelt$value > 0.1 | dtMelt$value < -0.5,]
 
-g <- ggplot(dt, aes(value))
+g <- ggplot(dtMelt, aes(value))
 g + geom_density(aes(fill=factor(variable)), alpha=0.2) + 
   labs(title="Density plot", 
        subtitle="rates of scanning and translation",
@@ -292,6 +352,23 @@ g + geom_density(aes(fill=factor(variable)), alpha=0.2) +
        x="log10 (TE or SE)",
        fill="# type:")
 
-ggplot() + geom_point(aes(se4Ei, seWT)) + xlim(0, 3) + ylim(0, 3) + labs(title = "SE (4Ei vs WT)")
-ggplot() + geom_point(aes(te4Ei, teWT)) + xlim(0, 3) + ylim(0, 3) + labs(title = "TE (4Ei vs WT)")
-ggplot(dt, aes(variable, value, color = variable)) + geom_violin() + labs(title = "SE (4Ei vs WT)")
+ggplot(dt, aes(se4Ei, seWT)) + geom_point() + geom_smooth(method='lm', fill = NA) + xlim(0, 3) + ylim(0, 3) + stat_cor(method = "pearson") + labs(title = "SE (4Ei vs WT)") 
+ggplot(dt, aes(te4Ei, teWT)) + geom_point() + geom_smooth(method='lm', fill = NA) + xlim(0, 3) + ylim(0, 3) + labs(title = "TE (4Ei vs WT)") + stat_cor(method = "pearson")
+ggplot(dtMelt, aes(variable, value, color = variable)) + geom_violin() + labs(title = "SE (4Ei vs WT)")
+
+# Prepare for GOrilla (make csv and copy genes to browser, not the file!)
+ratioSE <- se4Ei / seWT
+names(ratioSE) <- names(leadersShield)
+oSE <- sort(ratioSE, decreasing = T)
+geneNames <- txNamesToGeneNames(names(oSE), txdb)
+write.table(data.frame(genes = geneNames, stringsAsFactors = F), file = "4EiSE.csv")
+a <- clusterProfiler::enrichGO(gene = geneNames,
+                               OrgDb = org.Dr.eg.db,
+                               keyType = 'ENSEMBL',
+                               ont = "ALL")
+
+ratioTE <- te4Ei / teWT
+names(ratioTE) <- names(leadersShield)
+oTE <- sort(ratioTE, decreasing = T)
+geneNames <- txNamesToGeneNames(names(oTE), txdb)
+write.table(data.frame(genes = geneNames, stringsAsFactors = F), file = "4EiTE.csv")

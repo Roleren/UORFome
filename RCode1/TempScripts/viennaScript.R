@@ -36,17 +36,28 @@ best <- m[, .(which.min(value)), by = Var2]
 uniques <- m[, .(unique(value)), by = Var2]
 positions <- IRanges(best$V1, width = 1)
 
-### find best per
+# 50 NT
+m <- setDT(melt(t(h[,1:11])))
+means <- m[, .(median = median(value, na.rm = TRUE), mean = mean(value, na.rm = TRUE)), by = Var2]
+means[, txNames := names(leaders)[Var2]]
+means <- means[order(mean),]
+means[, Var2 := NULL]
+write.csv(means, "viennaLeaders_50NT.csv")
 
+### find best per whole
 means <- m[, .(median = median(value, na.rm = TRUE), mean = mean(value, na.rm = TRUE)), by = Var2]
 means[, txNames := names(leaders)[Var2]]
 means <- means[order(mean),]
 means[, Var2 := NULL]
 write.csv(means, "viennaLeaders.csv")
+
+#means <- read.csv("viennaLeaders.csv", row.names = 1)
 high <- means[mean < quantile(mean, 0.5),]
 low <- means[mean >= quantile(mean, 0.5),]
 highest <- means[mean < quantile(mean, 0.20),]
 lowest <- means[mean >= quantile(mean, 0.80),]
+
+
 
 ########################## WORK ON STRUCTURE #############################
 tx <- exonsBy(txdb, use.names = TRUE)
@@ -163,7 +174,7 @@ cov[position > scaleTo]$position <- scaleTo
 groupFPF <- quote(list(genes, position))
 res <- cov[, .(score = mean(count, na.rm = TRUE)), by = eval(groupFPF)]
 
-windowCoveragePlot(res, output = "MFE_distribution.pdf", scoring = "sum", title = "Minimum Free Energy distribution")
+windowCoveragePlot(res, output = "MFE_distribution.png", scoring = "sum", title = "Minimum Free Energy distribution")
 
 ### Ribo-seq test
 

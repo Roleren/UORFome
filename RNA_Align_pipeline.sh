@@ -25,7 +25,7 @@ OPTIONS:
 	-l	minimum length of reads
 	-g	genome dir for all indices (Standard is zebrafish: danrerio10, change to human index if needed etc)
 	-s	steps of depletion and alignment wanted:
-		(a string: which steps to do? (default: "tr-ph-rR-nc-tR-ge")
+		(a string: which steps to do? (default: "tr-ge", write "all" to get all: "tr-ph-rR-nc-tR-ge")
 			 tr: trimming, ph: phix depletion, rR: rrna depletion, 
 			 nc: ncrna depletion, tR: trna depletion, ge: genome alignment) 
 		Write your wanted steps, seperated by "-". Order does not matter.
@@ -60,7 +60,7 @@ EOF
 # Default arguments:
 min_length=15
 gen_dir=/export/valenfs/projects/uORFome/STAR_INDEX_ZEBRAFISH
-allSteps="tr-ph-rR-nc-tR-ge"
+allSteps="tr-ge"
 steps=$allSteps
 resume="n"
 alignment="Local"

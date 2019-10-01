@@ -1,6 +1,7 @@
 library(ORFik)
 library(ggplot2)
 
+
 # Input of this are reads (bam files) after alignin process
 
 # STEPS:
@@ -87,11 +88,12 @@ tcpHeatMap <- function(txdb, df = getTCPdf(), outdir = p(mainFolder, "/tcp_plots
                  shifting = shifting, scores = scores, upstream = 100, downstream = 49, 
                  zeroPosition = zeroPosition)
 }
-
+#TODO FIX!
 #' heatmap
 tcpHeatMap_int <- function(region, tx, df = getTCPdf(), outdir = p(mainFolder, "/tcp_plots/mir430/normal_"), 
                        shifting = NULL, scores = c("sum", "zscore"), upstream, downstream, 
                        zeroPosition = upstream, returnCoverage = FALSE) {
+  stop("Not fixed!")
   window <- ORFik:::startRegion(region, tx, TRUE, upstream, downstream)
   
   outdir <- paste0(outdir, shifting, "_")
@@ -126,65 +128,72 @@ tcpHeatMap_int <- function(region, tx, df = getTCPdf(), outdir = p(mainFolder, "
   return(cov)
 }
 
-# TEMP VERSION
-# tcpHeatMap_single <- function(region, tx, reads, outdir = p(mainFolder, "/tcp_plots/mir430/normal_"), 
-#                               scores = "sum", upstream, downstream,  zeroPosition = upstream,
-#                               returnCoverage = FALSE, logIt = FALSE, acLen = NULL, legendPos = "right") {
-#   if (length(scores) != 1) stop("scores must exactly only 1 score type")
-#   dt <- windowPerReadLength(region, tx, reads, upstream = upstream, downstream = downstream, 
-#                             zeroPosition = zeroPosition, scoring = scores[1], acceptedLengths = acLen)
-#   
-#   if (logIt) dt$score <- log2(dt$score)
-#   if (scores[1] == "log2sum") scores <- "log2(sum)"
-#   if (scores[1] == "sum") scores <- "Count\nSum"
-#   
-#   #plot <- ORFik:::coverageHeatMap(coverage = dt, scoring = scores[1])
-#   
-#   dt$fraction <- factor(dt$fraction, levels = unique(dt$fraction), 
-#                         labels = unique(dt$fraction))
-#   
-#   plot <- ggplot(dt, aes(x = position, y = fraction, 
-#                          fill = score)) + geom_tile() + scale_fill_gradientn(colours = c("white", 
-#                                                                                          "yellow2","yellow3", "lightblue", "blue", "navy", "navy", "black"), 
-#                                                                              name = scores[1]) + xlab("Position relative to start of transcript") + 
-#     ylab("Protected fragment length") + scale_x_continuous(breaks = seq.int(-upstream, downstream, by = 10)) + 
-#     theme_bw(base_size=15) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
-#     scale_y_discrete(breaks = yAxisScaler(levels(dt$fraction))) + theme(legend.position = legendPos)
-#   
-#   ggsave(filename = outdir, plot = plot, width = 200, height = 100, units = "mm",
-#          dpi = 300, limitsize = FALSE)  
-#   if (returnCoverage) {
-#     return(dt)
-#   } else return(plot)
-# }
+#' heatmap
+heatMapL <- function(region, tx, df, outdir = p(mainFolder, "/tcp_plots/mir430/hm_"), 
+                        scores = "sum", upstream, downstream,  zeroPosition = upstream,
+                        logIt = FALSE, acLen = NULL, legendPos = "right", colors = NULL,
+                        addFracPlot = TRUE, location = "TIS", shifting = NULL, skip.last = FALSE) {
+  
+  
+  dfl <- df
+  if(!is(dfl, "list")) dfl <- list(dfl)
+  for (df in dfl) {
+    out <- ifelse(!is.null(shifting), paste0(outdir, df@experiment,"_hm_", shifting, "_", location, "_"), 
+                     paste0(outdir, df@experiment,"_hm_", location, "_"))
+    varNames <- bamVarName(df)
+    outputLibs(df, region)
+    
+    for (i in varNames) { # For each stage
+      tcpHeatMap_single(region, tx, reads = get(i), outdir = paste0(out, i, ".png"), 
+                        shifting = shifting, scores = scores, upstream = upstream, downstream = downstream, 
+                        zeroPosition = zeroPosition, logIt = logIt, acLen = acLen, 
+                        legendPos = legendPos, colors = colors, addFracPlot = addFracPlot, 
+                        location = location, skip.last = skip.last)
+    }
+  }
+}
 
-tcpHeatMap_single <- function(region, tx, reads, outdir = p(mainFolder, "/tcp_plots/mir430/normal_"), 
+tcpHeatMap_single <- function(region, tx, reads, outdir = p(mainFolder, "/tcp_plots/mir430/hm_"), 
                               scores = "sum", upstream, downstream,  zeroPosition = upstream,
                               returnCoverage = FALSE, logIt = FALSE, acLen = NULL, legendPos = "right", 
-                              colors = NULL, addFracPlot = TRUE) {
+                              colors = NULL, addFracPlot = TRUE, location = "start site", shifting = NULL, 
+                              skip.last = FALSE) {
   if (length(scores) != 1) stop("scores must exactly only 1 score type")
+  if (!is.null(shifting)) {
+    reads <- convertToOneBasedRanges(reads, method = shifting, addSizeColumn = TRUE)
+  } 
+  if (skip.last) {
+    all_lengths <- sort(unique(readWidths(reads)))
+    if (!is.null(acLen)) 
+      all_lengths <- all_lengths[all_lengths %in% acLen]
+    acLen <- all_lengths[-c((length(all_lengths)-0):length(all_lengths))]
+  }
   dt <- windowPerReadLength(region, tx, reads, upstream = upstream, downstream = downstream, 
                             zeroPosition = zeroPosition, scoring = scores[1], acceptedLengths = acLen)
- 
+  
   if (logIt) dt$score <- log2(dt$score)
   if (scores[1] == "log2sum") scores <- "log2(sum)"
   
   dt$fraction <- factor(dt$fraction, levels = unique(dt$fraction), 
                               labels = unique(dt$fraction))
-  if (is.null(colors)) colors <- c("white", "yellow2", "yellow3", "lightblue", "blue", "navy")
-  if (colors == "high") colors <- c("white", "yellow2", "yellow3", "lightblue", "blue", "blue", "blue", "navy", "black")
+  if (is.null(colors))
+    colors <- c("white", "yellow2", "yellow3", "lightblue", "blue", "navy")
+  
+  if (all(colors == "high")) 
+    colors <- c("white", "yellow2", "yellow3", "lightblue", "blue", "blue", "blue", "navy", "black")
+  
   
   plot <- ggplot(dt, aes(x = position, y = fraction, 
                                fill = score)) + geom_tile() + 
-    scale_fill_gradientn(colours = colors, name = scores[1]) + 
-    xlab("Position relative to start of transcript") + 
+    scale_fill_gradientn(colours = colors, name = ORFik:::prettyScoring(scores[1])) + 
+    xlab(paste("Position relative to", location)) + 
     ylab("Protected fragment length") + scale_x_continuous(breaks = seq.int(-upstream, downstream, by = 10)) + 
     theme_bw(base_size = 15) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
     scale_y_discrete(breaks = yAxisScaler(levels(dt$fraction))) + theme(legend.position = legendPos)
   
   if (addFracPlot) {
     plot2 <- pSitePlot(dt, forHeatmap = TRUE)
-    plot <- gridExtra::grid.arrange(plot2, plot + theme(legend.position = "bottom"),
+    plot <- gridExtra::grid.arrange(plot2, plot + theme(legend.position = "bottom", legend.key.width = unit(2, "lines")),
                          heights = c(1, 4))
   }
   
@@ -197,44 +206,55 @@ tcpHeatMap_single <- function(region, tx, reads, outdir = p(mainFolder, "/tcp_pl
 
 #' Make 100 bases size meta window for all libraries in input data.frame
 transcriptWindow <- function(leaders, cds, trailers, df = getTCPdf(), 
-                             outdir = p(mainFolder, "/tcp_plots/mir430/normal_"),
-                             scores = c("sum", "zscore"), allTogether = FALSE) {
+                             outdir = p(mainFolder, "/tcp_plots/mir430/cp_"),
+                             scores = c("sum", "zscore"), allTogether = FALSE, 
+                             colors = rep("skyblue4", nrow(df)), 
+                             windowSize = min(100, min(widthPerGroup(leaders, F)),
+                                              min(widthPerGroup(cds, F)),
+                                              min(widthPerGroup(trailers, F)))) {
+  if (windowSize != 100) message(paste0("NOTE: windowSize is not 100!\nIt is ", windowSize))
   
-  varNames <- bamVarName(df)
-  outputBams(df, leaders)
-  coverage <- data.table()
-  if (!allTogether) {
-    libTypes <- libraryTypes(df)
-    j <- 0
-    for (i in 1:nrow(df)) { # For each stage
-      j <- j + 1
-      print(i)
-      readsList <- list()
-      for (lib in libTypes) { # For each library of that stage (SSU, LSU, RNA-seq, RIBO-seq)
-        readsList <- list(readsList, get(varNames[j]))
-      }
-      readsList <- readsList[-1]
-      transcriptWindowPer(leaders, cds, trailers, df[i,], outdir, scores, fractions,
-                          readsList)
-    }
-  } else { # all combined
-      coverage <- data.table()
-      for (i in varNames) { # For each stage
+  dfl <- df
+  if(!is(dfl, "list")) dfl <- list(dfl)
+  for (df in dfl) {
+    varNames <- bamVarName(df)
+    outputLibs(df, leaders)
+    coverage <- data.table()
+    if (!allTogether) {
+      stop("fix!")
+      libTypes <- libraryTypes(df)
+      j <- 0
+      for (i in 1:nrow(df)) { # For each stage
+        j <- j + 1
         print(i)
-        coverage <- rbindlist(list(coverage, ORFik:::splitIn3Tx(leaders, cds, trailers, 
-                                                                get(i), fraction = i)))
+        readsList <- list()
+        for (lib in libTypes) { # For each library of that stage (SSU, LSU, RNA-seq, RIBO-seq)
+          readsList <- list(readsList, get(varNames[j]))
+        }
+        readsList <- readsList[-1]
+        transcriptWindowPer(leaders, cds, trailers, df[i,], outdir, scores, fractions,
+                            readsList)
       }
-      for(s in scores) {
-        a <- windowCoveragePlot(coverage, scoring = s)
-        ggsave(paste0(outdir, "all_", s, ".png"), a, height = 10)
-      }
+    } else { # all combined
+        coverage <- data.table()
+        for (i in varNames) { # For each stage
+          print(i)
+          coverage <- rbindlist(list(coverage, ORFik:::splitIn3Tx(leaders, cds, trailers, 
+                                                                  get(i), fraction = i,
+                                                                  windowSize = windowSize)))
+        }
+        for(s in scores) {
+          a <- windowCoveragePlot(coverage, scoring = s, colors = colors)
+          ggsave(paste0(outdir, df@experiment,"_cp_all_", s, ".png"), a, height = 10)
+        }
+    }
   }
 }
 
 transcriptWindowPer <- function(leaders, cds, trailers, df = getTCPdf()[1,], 
-                                outdir = p(mainFolder, "/tcp_plots/mir430/normal_"),
+                                outdir = p(mainFolder, "/tcp_plots/mir430/cp_"),
                                 scores = c("sum", "zscore"),
-                                reads, returnCoverage = FALSE) {
+                                reads, returnCoverage = FALSE, windowSize = 100) {
   
   libTypes <- libraryTypes(df)
   if (is(reads, "list") | is(reads, "GAlignmentsList") | is(reads, "GRangesList")) {
@@ -246,7 +266,8 @@ transcriptWindowPer <- function(leaders, cds, trailers, df = getTCPdf()[1,],
   
   for(i in 1:length(reads)) {
     coverage <- rbindlist(list(coverage, ORFik:::splitIn3Tx(leaders, cds, trailers, 
-                                                            unlist(reads[[i]]), fraction = libTypes[i])))
+                                                            unlist(reads[[i]]), fraction = libTypes[i],
+                                                            windowSize = windowSize)))
   }
   
   return(plotHelper(coverage, df, outdir, scores, returnCoverage))
@@ -329,75 +350,6 @@ regionBarPlot <- function(region, tx, reads,
   return(plot)
 }
 
-#' Experiment info table
-getTCPMZ <- function(stage = c("64", "64", "shield", "shield"), 
-                     type = c("MZ", "WT", "MZ", "WT"),
-                     SSU = c("/export/valenfs/projects/adam/TCP_seq/valen_11/64cell_mzdicer/processed_29_11_18/tidy_bams/SSU_peaks_removed_200_removed_translating_lengths_25_35.bam",
-                              "/export/valenfs/projects/adam/TCP_seq/RCP_files/64cell_SSU_reps_1_2_peaks_removed_translating_filter.bam",
-                              "/export/valenfs/projects/adam/TCP_seq/valen_11/Shield_mzdicer/processed_29_11_18/tidy_bams/SSU_peaks_removed_200_removed_translating_lengths_25_35.bam",
-                              "/export/valenfs/projects/adam/TCP_seq/RCP_files/shield_SSU_reps_1_2_3_peaks_removed_translating_filter.bam"),
-                     LSU = c("/export/valenfs/projects/adam/TCP_seq/valen_11/64cell_mzdicer/processed_29_11_18/tidy_bams/LSU_peaks_removed_200_selected_translating_lengths_25_35.bam",
-                              "/export/valenfs/projects/adam/TCP_seq/RCP_files/64cell_LSU_reps_1_2_peaks_removed_translating_filter.bam",
-                              "/export/valenfs/projects/adam/TCP_seq/valen_11/Shield_mzdicer/processed_29_11_18/tidy_bams/LSU_peaks_removed_200_selected_translating_lengths_25_35.bam",
-                              "/export/valenfs/projects/adam/TCP_seq/RCP_files/shield_LSU_reps_1_2_3_peaks_removed_translating_filter.bam")) {
-  
-  return(data.frame(SSU, LSU, stage, type, stringsAsFactors = FALSE))
-}
-
-getTCPdf <- function(stage = c("64", "sphere", "shield"), 
-                     type = c("WT", "WT", "WT"),
-                     SSU = c("/export/valenfs/projects/adam/TCP_seq/RCP_files/64cell_SSU_reps_1_2_peaks_removed_translating_filter.bam",
-                             "/export/valenfs/projects/adam/TCP_seq/RCP_files/sphere_SSU_reps_1_2_3_peaks_removed_translating_filter.bam",
-                             "/export/valenfs/projects/adam/TCP_seq/RCP_files/shield_SSU_reps_1_2_3_peaks_removed_translating_filter.bam"),
-                     RFP = c("/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/256Cell_trimmed.bam",
-                             "/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/Dome_trimmed.bam",
-                             "/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/Shield_trimmed.bam")) {
-  
-  return(data.frame(SSU, RFP, stage, type, stringsAsFactors = FALSE))
-}
-
-getTCPdfAll <- function(stage = c("64", "sphere", "shield"), 
-                     type = c("WT", "WT", "WT"),
-                     SSU = c("/export/valenfs/projects/adam/TCP_seq/RCP_files/64cell_SSU_reps_1_2_peaks_removed_translating_filter.bam",
-                             "/export/valenfs/projects/adam/TCP_seq/RCP_files/sphere_SSU_reps_1_2_3_peaks_removed_translating_filter.bam",
-                             "/export/valenfs/projects/adam/TCP_seq/RCP_files/shield_SSU_reps_1_2_3_peaks_removed_translating_filter.bam"),
-                     RFP = c("/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/256Cell_trimmed.bam",
-                             "/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/Dome_trimmed.bam",
-                             "/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/Shield_trimmed.bam"),
-                     RNA = c("/export/valenfs/data/processed_data/RNA-seq/lee_2013_zebrafish/total_RNA/aligned_GRCz10/WT_2hpf_Tota_mRNA.bam",
-                             "/export/valenfs/data/processed_data/RNA-seq/lee_2013_zebrafish/total_RNA/aligned_GRCz10/WT_4hpf_Total_mRNA.bam",
-                             "/export/valenfs/data/processed_data/RNA-seq/lee_2013_zebrafish/total_RNA/aligned_GRCz10/WT_6hpf_Total_mRNA_merged.bam"),
-                     LSU = c("/export/valenfs/projects/adam/TCP_seq/RCP_files/64cell_LSU_reps_1_2_peaks_removed_translating_filter.bam",
-                             "/export/valenfs/projects/adam/TCP_seq/RCP_files/sphere_LSU_reps_1_2_3_peaks_removed_translating_filter.bam",
-                             "/export/valenfs/projects/adam/TCP_seq/RCP_files/shield_LSU_reps_1_2_3_peaks_removed_translating_filter.bam")) {
-  
-  return(data.frame(SSU, RFP, RNA, LSU, stage, type, stringsAsFactors = FALSE))
-}
-
-getTCPNew <- function(){
-  mergedF <- "/export/valenfs/projects/uORFome/withrRNA/aligned/"
-  p <- paste0
-  df2 <- data.frame(LSU = c(p(mergedF, "64_cell_LSU_V7.bam"), p(mergedF, "64_cell_LSU_V8.bam"),
-                            p(mergedF, "shield_V5_merged_LSU.bam"), p(mergedF, "shield_V6_merged_LSU.bam"),
-                            p(mergedF, "shield_V15_merged_LSU.bam"), p(mergedF, "shield_all_merged_LSU.bam"),
-                            p(mergedF, "sphere1_V7_merged_LSU.bam"), p(mergedF, "sphere2_V7_merged_LSU.bam"),
-                            p(mergedF, "sphere3_V7_merged_LSU.bam"), p(mergedF, "64_LSU_V12_4Ei.bam")),
-                    stage = c(rep("64", 2), rep("shield", 4), rep("sphere", 3), "64"),
-                    type = c(rep("WT", 2), rep("WT", 3), "WT_ALL", rep("WT", 3), "4Ei"), stringsAsFactors = FALSE)
-  return(df2)
-}
-
-
-
-allBamFilesInFolder <- function(dir) {
-  files <- grep(pattern = ".bam", x = list.files(dir, full.names = T), value = T)
-  bai <- -grep(pattern = ".bai", x = files)
-  if (length(bai)) {
-    return(files[bai])
-  } 
-  return(files)
-}
-
 #' Find ratio of iMet to met amino acids
 #' Also get basic tRNA statistics
 #' @param fa location of fasta file with tRNA aligned to, or a biostring object of preloaded
@@ -456,12 +408,13 @@ if (0) {
 
 removeBadTxByRegion <- function(tx, reads, upstream, downstream, value = 200, extension = 100) {
   region <- ORFik:::startRegion(tx, extendLeaders(tx, extension = extension), upstream = upstream, downstream = downstream)
-  counts <- countOverlaps(region, reads);summary(counts); sum(counts > value)
+  counts <- countOverlaps(region, reads);print(summary(counts)); print(sum(counts > value)); print(which(counts > 100))
   return(leadersShield[!(counts > value)])
 }
 
 removeRepeatRegionTx <- function(tx, reads) {
-  reads <- readGAlignments(bam);seqlevelsStyle(reads) <- seqlevelsStyle(tx);
+  if (is.character(reads) | is.factor(reads)) 
+    reads <- ORFik:::readBam(reads, tx)
   
   cov <- ORFik:::coveragePerTiling(tx, reads, TRUE, TRUE)
   means <- mean(cov)
@@ -469,23 +422,35 @@ removeRepeatRegionTx <- function(tx, reads) {
   return(tx[!hits])
 }
 
-#' Get peptides from singalp
+#' Get peptides from singalp or tmhmm(short form)
 #' @param outputSingalp
 #' @param inputFa
 #' @return character, a list of gene names
 getPeptides <- function(outputSingalp = "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/signal_peptide_prediction/danio_rerio_peptides__summary.signalp5", 
                         inputFa = "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/signal_peptide_prediction/Danio_rerio.GRCz10.pep.all.fa") {
-  faa = FaFile(inputFa)
-  peps <- getSeq(faa)
-  splits <- tstrsplit(names(peps), " ", fixed=TRUE, fill="<NA>")
-  # proteins
-  split <- splits[[1]]
-  tab <- read.table(outputSingalp, sep = "\t")
-  tab <- tab[tab$V2 != "OTHER",]$V1 
+  fileExt <- tools::file_ext(inputFa)
+  if(fileExt %in% c("fa", "fasta")) { # Reference
+    faa = FaFile(inputFa)
+    peps <- getSeq(faa)
+    splits <- tstrsplit(names(peps), " ", fixed=TRUE, fill="<NA>")
+    split <- splits[[1]]
+    refgenes <- splits[[4]]
+  } else stop("Bad input fasta!")
+
+  # proteins 
+  fileExt <- tools::file_ext(outputSingalp)
+  if (fileExt == "signalp5") {
+    tab <- read.table(outputSingalp, sep = "\t")
+    tab <- tab[tab$V2 != "OTHER",]$V1 
+  } else {
+    hmm <- read.table(outputSingalp)
+    colnames(hmm) <- c("pname", "len", "ExpAA", "first60", "PredHel", "Topology")
+    hmm$PredHel <-  as.integer(sub(pattern = p("PredHel="), "", hmm$PredHel))
+    tab <- hmm[hmm$PredHel == 0,]$pname # 0 transmemebrane helices
+  }
   valid <- split %in% tab
   # genes
-  split <- splits[[4]]
-  genes <- gsub(pattern = "gene:", x = split, replacement = "")
+  genes <- gsub(pattern = "gene:", x = refgenes, replacement = "")
   genes <- genes[valid]
   return(genes)
 }
@@ -519,10 +484,11 @@ yAxisScaler <- function(covPos) {
   min <- min(covPos)
   max <- max(covPos)
   
-  by <- ifelse(pos > 70, ifelse(pos > 120, ifelse(pos > 300, 100, 50), 20), 10)
+  by <- ifelse(pos > 40, ifelse(pos > 70, ifelse(pos > 120, ifelse(pos > 300, 100, 50), 20), 10), 1)
   if (max > 100) { 
     return(as.character(c(50, 100, max)))
   } else {
+    if (by < 10) return(as.character(seq.int(10, max, by)))
     return(as.character(seq.int(10, max, 10)))
   }
 }

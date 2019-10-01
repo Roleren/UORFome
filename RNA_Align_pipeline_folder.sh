@@ -26,7 +26,7 @@ OPTIONS:
 	-l	minimum length of reads
 	-g	genome dir for all indices (Standard is zebrafish: danrerio10, change to human index if needed etc)
 	-s	steps of depletion and alignment wanted:
-		(a string: which steps to do? (default: "tr-ph-rR-nc-tR-ge")
+		(a string: which steps to do? (default: "tr-ge", write "all" to get all: "tr-ph-rR-nc-tR-ge")
 			 tr: trim, ph: phix, rR: rrna, nc: ncrna, tR: trna, ge: genome) 
 		Write your wanted steps, seperated by "-". Order does not matter.
 		To just do trim and alignment to genome write -s "tr-ge"
@@ -40,31 +40,34 @@ OPTIONS:
 			             (if you want a continue from crash specify the step you want to start 
 				      from, as defined in -s, start on genome, do -r "ge")
 	-m	max cpus allowed (defualt 90)
+	-S	include subfolders (defualt n, for no), if you want subfolder do y, for yes.
 	-h	this help message
 
-fasp location must be: ~/bin/fastp
+fastp location must be: ~/bin/fastp
 STAR location must be: ~/bin/STAR-2.7.0c/source/STAR
 
 NOTE: if STAR is stuck on load, run this line:
 STAR --genomeDir /export/valenfs/projects/uORFome/STAR_INDEX_ZEBRAFISH/genomeDir/ --genomeLoad Remove
 
-example usage: RNA_Align_pipeline.sh -f <in.fastq.gz> -o <out_dir>
+example usage: RNA_Align_pipeline_folder.sh -f <in.fastq.gz> -o <out_dir>
 
 EOF
 }
 
 # Default arguments:
+echo $'\nArguments for folder run are the following:'
 min_length=15
 gen_dir=/export/valenfs/projects/uORFome/STAR_INDEX_ZEBRAFISH
-allSteps="tr-ph-rR-nc-tR-ge"
+allSteps="tr-ge"
 steps=$allSteps
 resume="n"
 alignment="Local"
 adapter="auto"
 maxCPU=90
+subfolders="n"
 trim_front=3
 paired="no"
-while getopts ":f:o:p:l:g:s:a:t:A:r:m:h" opt; do
+while getopts ":f:o:p:l:g:s:a:t:A:r:m:S:h" opt; do
     case $opt in 
     f)
         in_dir=$OPTARG
@@ -110,6 +113,10 @@ while getopts ":f:o:p:l:g:s:a:t:A:r:m:h" opt; do
 	maxCPU=$OPTARG
 	echo "-m maxCPU: $OPTARG"
         ;;
+    S)
+	subfolders=$OPTARG
+	echo "-S subfolders: $OPTARG"
+        ;;
     h)
         usage
         exit
@@ -122,6 +129,11 @@ while getopts ":f:o:p:l:g:s:a:t:A:r:m:h" opt; do
     esac
 done
 
+echo $'\n'
+
+if [ $steps == "all" ]; then
+	steps="tr-ph-rR-nc-tR-ge"
+fi
 if [ -z $out_dir ]; then
 	echo "Error, out directory (-o) must be speficied!"
 	exit 1
@@ -158,19 +170,43 @@ function findPairs()
     		echo "running paired end for files: $f/${myArray[x]} and $f/${myArray[x+1]}"
 		a="$f/${myArray[x]}"
 		b="$f/${myArray[x+1]}"
-		./RNA_Align_pipeline.sh -o "$out_dir" -f "$a" -F "$b"  -a "$adapter" -s "$steps" -r "$resume" -l "$min_length" -g "$gen_dir" -m "$maxCPU" -A "$alignment" -t "$trim_front" 
+		/export/valenfs/projects/uORFome/RNA_Align_pipeline.sh -o "$out_dir" -f "$a" -F "$b"  -a "$adapter" -s "$steps" -r "$resume" -l "$min_length" -g "$gen_dir" -m "$maxCPU" -A "$alignment" -t "$trim_front" 
+        		
+	done			
+} 
+#TODO: find a way to remove this
+function findPairsSub()
+{
+	myArray=($@)
+	echo "${#myArray[@]}"
+	echo $(( ${#myArray[@]} % 2 ))
+
+	if [ $(( ${#myArray[@]} % 2 )) == 1 ]; then
+		echo "folder must have even number of fasta/q files, for paired end run!"
+		exit 1
+	fi
+	
+	for ((x=0; x<${#myArray[@]}; x = x + 2));
+	do
+    		echo "running paired end with subfolders for files: ${myArray[x]} and ${myArray[x+1]}"
+		a="${myArray[x]}"
+		b="${myArray[x+1]}"
+		/export/valenfs/projects/uORFome/RNA_Align_pipeline.sh -o "$out_dir" -f "$a" -F "$b"  -a "$adapter" -s "$steps" -r "$resume" -l "$min_length" -g "$gen_dir" -m "$maxCPU" -A "$alignment" -t "$trim_front" 
         		
 	done			
 } 
 
 if [ $paired == "yes" ]; then
-	findPairs $in_dir $(ls ${in_dir} | grep 'fasta\|fa\|fastq\|fq')
-
+	if [ $subfolders == "n" ]; then
+		findPairs $in_dir $(ls ${in_dir} | grep '\.fasta\|\.fa\|\.fastq\|\.fq')
+	else
+		findPairsSub $(find ${in_dir} | grep '\.fasta\|\.fa\|\.fastq\|\.fq\|\.gz' | sort)
+	fi
 	
 else
-	for f in $(ls ${in_dir} | grep 'fasta\|fa\|fastq\|fq')
+	for f in $(ls ${in_dir} | grep '\.fasta\|\.fa\|\.fastq\|\.fq')
 	do
 		echo "running single end for file: $f"
-		./RNA_Align_pipeline.sh -o "$out_dir" -f "$f"  -a "$adapter" -s "$steps" -r "$resume" -l "$min_length" -g "$gen_dir" -m "$maxCPU" -A "$alignment" -t "$trim_front" 
+		/export/valenfs/projects/uORFome/RNA_Align_pipeline.sh -o "$out_dir" -f "$f"  -a "$adapter" -s "$steps" -r "$resume" -l "$min_length" -g "$gen_dir" -m "$maxCPU" -A "$alignment" -t "$trim_front" 
 	done
 fi

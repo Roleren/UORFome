@@ -204,6 +204,49 @@ getAll <- function(include.cage = T, cdsOnFiveEnd = F){
   return(NULL)
 }
 
+#' Get all regions of transcripts specified
+#' @inheritParams loadTxdb
+#' @param parts the transcript parts you want
+#' @param extension What to add on the name after leader, like: B -> leadersB
+loadRegions <- function(txdb, parts = c("mrna", "leaders", "cds", "trailers"), 
+                        extension = "", envir = .GlobalEnv) {
+  for (i in parts) 
+    assign(x = paste0(i, extension), value = loadRegion(txdb, i),
+           envir = envir)
+  return(NULL)
+}
+
+filterTranscriptsSplit <- function(splitList, names = c("validMir", "validNames"),
+                                   extensions = c("R", "B"), l = 100, c = 100, t = 100) {
+  x = 1
+  for (e in extensions) {
+    accepted <- filterTranscripts(get(paste0("txdb", e)), l, c, t)
+    assign(paste0(names[1], e), accepted[accepted %in% splitList[[x]]], envir = .GlobalEnv)
+    assign(paste0(names[2], e), accepted[!(accepted %in% splitList[[x]])], envir = .GlobalEnv)
+    x = x + 1
+  }
+}
+
+#' Split into groups
+#' Assigns to .GlobalEnv all variables needed
+#' @param splitList the list per index is a named list of transcripts
+splitTargetandNon <- function(parts = c("mrna", "leaders", "cds", "trailers"), 
+                              extensions = c("R", "B"), splitExt = c("T", "N"),
+                              splitList) {
+  x = 1
+  for (e in extensions) {
+    for (s in splitExt) {
+      for (i in parts) {
+        part <- paste0(i, e)
+        assign(x = paste0(part, s), value = get(part)[splitList[[x]]],
+               envir = .GlobalEnv)
+      }
+      x = x + 1
+    }
+  }
+  return(NULL)
+}
+
 # delete all tx objects
 da <- function(){
   if (exists("threeUTRs")) {

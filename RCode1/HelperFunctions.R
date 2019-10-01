@@ -123,3 +123,27 @@ GRToWig <- function(gr, outputPrefix = p(mainFolder,"/test_")) {
   export.wig(reverse, p(outputPrefix, "reverse.wig"))
   
 }
+
+#' Extension of countOverlaps that can use $score column
+countOverlapsScore <- function(query, subject, maxgap = -1L, minoverlap = 0L, type = "any") {
+  if (is.null(subject$score)) {
+    return(countOverlaps(query, subject, maxgap, minoverlap, type))
+  }
+  
+  a <- findOverlaps(query, subject, maxgap, minoverlap, type)
+  dt <- data.table(from = from(a), to = to(a), score = subject$score[to(a)])
+  dt <- dt[, .(counts = sum(score)), by = from]
+  res <- rep(0, length(query))
+  res[dt$from] <- dt$counts
+  names(res) <- names(query)
+  return(res)
+}
+
+fpkmScore <- function(grl, reads, pseudoCount = 0) 
+{
+  grl_len <- widthPerGroup(grl, FALSE)
+  overlaps <- countOverlapsScore(grl, reads)
+  librarySize <- length(reads)
+  return(ORFik:::fpkm_calc(overlaps, grl_len, librarySize) + pseudoCount)
+}
+

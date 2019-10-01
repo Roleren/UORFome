@@ -23,8 +23,6 @@ library(SummarizedExperiment)
 library(pheatmap)
 library(BiocParallel)
 register(MulticoreParam(20))
-#dbDisconnect(uorfDB)
-#rm(uorfDB)
 setwd("/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep")
 
 gtfAnno <- "/export/valenfs/data/references/Zv10_zebrafish/Danio_rerio.GRCz10.81_chr.gtf"
@@ -33,9 +31,7 @@ txdb <- loadDb(gtfPath);
 getFasta("/export/valenfs/data/references/Zv10_zebrafish/Danio_rerio.GRCz10.fa")
 seqlevelsStyle(txdb)  <- seqlevelsStyle(fa)
 
-tx <- loadRegion(txdb)
-txNames <- filterTranscripts(txdb, 0, 1, 0)
-tx <- tx[txNames]
+tx <- loadRegion(txdb, "mrna")
 names(tx) <- ORFik:::txNamesToGeneNames(txNames, txdb)
 
 # Protein 
@@ -152,3 +148,9 @@ p <- pheatmap(assay(dds)[isNeuroPep,], cluster_rows=TRUE, show_rownames=FALSE,
 p
 ggsave("merged_heatmap.pdf", p, height = 30, limitsize = FALSE)
 write.table(isNeuroPep, "GenesUsed/neuroPeptideGenes_merged.csv")
+
+############################ tmhmm ############################
+
+genesHmm <- getPeptides("/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/tmhmm/output_hmm.txt")
+finalGenes <- genes[genes %in% genesHmm]
+write.table(finalGenes, file = "GenesUsed/PeptideGenes_AfterTmhmm.csv")

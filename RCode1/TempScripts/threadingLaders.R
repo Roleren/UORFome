@@ -393,14 +393,15 @@ txdbYeast <- loadTxdb(yeastPath)
 yeastLeaders <- loadRegion(txdbYeast, "leader")
 yeastCDS <- loadRegion(txdbYeast, "cds")
 yeastTx <- loadRegion(txdbYeast)
+# old version
 yeastCage <- ORFik:::readBam("/export/valenfs/data/processed_data/CAGE/wery_2015_S_cerevisiae/final_results/aligned_R64_1_1/SRR2048394.bam", yeastLeaders)
 yeastCageScore <- convertToOneBasedRanges(yeastCage, addScoreColumn = T)
 yeastCage5 <- convertToOneBasedRanges(yeastCage, addSizeColumn = T)
+# new CAGE
+# yeastCageScore <- fread.bed("/export/valenfs/data/processed_data/CAGE/wery_2015_S_cerevisiae/final_results/aligned_R64_1_1/merged_CAGE_5prime.bed", yeastLeaders)
 yeastLeadersCage <- reassignTSSbyCage(fiveUTRs = yeastLeaders, yeastCageScore, filterValue = 10, removeUnused = F, preCleanup = F)
 yeastLeadersCage <- yeastLeadersCage[widthPerGroup(yeastLeadersCage) > 69]
 yeastCDS <- yeastCDS[widthPerGroup(yeastCDS) > 69]
-
-tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 100), yeastCage5, upstream = 75, downstream = 59, outdir = paste0(heatMapsFolder, "yeast_CAGE_5prime_TSS.png"), scores = "sum")
 
 
 yeastSSU <- ORFik:::readBam("/export/valenfs/data/processed_data/TCP-seq/archer_2016_yeast_15nt_without_3nt_trim/final_results/aligned_R64_1_1_tidy_tRNA/WT_SSU.bam", yeastLeaders)
@@ -410,11 +411,6 @@ region <- ORFik:::startRegion(yeastLeadersCage, yeastLeadersCage, upstream = -2,
 counts <- countOverlaps(region, yeastSSU5);summary(counts); sum(counts > 200)
 yeastLeadersCage <- yeastLeadersCage[!(counts > 200)]
 counts <- fpkm(yeastLeadersCage, yeastSSU5);summary(counts)
-
-#tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU5, upstream = 30, downstream = 49, outdir = paste0(heatMapsFolder, "yeast_SSU_5prime_TSS_trans.png"), scores = "transcriptNormalized", acLen = 1:70)
-#tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU5, upstream = 30, downstream = 49, outdir = paste0(heatMapsFolder, "yeast_SSU_5prime_TSS_zscore.png"), scores = "zscore", acLen = 1:75)
-#tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU3, upstream = 30, downstream = 49, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_trans.png"), scores = "transcriptNormalized", acLen = 1:70)
-#tcpHeatMap_single(yeastLeadersCage, extendLeaders(yeastLeadersCage, extension = 50), yeastSSU3, upstream = 30, downstream = 49, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_zscore.png"), scores = "zscore", acLen = 1:75)
 
 tcpHeatMap_single(yeastLeadersCage[counts > 5], extendLeaders(yeastLeadersCage[counts > 5], extension = 50), yeastSSU5, upstream = 30, downstream = 57, outdir = paste0(heatMapsFolder, "yeast_SSU_5prime_TSS_trans.pdf"), scores = "transcriptNormalized", acLen = 16:70)
 tcpHeatMap_single(yeastLeadersCage[counts > 5], extendLeaders(yeastLeadersCage[counts > 5], extension = 50), yeastSSU3, upstream = 20, downstream = 67, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TSS_trans.pdf"), scores = "transcriptNormalized", acLen = 16:70)
@@ -431,6 +427,7 @@ tcpHeatMap_single(yeastCDS, yeastTx, yeastSSU5, upstream = 30, downstream = 59, 
 tcpHeatMap_single(yeastCDS, yeastTx, convertToOneBasedRanges(yeastSSU, method = "3prime",addSizeColumn = TRUE), upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TIS.png"), scores = "zscore", logIt = F)
 tcpHeatMap_single(yeastCDS, yeastTx, convertToOneBasedRanges(yeastLSU, addSizeColumn = TRUE), upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "yeast_SSU_5prime_TIS.png"), scores = "zscore", logIt = F)
 tcpHeatMap_single(yeastCDS, yeastTx, convertToOneBasedRanges(yeastLSU, method = "3prime",addSizeColumn = TRUE), upstream = 30, downstream = 59, outdir = paste0(heatMapsFolder, "yeast_SSU_3prime_TIS.png"), scores = "zscore", logIt = F)
+
 #################################### RFP ##########################################################
 # From yamila hela test 2
 txNames <- filterTranscripts(Gtf, 60, 60, 60)

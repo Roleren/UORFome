@@ -7,93 +7,112 @@ getMir430 <- function(path = "/export/valenfs/projects/adam/TCP_seq/data_files/t
   return(genes)
 }
 
-
-getmzDicerDf <- function() {
-  RFPPath <- "/export/valenfs/data/processed_data/Ribo-seq/bazzini_2012_zebrafish/final_results/aligned_Zv9/merged/"
-  RFP <- c(p(RFPPath, "ribo-Seq_MZdicer_2hpf.bam"), 
-             p(RFPPath, "ribo-Seq_MZdicer_4hpf.bam"),
-             p(RFPPath, "ribo-Seq_MZdicer_6hpf.bam"),
-             p(RFPPath, "ribo-Seq_Wild_type_2hpf.bam"),
-             p(RFPPath, "ribo-Seq_Wild_type_4hpf.bam"),
-             p(RFPPath, "ribo-Seq_Wild_type_6hpf.bam"))
-  RNAPath <- "/export/valenfs/data/processed_data/RNA-seq/bazzini_2012_zebrafish/final_results/aligned_Zv9/merged/"
-  RNA <- c(p(RNAPath, "mRNA-Seq_MZdicer_2hpf.bam"), 
-           p(RNAPath, "mRNA-Seq_MZdicer_4hpf.bam"),
-           p(RNAPath, "mRNA-Seq_MZdicer_6hpf.bam"),
-           p(RNAPath, "mRNA-Seq_Wild_type_2hpf.bam"),
-           p(RNAPath, "mRNA-Seq_Wild_type_4hpf.bam"),
-           p(RNAPath, "mRNA-Seq_Wild_type_6hpf.bam"))
+getMir430Tx <- function(path = "/export/valenfs/projects/adam/TCP_seq/data_files/targetscanFish_180829_tidy.csv", 
+                      filter = -0.20, txdb, tx) {
+  # miR430 target genes
+  genes <- getMir430(path, filter)
   
-  stage <- c(2, 4, 6, 2, 4, 6)
-  type <- c(rep("MZ", 3), rep("WT", 3))
-  df <- data.frame(RNA, RFP, stage, type)
-  return(df)
+  # Get miR430 target transcripts
+  len <- GenomicFeatures::transcriptLengths(txdb)
+  match <- len[len$gene_id %in% genes,]
+  match <- match[match$tx_name %in% names(tx),]
+  txNames <- match$tx_name
+  print(paste("mir targets length: ", length(txNames)))
+  return(txNames)
 }
 
-bamVarName <- function(df, skip.replicate = FALSE) {
-  libTypes <- libraryTypes(df)
-  varName <- c()
-  for (i in 1:nrow(df)) {
-    for (lib in libTypes) {
-      varName <- c(varName, ifelse(is.null(df$rep) | skip.replicate, 
-                                   paste(lib, df$type[i], df$stage[i], sep = "_"),
-                                   paste(lib, df$type[i], df$stage[i], paste0("r",df$rep[i]), sep = "_")))
-    }
+getBazziniList <- function(file = "/export/valenfs/projects/Håkon/mir430/data/Bazzini_Supplementary_DataSet1.txt", 
+                           type = "tx") {
+  x <- fread(cmd = paste0("grep '^>' ",file), header = FALSE)
+  if (type == "tx") {
+    x <- x$V4 # Transcripts
+    x <- sub(pattern = ")", x = x, "")
+  } else { # gene
+    x <- x$V1 
+    x <- sub(pattern = ">", x = x, "")
   }
-  return(varName)
+  return(x)
 }
 
-outputBams <- function(df, chrStyle = NULL) {
-  validateExperiments(df)
-
+difPlot <- function(dd, filename = "/export/valenfs/projects/Håkon/mir430/fold_changes/2dFigure_bazzini.png",
+                    type = "RFP", lim = 6, logIt = FALSE, lineScoring = "median") {
+  if (logIt) lim <- 15
+  d <- copy(dd)
   
-  libTypes <- libraryTypes(df)
-  varNames <- bamVarName(df)
-  j <- 0
-  for (i in 1:nrow(df)) { # For each stage
-    print(i)
-    for (lib in libTypes) { # For each library of that stage (SSU, LSU, RNA-seq, RIBO-seq)
-      j <- j + 1
-      if (exists(varNames[j])) next
+  d$cols <- c("gray", "red")[as.integer(d$ismiRNA) + 1]
+  d <- rbind(d[ismiRNA == F, ], d[ismiRNA == T, ])
+  if (logIt) d$RNA <- convertLog2(d$RNA)
+  
+  if (type == "RFP") { # Ribo-seq
+    if (logIt) d$RFP <- convertLog2(d$RFP)
+    if (lineScoring == "median") {
+      means <- d[,.(RNAs = median(RNA), RFPs = median(RFP)), by = .(ismiRNA, stage)]
+    } else {
+      means <- d[,.(RNAs = mean(RNA), RFPs = mean(RFP)), by = .(ismiRNA, stage)]
+    }
+    
+    means$ismiRNA <- factor(means$ismiRNA)
+    means$col <- c("black", "red")[means$ismiRNA]
+    
+    p <- ggplot() +
+      geom_point(data = d,aes(x = RNA, y = RFP, alpha = 0.1), color = factor(d$cols)) + 
+      ylab(expression("WT vs MZ dicer "*Delta*" RFP")) + 
+      geom_hline(data = means, aes(yintercept =  RFPs, color = col))
+    
+  } else { # RCP
+    if (logIt) d$LSU <- convertLog2(d$LSU)
+    if (logIt) d$SSU <- convertLog2(d$SSU)
+    if (lineScoring == "median") {
+      means <- d[,.(RNAs = median(RNA), SSUs = median(SSU), LSUs = median(LSU)), by = .(ismiRNA, stage)]
+    } else {
+      means <- d[,.(RNAs = mean(RNA), SSUs = mean(SSU), LSUs = mean(LSU)), by = .(ismiRNA, stage)]
+    }
+    means$ismiRNA <- factor(means$ismiRNA)
+    means$col <- c("black", "red")[means$ismiRNA]
+    
+    p <- ggplot() +
+      geom_point(data = d,aes(x = RNA, y = LSU, alpha = 0.1), color = factor(d$cols)) + 
+      ylab(expression("WT vs MZ dicer "*Delta*" LSU")) + 
+      geom_hline(data = means, aes(yintercept =  LSUs, color = col))
+    p  
+    
+    pp <- ggplot() +
+      geom_point(data = d,aes(x = RNA, y = SSU, alpha = 0.1), color = factor(d$cols)) + 
+      ylab(expression("WT vs MZ dicer "*Delta*" SSU")) +
+      xlim(-lim, lim) +
+      ylim(-lim, lim) + 
+      xlab(expression("WT vs MZ dicer "*Delta*" mRNA")) + 
+      facet_grid( ~ stage, scales = "free") + 
+      geom_vline(data = means, aes(xintercept = RNAs, color = col)) + 
+      geom_hline(data = means, aes(yintercept =  SSUs, color = col)) +
+      scale_fill_manual(values = c("gray", "red"),
+                        name = "", aesthetics = "cols") + 
+      scale_fill_manual(values = c("black", "red"),
+                        name = "", aesthetics = "col") + 
+      theme(legend.position = "none")
       
-      bam <- ORFik:::readBam(df[i, lib], chrStyle)
-      assign(varNames[j], bam, envir = .GlobalEnv)
-    }
+    print(pp)
+    ggsave(pp, filename = filename[2], width = 10, height = 4)
   }
-}
-
-#' Try to optimze bam reader
-#' 
-#' Extract fields 3,4,6 and 7
-#' 3: chromosome
-#' 4: left most position, 
-#' @param path a path to bam file
-#' @param samtoolsPath If not samtools in global scope, give full path here to samtools binary
-#' @return a GAlignment object of bamfile
-readBamNew <- function(path, samtoolsPath = "/Home/ii/hakontj/bin/samtools-1.9/samtools") {
+  p <- p + 
+    xlim(-lim, lim) +
+    ylim(-lim, lim) + 
+    xlab(expression("WT vs MZ dicer "*Delta*" mRNA")) + 
+    facet_grid( ~ stage, scales = "free") + 
+    geom_vline(data = means, aes(xintercept = RNAs, color = col)) + 
+    scale_fill_manual(values = c("gray", "red"),
+                      name = "", aesthetics = "cols") + 
+    scale_fill_manual(values = c("black", "red"),
+                      name = "", aesthetics = "col") + 
+    theme(legend.position = "none")
   
-  a <- fread(cmd = paste(samtoolsPath, "view -@ 30", path, "| cut -f 3-4,6-7"), 
-             strip.white = F, colClasses = c("character", "integer", "character", "character"))
-  a[data.table::`%chin%`(V4, "="), V4 := "*"]
-  return(GAlignments(Rle(factor(a$V1)), pos = as.integer(a$V2), cigar = a$V3,
-                     strand = Rle(factor(a$V4, levels = c("+", "-", "*")))))
+  ggsave(p, filename = filename[1], width = 10, height = 4)
+  return(p)  
 }
 
-#' Try to optimze bam reader
-#' 
-#' Extract fields 3,4,6 and 7
-#' 3: chromosome
-#' 4: left most position, 
-#' @param path a path to bam file
-#' @param samtoolsPath If not samtools in global scope, give full path here to samtools binary
-#' @return a GAlignment object of bamfile
-# readBam <- function(path, chrStyle = NULL, sambambaPath = "~/bin/sambamba-0.7.0-linux-static") {
-#   
-#   a <- fread(cmd = paste(sambambaPath, "view -t 30", path, "| cut -f 3-4,6-7"), 
-#              strip.white = F, colClasses = c("character", "integer", "character", "character"), 
-#              nThread = 5)
-#   a[data.table::`%chin%`(V4, "="), V4 := "*"]
-#   return(GAlignments(Rle(factor(a$V1)), pos = as.integer(a$V2), cigar = a$V3,
-#                      strand = Rle(factor(a$V4, levels = c("+", "-", "*")))))
-# }
-
+convertLog2 <- function(col) {
+  coll <- col
+  col[(col > 0)] <- log2(col[(col > 0)])
+  col[(coll < 0)] <- - log2(abs(col[(coll < 0)]))
+  return(col)
+}

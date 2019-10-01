@@ -2,9 +2,8 @@
 #Change them if needed on other folders!
 #####SLASH IS ALWAYS ADDED IN START#####
 
-p = function(nameA,nameB){ # just for parsing relative paths together
-  paste0(nameA,nameB)
-}
+p <- paste0 # just for parsing relative paths together
+  
 
 # set these 4 directories
  

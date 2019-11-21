@@ -208,10 +208,13 @@ getAll <- function(include.cage = T, cdsOnFiveEnd = F){
 #' @inheritParams loadTxdb
 #' @param parts the transcript parts you want
 #' @param extension What to add on the name after leader, like: B -> leadersB
+#' @param envir environment to use (default .GlobalEnv)
+#' @param filter (default: NULL), names or logical to filter on all parts
 loadRegions <- function(txdb, parts = c("mrna", "leaders", "cds", "trailers"), 
-                        extension = "", envir = .GlobalEnv) {
+                        extension = "", envir = .GlobalEnv, filter = NULL) {
+  if (is.null(filter)) filter <- TRUE
   for (i in parts) 
-    assign(x = paste0(i, extension), value = loadRegion(txdb, i),
+    assign(x = paste0(i, extension), value = loadRegion(txdb, i)[filter],
            envir = envir)
   return(NULL)
 }

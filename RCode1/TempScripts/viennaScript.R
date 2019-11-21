@@ -8,7 +8,7 @@ rm(uorfDB)
 source("./TempScripts/tcp_pipeline.R")
 
 setwd(p(mainFolder, "/AdamVienna/"))
-plotFolder <- "/export/valenfs/projects/uORFome/AdamVienna/plots/new_plots/"
+plotFolder <- "/export/valenfs/projects/Håkon/AdamVienna/plots/new_plots/"
 
 gtfPath <- p(dataFolder, "/Zebrafish/zebrafish_GRCh10_81.gtf.db")
 txdb <- loadDb(gtfPath);

@@ -12,6 +12,12 @@ getBazzini12 <- function() {
 getRCPMZ <- function(){
   return(read.experiment("/export/valenfs/data/processed_data/experiment_tables_for_R/rcp-experiment_WTvsMZ.csv"))
 }
+#' RCP-seq standard Experiment info table
+#' LIBRARY TYPES: fractions (9-20 (-11))
+#' shield
+getRCP5 <- function(){
+  return(read.experiment("/export/valenfs/data/processed_data/experiment_tables_for_R/Valen5_2018.csv"))
+}
 #' Archer 2016 Experiment info table
 #' LIBRARY TYPES: SSU, RFP
 #' STAGES:
@@ -40,6 +46,11 @@ getMcManus17 <- function(){
 #' Wery 2015 Experiment info table
 #' LIBRARY TYPES: CAGE
 getWery15<- function(){
+  return(read.experiment("/export/valenfs/data/processed_data/experiment_tables_for_R/Wery2015.csv"))
+}
+
+getRFPChew13 <- function() {
+  stop("Not ready")
   return(read.experiment("/export/valenfs/data/processed_data/experiment_tables_for_R/Wery2015.csv"))
 }
 
@@ -82,7 +93,7 @@ getTCPdfAll <- function(stage = c("64", "sphere", "shield"),
 #' LIBRARY TYPES: LSU
 #' STAGES: 64, sphere, shield (2, 4, 6)
 getTCPNew <- function(){
-  mergedF <- "/export/valenfs/projects/uORFome/withrRNA/aligned/"
+  mergedF <- "/export/valenfs/data/processed_data/TCP-seq/valen_all_withrRNA/aligned/"
   p <- paste0
   df2 <- data.frame(LSU = c(p(mergedF, "64_cell_LSU_V7.bam"), p(mergedF, "64_cell_LSU_V8.bam"),
                             p(mergedF, "shield_V5_merged_LSU.bam"), p(mergedF, "shield_V6_merged_LSU.bam"),

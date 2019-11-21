@@ -1,20 +1,14 @@
 # Go analysis
+# If just rerun, start around line 80.!!!!!!!!!!!!
 # This first part depends on a lot of packages, if you only want data before ploting, go step 3
 # 1: get adams data (only run if you have all packages)
 ### NOTE: LOAD THIS FIRST PART OF SOURCES FIRST!
-rm(list=ls())
-setwd("/export/valenfs/projects/uORFome/RCode1/") 
-library(ORFik)
-source("./DataBaseSetup.R")
-dbDisconnect(uorfDB)
-rm(uorfDB)
-setwd("/export/valenfs/projects/uORFome/RCode1/") 
-source("./TempScripts/tcp_pipeline.R")
-plotFolder <- "/export/valenfs/projects/uORFome/AdamVienna/plots/new_plots/"
+source("/export/valenfs/projects/uORFome/RCode1/loadUorfome.R")
 library(ggpubr)
-library(ORFik)
-setwd(p(mainFolder, "/AdamVienna/"))
+plotFolder <- "/export/valenfs/projects/Håkon/AdamVienna/plots/new_plots/"
+setwd("/export/valenfs/projects/Håkon/AdamVienna/")
 
+# Anotation
 gtfPath <- p(dataFolder, "/Zebrafish/zebrafish_GRCh10_81.gtf.db")
 txdb <- loadDb(gtfPath);
 
@@ -76,13 +70,21 @@ View(dt[, c("transcript_id", "CDS_totalRNA_FPKM", "stage")])
 saveRDS(object = ddd, file = "expression_both.rds")
 ddd <- setDT(readRDS("expression_both.rds"))
 ######################## PLOTS #########################################
+
+
+
+
+
+
+
 ######################## STEP 3 ########################################
-# START HERE IF DONE ->
-setwd(p(mainFolder, "/AdamVienna/"))
+# START HERE IF DONE ->!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+setwd("/export/valenfs/projects/Håkon/AdamVienna/")
 dt <- setDT(readRDS("kozakTxWithGo.rds")) # <- final adams
 dd <- setDT(readRDS("expression_me.rds"))
 ddd <- setDT(readRDS("expression_both.rds"))
 
+############ IR PLOTS ######################
 # dd <- dd[rfp > 0. & rnaTx > 0. & ssu > 0.,]
 # me
 ggplot(dd, aes(rfp / (rnaTx + 1), ssu / (rnaTx + 1))) + 
@@ -133,7 +135,7 @@ ggplot(ddd, aes(CDS_totalRNA_FPKM, rnaCDS))  +
   stat_cor(method = "pearson") 
 
 ######################## GORILLA #######################
-# why are the high high  and the low low? (from GOrilla) 
+# why are the high IR high  and the low IR low? (from GOrilla) 
 # All
 
 # high / low
@@ -154,8 +156,8 @@ getGOrilla <- function(fileName, txdb) {
   return(gg$tx_name)
 }
 
-gg_high <- getGOrilla("./go_high.csv", txdb) # ER
-gg_low <- getGOrilla("./go_low.csv", txdb) # Nucleus
+gg_high <- getGOrilla("./GO/go_high.csv", txdb) # ER
+gg_low <- getGOrilla("./GO/go_low.csv", txdb) # Nucleus
 
 
 #gg_extraC <- dt$transcript_id[dt$go == "extracellular region" | dt$go == "extracellular space"]
@@ -169,7 +171,7 @@ ddG$fraction[ddG$txNames %in% c(gg_high)] <- "GO_ER"
 #ddG$fraction[ddG$txNames %in% c(gg_extraC)] <- "GO_ER"
 ddG$fraction <- as.factor(ddG$fraction)
 ddG <- ddG[rfp > 0. & ssu > 0.,]
-
+saveRDS(object = ddG, file = "expression_both_withGorilla_filteredRFPSSU.rds")
 
 ddG$hasUORFs <- ddG$txNames %in% c(txNames(uORF_high), txNames(uORF_low))
 ggplot(ddG, aes(rfpTPM, ssuTPM, color = fraction)) + 
@@ -271,6 +273,7 @@ gorillaToDotplot <- function(goDf1, outName=NULL) {
   return(p)
 }
 
+# ER
 goDf <- data.table(t(matrix(c(3.64E-14, 	2.96E-11, 634,
                  2.18E-13, 	8.84E-11, 544,
                  2.34E-13, 	6.33E-11, 542,
@@ -291,6 +294,7 @@ goDf$Description <- c("membrane part", "intrinsic component of membrane", "integ
 goDf$Description <- factor(goDf$Description, levels = goDf$Description[order(goDf$GeneRatio, decreasing = FALSE)])
 goDf <- goDf[order(GeneRatio, decreasing = FALSE),]
 a <- gorillaToDotplot(goDf, paste0(plotFolder, "/heatmaps/final/GO_ER.pdf"))
+# Nuc
 goDfNuc <- data.table(t(matrix(c("GO:0005634", 	"nucleus", 	1.24E-11,	1.01E-8, 	669,
                                  "GO:0044428", 	"nuclear part", 	3.37E-6, 	1.37E-3, 	302, 	
                                  "GO:0044451", 	"nucleoplasm part", 	2.16E-4, 	5.86E-2, 	121,

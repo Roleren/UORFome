@@ -6,7 +6,7 @@ source("./pipelineSetup.R")
 source("./TempScripts/tcp_pipeline.R")
 
 setwd(p(mainFolder, "/AdamVienna/"))
-plotFolder <- "/export/valenfs/projects/uORFome/AdamVienna/plots/new_plots/"
+plotFolder <- "/export/valenfs/projects/Håkon/AdamVienna/plots/new_plots/"
 heatMapsFolder <- paste0(plotFolder,"heatmaps/" )
 
 gtfPath <- p(dataFolder, "/Zebrafish/zebrafish_GRCh10_81.gtf.db")
@@ -613,3 +613,35 @@ windowCoveragePlot(hitMap, output = paste0(heatMapsFolder,"RNA_TSS_5prime_nonCAG
 
 dtSSU <- ORFik:::splitIn3Tx(leadersShield, cdsShield, trailersShield, readsSivSSU, fraction = "SSU_silv")
 windowCoveragePlot(dt, output = paste0(heatMapsFolder,"coveragePlot_silvesterol.png"), scoring = "zscore", equalMax = F)
+
+# Mitocondrial
+# test zebra
+gtfPath <- p(dataFolder, "/Zebrafish/zebrafish_GRCh10_81.gtf.db")
+txdb <- loadDb(gtfPath);
+seqlevelsStyle(txdb) <- "UCSC"
+leaders <- loadRegion(txdb, "leaders")
+leaderss <- leaders[seqnamesPerGroup(leaders, F) == grep("M",seqlevels(leaders), value = T)]
+trailers <- loadRegion(txdb, "trailers")
+trailerss <- trailers[seqnamesPerGroup(trailers, F) == grep("M",seqlevels(trailers), value = T)]
+a <- readBam("/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/Shield_trimmed.bam", "UCSC")
+b <- readBam("/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/Dome_trimmed.bam", "UCSC")
+d <- readBam("/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/Bud_trimmed.bam", "UCSC")
+e <- readBam("/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/256Cell_trimmed.bam", "UCSC")
+"/export/valenfs/data/processed_data/Ribo-seq/chew_2013_zebrafish/final_results/aligned_GRCz10/"
+a_5p <- convertToOneBasedRanges(a, method = "5prime", addSizeColumn = TRUE)
+b_5p <- convertToOneBasedRanges(b, method = "5prime", addSizeColumn = TRUE)
+d_5p <- convertToOneBasedRanges(d, method = "5prime", addSizeColumn = TRUE)
+e_5p <- convertToOneBasedRanges(e, method = "5prime", addSizeColumn = TRUE)
+merged <- c(a_5p, b_5p, d_5p, e_5p)
+tcpHeatMap_single(cdss, extendLeaders(cdss, 100), merged, upstream = -60, downstream = 164, outdir = "test.png", scores = "zscore", 
+                  acLen = 25:33)
+tcpHeatMap_single(cdss, extendLeaders(cdss, 100), merged, upstream = -60, downstream = 164, outdir = "test.png", scores = "transcriptNormalized", 
+                  acLen = 25:33)
+# 25:30 has periodicity
+windowPerReadLength(grl = cdss, tx = cdss, reads = merged,
+                    pShifted = FALSE, upstream = -40, downstream = 159, scoring = "periodic")
+
+tcpHeatMap_single(cdss, cdss, merged, upstream = -40, downstream = 159, outdir = p(heatMapsFolder,"test.png"), scores = "sum", 
+                  acLen = c(25,27,28,29,30))
+
+

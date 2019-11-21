@@ -133,22 +133,36 @@ heatMapL <- function(region, tx, df, outdir = p(mainFolder, "/tcp_plots/mir430/h
                         scores = "sum", upstream, downstream,  zeroPosition = upstream,
                         logIt = FALSE, acLen = NULL, legendPos = "right", colors = NULL,
                         addFracPlot = TRUE, location = "TIS", shifting = NULL, skip.last = FALSE) {
-  
-  
+  up <- upstream; down <- downstream
   dfl <- df
   if(!is(dfl, "list")) dfl <- list(dfl)
   for (df in dfl) {
-    out <- ifelse(!is.null(shifting), paste0(outdir, df@experiment,"_hm_", shifting, "_", location, "_"), 
-                     paste0(outdir, df@experiment,"_hm_", location, "_"))
     varNames <- bamVarName(df)
     outputLibs(df, region)
     
     for (i in varNames) { # For each stage
-      tcpHeatMap_single(region, tx, reads = get(i), outdir = paste0(out, i, ".png"), 
-                        shifting = shifting, scores = scores, upstream = upstream, downstream = downstream, 
-                        zeroPosition = zeroPosition, logIt = logIt, acLen = acLen, 
-                        legendPos = legendPos, colors = colors, addFracPlot = addFracPlot, 
-                        location = location, skip.last = skip.last)
+      for (score in scores) {
+        for (s in 1:length(shifting)) {
+          if (s == 0) next
+          shift <- shifting[s]
+          if (length(upstream) > 1) {
+            up <- upstream[s]
+          }
+          if (length(downstream) > 1) {
+            down <- downstream[s]
+          }
+          format <- ".png"
+          out <- ifelse(!is.null(shifting), paste0(outdir, df@experiment,"_hm_", location, "_",i , 
+                                                   "_", shift, "_", score, format), 
+                        paste0(outdir, df@experiment,"_hm_", location, "_", i,"_", score, format))
+          
+          tcpHeatMap_single(region, tx, reads = get(i), outdir = out, 
+                            shifting = shift, scores = score, upstream = up, downstream = down, 
+                            zeroPosition = zeroPosition, logIt = logIt, acLen = acLen, 
+                            legendPos = legendPos, colors = colors, addFracPlot = addFracPlot, 
+                            location = location, skip.last = skip.last)
+        }
+      }
     }
   }
 }
@@ -187,7 +201,7 @@ tcpHeatMap_single <- function(region, tx, reads, outdir = p(mainFolder, "/tcp_pl
                                fill = score)) + geom_tile() + 
     scale_fill_gradientn(colours = colors, name = ORFik:::prettyScoring(scores[1])) + 
     xlab(paste("Position relative to", location)) + 
-    ylab("Protected fragment length") + scale_x_continuous(breaks = seq.int(-upstream, downstream, by = 10)) + 
+    ylab("Protected fragment length") + scale_x_continuous(breaks = c(seq.int(-upstream, downstream, by = 10), downstream)) + 
     theme_bw(base_size = 15) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
     scale_y_discrete(breaks = yAxisScaler(levels(dt$fraction))) + theme(legend.position = legendPos)
   
@@ -206,13 +220,16 @@ tcpHeatMap_single <- function(region, tx, reads, outdir = p(mainFolder, "/tcp_pl
 
 #' Make 100 bases size meta window for all libraries in input data.frame
 transcriptWindow <- function(leaders, cds, trailers, df = getTCPdf(), 
-                             outdir = p(mainFolder, "/tcp_plots/mir430/cp_"),
+                             outdir,
                              scores = c("sum", "zscore"), allTogether = FALSE, 
                              colors = rep("skyblue4", nrow(df)), 
-                             windowSize = min(100, min(widthPerGroup(leaders, F)),
+                             windowSize = min(100, 
+                                              min(widthPerGroup(leaders, F)),
                                               min(widthPerGroup(cds, F)),
-                                              min(widthPerGroup(trailers, F)))) {
-  if (windowSize != 100) message(paste0("NOTE: windowSize is not 100!\nIt is ", windowSize))
+                                              min(widthPerGroup(trailers, F)))
+                             , returnPlot = FALSE) {
+  if (windowSize != 100) message(paste0("NOTE: windowSize is not 100!
+                                        It is ", windowSize))
   
   dfl <- df
   if(!is(dfl, "list")) dfl <- list(dfl)
@@ -228,46 +245,54 @@ transcriptWindow <- function(leaders, cds, trailers, df = getTCPdf(),
         j <- j + 1
         print(i)
         readsList <- list()
-        for (lib in libTypes) { # For each library of that stage (SSU, LSU, RNA-seq, RIBO-seq)
+        for (lib in libTypes) {
+          # For each library of that stage (SSU, LSU, RNA-seq, RIBO-seq)
           readsList <- list(readsList, get(varNames[j]))
         }
         readsList <- readsList[-1]
-        transcriptWindowPer(leaders, cds, trailers, df[i,], outdir, scores, fractions,
-                            readsList)
+        transcriptWindowPer(leaders, cds, trailers, df[i,], outdir, scores,
+                            fractions, readsList)
       }
     } else { # all combined
         coverage <- data.table()
         for (i in varNames) { # For each stage
           print(i)
-          coverage <- rbindlist(list(coverage, ORFik:::splitIn3Tx(leaders, cds, trailers, 
-                                                                  get(i), fraction = i,
-                                                                  windowSize = windowSize)))
+          coverage <- rbindlist(list(coverage,
+                                     splitIn3Tx(leaders, cds, trailers, 
+                                                get(i), fraction = i,
+                                                windowSize = windowSize)))
         }
         for(s in scores) {
           a <- windowCoveragePlot(coverage, scoring = s, colors = colors)
-          ggsave(paste0(outdir, df@experiment,"_cp_all_", s, ".png"), a, height = 10)
+          ggsave(pasteDir(outdir, paste0(df@experiment,"_cp_all_", s, ".png"))
+                 , a, height = 10)
         }
     }
   }
+  if (returnPlot) return(a)
 }
 
-transcriptWindowPer <- function(leaders, cds, trailers, df = getTCPdf()[1,], 
-                                outdir = p(mainFolder, "/tcp_plots/mir430/cp_"),
-                                scores = c("sum", "zscore"),
-                                reads, returnCoverage = FALSE, windowSize = 100) {
+transcriptWindowPer <- function(leaders, cds, trailers, df, 
+                                outdir, scores = c("sum", "zscore"),
+                                reads, returnCoverage = FALSE,
+                                windowSize = 100) {
   
   libTypes <- libraryTypes(df)
-  if (is(reads, "list") | is(reads, "GAlignmentsList") | is(reads, "GRangesList")) {
-    if (length(libTypes) != length(reads)) stop("not matching length of reads and lib types in df!")
+  if (is(reads, "list") | is(reads, "GAlignmentsList") |
+      is(reads, "GRangesList")) {
+    if (length(libTypes) != length(reads)) 
+      stop("not matching length of reads and lib types in df!")
   } else if(!(is(reads, "GRanges") | is(reads, "GAlignments"))) {
     stop("reads must be GRanges or GAlignments")
   }
   coverage <- data.table()
   
   for(i in 1:length(reads)) {
-    coverage <- rbindlist(list(coverage, ORFik:::splitIn3Tx(leaders, cds, trailers, 
-                                                            unlist(reads[[i]]), fraction = libTypes[i],
-                                                            windowSize = windowSize)))
+    coverage <- rbindlist(list(coverage, 
+                               splitIn3Tx(leaders, cds, trailers, 
+                                          unlist(reads[[i]]), 
+                                          fraction = libTypes[i],
+                                          windowSize = windowSize)))
   }
   
   return(plotHelper(coverage, df, outdir, scores, returnCoverage))
@@ -332,21 +357,25 @@ regionWindowAll <- function(one, two, tx, df = getTCPdf(),
 
 regionBarPlot <- function(region, tx, reads, 
                           outdir = p(mainFolder, "/tcp_plots/TIS_region/target_"),
-                          upstream = 75, downstream = 74, scores = "transcriptNormalized") {
+                          upstream = 75, downstream = 74, scores = "sum", proportion = TRUE) {
   windows <- startRegion(region, tx, TRUE, upstream = upstream, downstream = downstream)
   hitMap <- metaWindow(reads, windows, zeroPosition = upstream, feature = "1", fraction = "123", 
                        scoring = scores, forceUniqueEven = F)
-  hitMap[, score := score / sum(score)]
-  if (scores == "transcriptNormalized") scores <- "Proportion of reads"
+  if (proportion) {
+    hitMap[, score := score / sum(score)]
+    scores <- "Proportion of reads"
+  }
   plot <- ggplot(hitMap, aes(x = position, y = score)) + 
     geom_bar(stat = "identity", color = 'white', width=1, position = position_dodge(width=0.099))  + 
     xlab("Position relative to start of transcript") + ylab(scores) +
     scale_x_continuous(breaks = seq.int(-upstream, downstream, by = 10)) +  theme_bw() +
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) 
     
+  if (!is.null(outdir)) {
+    ggsave(filename = outdir, plot = plot, width = 350, height = 180, units = "mm",
+           dpi = 300, limitsize = FALSE) 
+  }
   
-  ggsave(filename = outdir, plot = plot, width = 350, height = 180, units = "mm",
-         dpi = 300, limitsize = FALSE) 
   return(plot)
 }
 
@@ -406,10 +435,16 @@ if (0) {
   df10 <- tRNA_helper(trna, bamFiles)
 }
 
-removeBadTxByRegion <- function(tx, reads, upstream, downstream, value = 200, extension = 100) {
+removeBadTxByRegion <- function(tx, reads, upstream, downstream, value = 5, extension = 100) {
   region <- ORFik:::startRegion(tx, extendLeaders(tx, extension = extension), upstream = upstream, downstream = downstream)
-  counts <- countOverlaps(region, reads);print(summary(counts)); print(sum(counts > value)); print(which(counts > 100))
-  return(leadersShield[!(counts > value)])
+  coverage <- coveragePerTiling(region, reads, T, as.data.table = T)
+  #counts <- countOverlaps(region, reads);print(summary(counts)); print(sum(counts > value)); print(which(counts > value))
+  coverage[, median_per_gene := median(count), by = genes]
+  toFilter <- coverage[count > median_per_gene*value + 25]
+  print(summary(coverage$count))
+  print(toFilter)
+  print(names(tx[unique(toFilter$genes)]))
+  return(tx[-unique(toFilter$genes)])
 }
 
 removeRepeatRegionTx <- function(tx, reads) {

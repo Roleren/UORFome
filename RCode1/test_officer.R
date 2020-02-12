@@ -1,0 +1,5 @@
+library(officer)
+my_pres <- read_pptx() 
+add_slide(my_pres, layout = "Title and Content", master = "Office Theme")
+ph_with_text(my_pres, type = "title", str = "A title", index = 1) 
+ph_with_text(my_pres, type = "ftr", str = "A footer")

@@ -1,7 +1,0 @@
-rm(list=ls())
-setwd("/export/valenfs/projects/uORFome/RCode1/") 
-source("./pipelineSetup.R")
-source("./SummarizedExperimentHelpers.R")
-source("./TempScripts/tcp_pipeline.R")
-source("./TempScripts/edfClass.R")
-source("./TempScripts/edfLists.R")

@@ -154,3 +154,34 @@ write.table(isNeuroPep, "GenesUsed/neuroPeptideGenes_merged.csv")
 genesHmm <- getPeptides("/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/tmhmm/output_hmm.txt")
 finalGenes <- genes[genes %in% genesHmm]
 write.table(finalGenes, file = "GenesUsed/PeptideGenes_AfterTmhmm.csv")
+
+############################# POST SCRIPTING ###########################
+all_genes <- read.table("/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/allGenes.csv")$x
+day_night <- read.table("/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/neuroPeptideGenes_day_night.csv")$x
+devel <- read.table("/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/neuroPeptideGenes_development.csv")$x
+brain_devel <- read.table("/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/neuroPeptideGenes_brain_devel.csv")$x
+merged <- read.table("/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/neuroPeptideGenes_merged.csv")$x
+tmhmm <- read.table("/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/PeptideGenes_AfterTmhmm.csv")$x
+# tests
+c(length(all_genes), length(day_night),length(devel),length(brain_devel), length(merged)) == length(all_genes)
+all(tmhmm %in% all_genes)
+sum(day_night);sum(devel);sum(brain_devel);sum(merged)
+
+
+
+
+day_night[!(all_genes[day_night] %in% tmhmm)] <- FALSE
+devel[!(all_genes[devel] %in% tmhmm)] <- FALSE
+brain_devel[!(all_genes[brain_devel] %in% tmhmm)] <- FALSE
+merged[!(all_genes[merged] %in% tmhmm)] <- FALSE
+
+sum(day_night);sum(devel);sum(brain_devel);sum(merged)
+
+dir.create("/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/new/", showWarnings = FALSE)
+write.table(all_genes, "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/new/allGenes.csv")
+write.table(day_night, "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/new/neuroPeptideGenes_day_night.csv")
+write.table(devel, "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/new/neuroPeptideGenes_development.csv")
+write.table(brain_devel, "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/new/neuroPeptideGenes_brain_devel.csv")
+write.table(merged, "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/new/neuroPeptideGenes_merged.csv")
+write.table(tmhmm, "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/new/PeptideGenes_AfterTmhmm.csv")
+write.table(all_genes[merged], "/export/valenfs/projects/Håkon/ZF_RNA-seq_neuropep/GenesUsed/new/final_genes.csv")

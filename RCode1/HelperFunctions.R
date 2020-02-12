@@ -101,7 +101,7 @@ updateORFik <- function(branch = "master", user = "JokingHero")  {
 
 GRToWig <- function(gr, outputPrefix = p(mainFolder,"/test_")) {
   
-  if(!is(gr, "GRanges")){
+  if(!(is(gr, "GRanges") | is(gr, "GAlignments"))){
     if(is.character(gr)){
       if (tools::file_ext(gr) == "bam") {
         gr <- GenomicAlignments::readGAlignments(gr)
@@ -112,8 +112,9 @@ GRToWig <- function(gr, outputPrefix = p(mainFolder,"/test_")) {
   }
   gr <- GRanges(gr)
   gr <- resize(gr, width = 1, fix = "start")
-  forward <- gr[strand(gr) == "+"]
-  reverse <- gr[strand(gr) == "-"]
+  neg <- strand(gr) == "-"
+  forward <- gr[!neg]
+  reverse <- gr[neg]
   forward <- GRanges(coverage(forward))
   forward <- resize(forward[forward$score > 0], width = 1, fix = "start")
   reverse <- GRanges(coverage(reverse))
@@ -123,6 +124,27 @@ GRToWig <- function(gr, outputPrefix = p(mainFolder,"/test_")) {
   export.wig(reverse, p(outputPrefix, "reverse.wig"))
   
 }
+
+# GRToWig_new <- function(gr, outputPrefix, shift = NULL) {
+#   
+#   if(!(is(gr, "GRanges"))){
+#     if(is.character(gr)){
+#       gr <- ORFik:::fimport(gr)
+#     } else stop("gr must either be character or GRanges!")
+#   }
+#   if (!is.null(shift)) {
+#     if ("5prime" %in% shift) {
+#       
+#     }
+#   }
+#   
+#   neg <- strand(gr) == "-"
+#   export.wig(gr[!neg], p(outputPrefix, "_forward.wig"))
+#   export.wig(gr[neg], p(outputPrefix, "_reverse.wig"))
+#   
+# }
+
+
 
 #' Extension of countOverlaps that can use $score column
 countOverlapsScore <- function(query, subject, maxgap = -1L, minoverlap = 0L, type = "any") {
@@ -147,3 +169,4 @@ fpkmScore <- function(grl, reads, pseudoCount = 0)
   return(ORFik:::fpkm_calc(overlaps, grl_len, librarySize) + pseudoCount)
 }
 
+p <- paste0 # just for parsing relative paths together

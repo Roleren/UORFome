@@ -1,4 +1,4 @@
-#' Get difference between wild type and target
+#' Get difference between wild type and target variant
 #' Per library type like RNA-seq or Ribo-seq.
 #' @param dt a data.table of counts or fpkm etc.
 #' @return a data.table with differences
@@ -6,7 +6,7 @@ SEdif <- function(dt, df) {
   dif <- data.table()
   bamVars <- colnames(dt)
   
-  bamVarsT <- bamVarName(df, skip.type = T)
+  bamVarsT <- bamVarName(df, skip.experiment = T, skip.condition = T)
   dists <- which(!is.na(chmatch(bamVarsT, bamVarsT[1])))
   if (length(dists) != 2) stop("Wrong naming!")
   seperator <- dists[2] - dists[1]
@@ -33,11 +33,11 @@ SESplit <- function(dif, splitCol, score = 15, dtS, df) {
     vdifm$type <- sub("_.*", sub("..._", x = vdifm$variable,
                                  replacement = "", perl = T), replacement = "")
   } else {
-    vdifm$type <- libraryTypes(vdifm$variable)
+    vdifm$type <- ORFik:::libraryTypes(vdifm$variable)
   }
   
   d <- data.table()
-  libTypes <- libraryTypes(df)
+  libTypes <- ORFik:::libraryTypes(df)
   d <- vdifm[type == libTypes[1],]
   
   for(i in libTypes[-1]) {

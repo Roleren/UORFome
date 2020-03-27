@@ -1,0 +1,6 @@
+# Scripts (uORFome prediction)
+#source("./HelperFunctions.R")
+source("./uORFome/GenomicGetters.R")
+source("./uORFome/HelperVariables.R")
+source("./uORFome/GRangesHelpers.R")
+source("./uORFome/findUORFsOverlappingCDS.R")

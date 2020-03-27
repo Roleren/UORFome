@@ -1,27 +1,12 @@
-# TCP SEQ Fraction analysis
-### DATA ###
-# Load Experiment
-source("/export/valenfs/projects/uORFome/RCode1/ORFikPipeline.R")
-dfR <- getRCP5()
-dfR@expInVarName <- FALSE
-
-# Annotation
-txdb <- loadTxdb(dfR@txdb)
-loadRegions(txdb)
-
-# Filter
-txNames <- filterTranscripts(txdb, 100, 100, 100, T)
-splitRegions(splitList = list(txNames))
-
-# Output data
-outFolder <- "/export/valenfs/projects/Hakon/RCP_SEQ/plots/"
-outputLibs(dfR)
-
-a <- transcriptWindow(leaders, cds, trailers, df = dfR, outdir = outFolder, allTogether = TRUE, 
-                 colors = "blue", returnPlot = T)
+#¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤#
+# INFO
+#¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤#
+# Extended Data Figure S14: Coverage metaplots of all RCP-seq fractions.
 
 
-# Original version
+#¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤#
+# Original version (coverage plot) (USED IN ARTICLE)
+#¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤#
 
 library(ggplot2)
 library(dplyr)
@@ -61,14 +46,14 @@ a <- copy(coverage)
 coverage <- a
 #remove genes with problematic repetative peaks
 transcripts_to_exclude <- c("ENSDARG00000077330","ENSDARG00000102873","ENSDARG00000089382")
-coverage <- subset(coverage, !Gene %in% transcripts_to_exclude) 
+coverage <- subset(coverage, !Gene %in% transcripts_to_exclude)
 
 coverage[, median := median(Count), by = .(Fraction, Feature, Gene)]
 hits <- coverage$Count > coverage$median*200 + 25
 genes <- unique(coverage$Gene[hits])
 
 transcripts_to_exclude <- genes
-coverage <- subset(coverage, !Gene %in% transcripts_to_exclude) 
+coverage <- subset(coverage, !Gene %in% transcripts_to_exclude)
 
 coverage.sum.subset <- coverage %>% group_by(Gene, Fraction) %>% filter(sum(Count) > 0) #remove genes without counts
 
@@ -82,7 +67,7 @@ plot_02 <- ggplot(data=as.data.frame(coverage.sum.subset.raw.sum ), aes(x=Posito
   geom_line(aes(colour = as.factor(Fraction ))) +
   geom_ribbon(stat="identity", position = "identity", aes(fill= as.factor(Fraction), alpha=0.2)) +
   theme_bw() +   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
-  xlab("Position in scaled transcript region") + ylab("Mean of standardised counts") + 
+  xlab("Position in scaled transcript region") + ylab("Mean of standardised counts") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   ggtitle(paste0("0-10 Genes n=", length(unique(coverage.sum.subset$Gene))) ) +
@@ -98,7 +83,7 @@ plot_02 <- ggplot(data=as.data.frame(coverage.sum.subset.raw.sum ), aes(x=Posito
   geom_line(aes(colour = as.factor(Fraction ))) +
   geom_ribbon(stat="identity", position = "identity", aes(fill= as.factor(Fraction), alpha=0.2, ymin = 0)) +
   theme_bw() +   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
-  xlab("Position in scaled transcript region") + ylab("Mean of standardised counts") + 
+  xlab("Position in scaled transcript region") + ylab("Mean of standardised counts") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   ggtitle(paste0("0-10 Genes n=", length(unique(coverage.sum.subset$Gene))) ) +
@@ -108,3 +93,24 @@ plot_02 <- ggplot(data=as.data.frame(coverage.sum.subset.raw.sum ), aes(x=Posito
 
 ggsave(paste0(outFolder,"run5_transcript_coverage_metaplots_frations_raw_filtered.png"), plot_02, width=300, height=500, unit="mm", dpi=100)
 
+
+
+#¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤#
+# DATA (my version, only for sanity test)
+#¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤#
+# Load Experiment
+library(ORFikPipeline)
+dfR <- read.experimentl("Valen5_2018") # Load fractions library
+dfR@expInVarName <- FALSE
+
+# Annotation
+txdb <- loadTxdb(dfR@txdb)
+txNames <- filterTranscripts(txdb, 100, 100, 100, T) # Filter
+loadRegions(txdb, names.keep = txNames)
+
+# Output data
+outFolder <- "/export/valenfs/projects/Hakon/RCP_SEQ/plots/"
+outputLibs(dfR)
+
+a <- transcriptWindow(leaders, cds, trailers, df = dfR, outdir = outFolder, allTogether = TRUE,
+                      colors = "blue", returnPlot = T)
